@@ -13,7 +13,6 @@ server:
   name: fasthttpd
   readBufferSize: 4096
   writeBufferSize: 4096
-  readTimeout: 60s
  
 # Define custom error pages (x matches [0-9])
 errorPages:

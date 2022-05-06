@@ -1,10 +1,12 @@
 package filter
 
 import (
+	"net/http"
 	"reflect"
 	"testing"
 
 	"github.com/jarxorg/tree"
+	"github.com/valyala/fasthttp"
 )
 
 func Test_NewBasicAuth(t *testing.T) {
@@ -92,6 +94,93 @@ func Test_NewBasicAuth(t *testing.T) {
 		}
 		if !reflect.DeepEqual(got, test.want) {
 			t.Errorf("tests[%d] got %#v; want %#v", i, *got, *test.want)
+		}
+	}
+}
+
+func Test_BasicAuth_Filter(t *testing.T) {
+	tests := []struct {
+		auth       *BasicAuth
+		ctx        func() *fasthttp.RequestCtx
+		want       bool
+		statusCode int
+	}{
+		{
+			auth: &BasicAuth{
+				Users: []*BasicAuthUser{
+					{
+						Name:   "foo",
+						Secret: "bar",
+					},
+				},
+			},
+			ctx: func() *fasthttp.RequestCtx {
+				ctx := &fasthttp.RequestCtx{}
+				return ctx
+			},
+			statusCode: http.StatusUnauthorized,
+		}, {
+			auth: &BasicAuth{
+				Users: []*BasicAuthUser{
+					{
+						Name:   "foo",
+						Secret: "bar",
+					},
+				},
+			},
+			ctx: func() *fasthttp.RequestCtx {
+				ctx := &fasthttp.RequestCtx{}
+				ctx.Request.Header.Add("Authorization", "Basic Zm9vOmJhcg==")
+				return ctx
+			},
+			want:       true,
+			statusCode: http.StatusOK,
+		}, {
+			auth: &BasicAuth{
+				Users: []*BasicAuthUser{
+					{
+						Name:   "foo",
+						Secret: "bar",
+					},
+				},
+			},
+			ctx: func() *fasthttp.RequestCtx {
+				ctx := &fasthttp.RequestCtx{}
+				ctx.Request.Header.Add("Authorization", "Unknown")
+				return ctx
+			},
+			want:       false,
+			statusCode: http.StatusBadRequest,
+		}, {
+			auth: &BasicAuth{
+				Users: []*BasicAuthUser{
+					{
+						Name:   "foo",
+						Secret: "foo",
+					},
+				},
+			},
+			ctx: func() *fasthttp.RequestCtx {
+				ctx := &fasthttp.RequestCtx{}
+				ctx.Request.Header.Add("Authorization", "Basic Zm9vOmJhcg==")
+				return ctx
+			},
+			want:       false,
+			statusCode: http.StatusUnauthorized,
+		},
+	}
+	for i, test := range tests {
+		if err := test.auth.init(); err != nil {
+			t.Fatal(err)
+		}
+		ctx := test.ctx()
+		got := test.auth.Filter(ctx)
+		if got != test.want {
+			t.Fatalf("tests[%d] got %v; want %v", i, got, test.want)
+		}
+		statusCode := ctx.Response.StatusCode()
+		if statusCode != test.statusCode {
+			t.Errorf("tests[%d] statusCode is %d; want %d", i, statusCode, test.statusCode)
 		}
 	}
 }

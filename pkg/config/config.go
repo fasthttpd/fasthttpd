@@ -35,6 +35,9 @@ func (cfg Config) Normalize() (Config, error) {
 	if cfg.Listen == "" {
 		cfg.Listen = DefaultListen
 	}
+	if cfg.Server == nil {
+		cfg.Server = tree.Map{}
+	}
 	if !cfg.Server.Has("name") {
 		cfg.Server.Set("name", tree.ToValue(DefaultServerName))
 	}

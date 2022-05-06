@@ -15,18 +15,21 @@ const (
 	DefaultRealm = "Restricted"
 )
 
+// BasicAuthUser represents a basic auth user.
 type BasicAuthUser struct {
 	Name   string `yaml:"name"`
 	Secret string `yaml:"secret"`
 	auth   []byte
 }
 
+// BasicAuth implements Filter.
 type BasicAuth struct {
 	Realm     string           `yaml:"realm"`
 	Users     []*BasicAuthUser `yaml:"users"`
 	UsersFile string           `yaml:"usersFile"`
 }
 
+// NewBasicAuth returns a new BasicAuth.
 func NewBasicAuth(cfg tree.Map) (*BasicAuth, error) {
 	f := &BasicAuth{
 		Realm: DefaultRealm,
@@ -40,6 +43,7 @@ func NewBasicAuth(cfg tree.Map) (*BasicAuth, error) {
 	return f, nil
 }
 
+// NewBasicAuthFilter returns a Filter of the BasicAuth.
 func NewBasicAuthFilter(cfg tree.Map) (Filter, error) {
 	f, err := NewBasicAuth(cfg)
 	if err != nil {
@@ -77,6 +81,9 @@ func (f *BasicAuth) unauthorized(ctx *fasthttp.RequestCtx) {
 
 var basicPrefix = []byte("Basic ")
 
+// Filter examines the Authorization header of the given ctx and matches it
+// against the user it holds. If the user does not match, it sets 401
+// Unauthorized and returns false.
 func (f *BasicAuth) Filter(ctx *fasthttp.RequestCtx) bool {
 	header := ctx.Request.Header.Peek(fasthttp.HeaderAuthorization)
 	if len(header) == 0 {
@@ -84,7 +91,7 @@ func (f *BasicAuth) Filter(ctx *fasthttp.RequestCtx) bool {
 		return false
 	}
 	if !bytes.HasPrefix(header, basicPrefix) {
-		ctx.Error("Unknown authorization", http.StatusInternalServerError)
+		ctx.Error("Unknown authorization", http.StatusBadRequest)
 		return false
 	}
 	auth := header[len(basicPrefix):]

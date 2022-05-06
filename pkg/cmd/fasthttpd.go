@@ -47,6 +47,7 @@ type FastHttpd struct {
 	isDaemon   bool
 	configFile string
 	editExprs  stringList
+	server     *fasthttp.Server
 }
 
 func NewFastHttpd() *FastHttpd {
@@ -163,7 +164,13 @@ func (d *FastHttpd) Run(args []string) error {
 			keepalivePeriod: s.TCPKeepalivePeriod,
 		})
 	}
+	s.Logger.Printf("Starting HTTP server on %q", cfg.Listen)
+	d.server = s
 	return s.Serve(ln)
+}
+
+func (d *FastHttpd) Shutdown() error {
+	return d.server.Shutdown()
 }
 
 func RunFastHttpd(args []string) error {

@@ -2,18 +2,17 @@ package config
 
 import (
 	"io/ioutil"
+	"os"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/jarxorg/tree"
 )
 
-func TestUnmarshalYAML(t *testing.T) {
-	data, err := ioutil.ReadFile("testdata/full.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := UnmarshalYAML(data)
+func Test_UnmarshalYAMLPath(t *testing.T) {
+	got, err := UnmarshalYAMLPath("testdata/full.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,5 +111,95 @@ func TestUnmarshalYAML(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v\nwant %#v", got, want)
+	}
+}
+
+func Test_UnmarshalYAMLPath_Errors(t *testing.T) {
+	invalidYaml, err := os.CreateTemp("", "*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(invalidYaml.Name())
+
+	if err := ioutil.WriteFile(invalidYaml.Name(), []byte(":invalid yaml"), os.ModePerm); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		path   string
+		errstr string
+	}{
+		{
+			path:   "testdata/not-found.yaml",
+			errstr: "open testdata/not-found.yaml: no such file or directory",
+		}, {
+			path:   invalidYaml.Name(),
+			errstr: "yaml: unmarshal errors",
+		},
+	}
+	for i, test := range tests {
+		_, err := UnmarshalYAMLPath(test.path)
+		if err == nil {
+			t.Fatalf("tests[%d] no error", i)
+		}
+		if !strings.HasPrefix(err.Error(), test.errstr) {
+			t.Errorf("tests[%d] got %q; want %q", i, err.Error(), test.errstr)
+		}
+	}
+}
+
+func Test_Config_Normalize(t *testing.T) {
+	tests := []struct {
+		cfg    Config
+		want   Config
+		errstr string
+	}{
+		{
+			cfg: Config{},
+			want: Config{
+				Listen: ":8800",
+				Server: tree.Map{
+					"name": tree.ToValue("fasthttpd"),
+				},
+			},
+		}, {
+			cfg: Config{
+				Server: tree.Map{
+					"readTimeout": tree.ToValue("60s"),
+				},
+			},
+			want: Config{
+				Listen: ":8800",
+				Server: tree.Map{
+					"name":        tree.ToValue("fasthttpd"),
+					"readTimeout": tree.NumberValue(60 * time.Second),
+				},
+			},
+		}, {
+			cfg: Config{
+				Server: tree.Map{
+					"readTimeout": tree.ToValue("invalid duration"),
+				},
+			},
+			errstr: `time: invalid duration "invalid duration"`,
+		},
+	}
+	for i, test := range tests {
+		got, err := test.cfg.Normalize()
+		if test.errstr != "" {
+			if err == nil {
+				t.Fatalf("tests[%d] no error", i)
+			}
+			if !strings.HasPrefix(err.Error(), test.errstr) {
+				t.Errorf("tests[%d] got %q; want %q", i, err.Error(), test.errstr)
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatalf("tests[%d] error %v", i, err)
+		}
+		if !reflect.DeepEqual(got, test.want) {
+			t.Errorf("tests[%d] got %#v; want %#v", i, got, test.want)
+		}
 	}
 }

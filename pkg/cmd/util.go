@@ -25,6 +25,7 @@ func getNetwork(listen string) string {
 }
 
 // NOTE: Copy from fasthttp/server.go
+//
 // tcpKeepAliveListener sets TCP keep-alive timeouts on accepted
 // connections. It's used by ListenAndServe, ListenAndServeTLS and
 // ListenAndServeTLSEmbed so dead TCP connections (e.g. closing laptop mid-download)
