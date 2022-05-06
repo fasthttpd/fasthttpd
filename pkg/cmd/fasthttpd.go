@@ -18,7 +18,7 @@ import (
 
 const (
 	cmd          = "fasthttpd"
-	desc         = cmd + " is a HTTP server using valyala/fasthttp."
+	desc         = "FastHttpd is a HTTP server using valyala/fasthttp."
 	usage        = cmd + " [flags] [query] ([file...])"
 	examplesText = `Examples:
   % fasthttpd -f config.yaml
@@ -64,7 +64,7 @@ func (d *FastHttpd) initFlagSet(args []string) error {
 	s.Usage = func() {
 		fmt.Fprintf(os.Stderr, "%s\n\nUsage:\n  %s\n\n", desc, usage)
 		fmt.Fprintln(os.Stderr, "Flags:")
-		flag.PrintDefaults()
+		s.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\n%s", examplesText)
 	}
 	return s.Parse(args[1:])
