@@ -1,0 +1,14 @@
+host: localhost
+listen: ':8800'
+root: ./public
+
+handlers:
+
+  static:
+    type: fs
+    indexNames: ['index.html']
+
+routes:
+
+  - path: /
+    handler: static
