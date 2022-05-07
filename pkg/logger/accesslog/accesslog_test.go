@@ -19,7 +19,7 @@ import (
 func Test_NewAccessLog(t *testing.T) {
 	tmp, err := os.CreateTemp("", "*.log")
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	defer os.Remove(tmp.Name())
 
@@ -48,10 +48,10 @@ func Test_NewAccessLog(t *testing.T) {
 			},
 		},
 	}
-	for _, test := range tests {
+	for i, test := range tests {
 		l, err := NewAccessLog(test.cfg)
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("tests[%d] unexpected error: %v", i, err)
 		}
 		l.Close()
 	}
@@ -127,7 +127,7 @@ func Test_AccessLog(t *testing.T) {
 
 	osHost, err := os.Hostname()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	timeNowOrg := timeNow
@@ -221,7 +221,7 @@ func Test_AccessLog(t *testing.T) {
 			cfg: config.Config{
 				Host: "example.com",
 				AccessLog: config.AccessLog{
-					Format: "%a %A %B %D %T %f %H %m %P %q %U %X %I %O %S",
+					Format: "%a %A %B %D %T %f %H %m %q %U %X %I %O %S",
 				},
 			},
 			ctx: func() *fasthttp.RequestCtx {
@@ -234,7 +234,7 @@ func Test_AccessLog(t *testing.T) {
 				rawRequest += "Content-Length: 12\r\n\r\n"
 				rawRequest += "request-body"
 				if err := ctx.Request.Read(bufio.NewReader(strings.NewReader(rawRequest))); err != nil {
-					t.Fatal(err)
+					t.Fatalf("unexpected error: %v", err)
 				}
 				ctx.URI().SetUsername("foo")
 				ctx.Response.SetBody([]byte("body"))
@@ -242,18 +242,18 @@ func Test_AccessLog(t *testing.T) {
 				ctx.Response.Header.Set("Response-Header", "response-header-value")
 				return ctx
 			},
-			want: "10.1.2.3:1234 0.0.0.0:0 4 9876543 9 /path HTTP/1.1 GET 20 ?foo=bar /path + 120 160 280",
+			want: "10.1.2.3:1234 0.0.0.0:0 4 9876543 9 /path HTTP/1.1 GET ?foo=bar /path + 120 160 280",
 		}, {
 			cfg: config.Config{
 				Host: "example.com",
 				AccessLog: config.AccessLog{
-					Format: "%L %k %q %u %b %{Unknown}C %{Unknown}e %{Unknown}i %{Unknown}o",
+					Format: "%P %L %k %q %u %b %{Unknown}C %{Unknown}e %{Unknown}i %{Unknown}o",
 				},
 			},
 			ctx: func() *fasthttp.RequestCtx {
 				return ctx0
 			},
-			want: fmt.Sprintf("%d 0 - - - - - - -", ctx0.ID()),
+			want: fmt.Sprintf("%d %d 0 - - - - - - -", os.Getegid(), ctx0.ID()),
 		},
 	}
 	wrote := make(chan bool)
@@ -272,7 +272,7 @@ func Test_AccessLog(t *testing.T) {
 		l, err := newAccessLog(dout, test.cfg)
 		if err != nil {
 			l.Close()
-			t.Fatal(err)
+			t.Fatalf("tests[%d] unexpected error: %v", i, err)
 		}
 		l.Collect(ctx)
 		l.Log(ctx)
