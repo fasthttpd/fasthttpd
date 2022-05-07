@@ -32,6 +32,15 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
+      - 
+        name: Check gofmt
+        run: diff -u <(echo -n) <(gofmt -d .)
+      - 
+        name: Run golangci-lint
+        run: | # https://github.com/golangci/golangci-lint/issues/2649
+          export PATH=$PATH:$(go env GOPATH)/bin
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.44.2
+          golangci-lint run
       -
         name: Tests
         run: |
