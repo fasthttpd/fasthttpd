@@ -195,6 +195,10 @@ func (rs Routes) Route(method, path []byte) *RoutesResult {
 }
 
 func (rs Routes) CachedRoute(method, path []byte) *RoutesResult {
+	if rs.cache == nil {
+		return rs.Route(method, path)
+	}
+
 	b := bytebufferpool.Get()
 	b.B = append(b.B, method...)
 	b.B = append(b.B, ' ')
@@ -205,7 +209,6 @@ func (rs Routes) CachedRoute(method, path []byte) *RoutesResult {
 	if v := rs.cache.Get(key); v != nil {
 		return v.(*RoutesResult)
 	}
-
 	result := rs.Route(method, path)
 	rs.cache.Set(key, result)
 	return result

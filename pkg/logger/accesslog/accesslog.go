@@ -19,8 +19,12 @@ const (
 	FormatCombined = `%h %l %u %t "%r" %>s %b "%{Referer}i" "%{User-agent}i"`
 )
 
-// UserKeyOriginalRequestURI is a key to store original RequestURI.
-var UserKeyOriginalRequestURI = []byte("Original-Request-URI")
+var (
+	// UserKeyOriginalRequestURI is a key to store original RequestURI.
+	UserKeyOriginalRequestURI = []byte("Original-Request-URI")
+	// UserKeyUsername is a key to store username.
+	UserKeyUsername = []byte("Username")
+)
 
 // AccessLog is an interface to write access log.
 type AccessLog interface {
@@ -28,6 +32,8 @@ type AccessLog interface {
 	Collect(ctx *fasthttp.RequestCtx)
 	// Log writes access log.
 	Log(ctx *fasthttp.RequestCtx)
+	// Close closes access log.
+	Close() error
 }
 
 // NewAccessLog returns a new AccessLog.
@@ -40,7 +46,7 @@ func NewAccessLog(cfg config.Config) (AccessLog, error) {
 	case "stderr":
 		return newAccessLog(os.Stderr, cfg)
 	default:
-		// TODO: rotation
+		// TODO: rotation and close.
 		f, err := os.OpenFile(cfg.AccessLog.Output, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
 			return nil, err
@@ -50,17 +56,32 @@ func NewAccessLog(cfg config.Config) (AccessLog, error) {
 }
 
 type accessLog struct {
-	out               io.Writer
+	out               io.WriteCloser
 	appendFuncs       []appendFunc
 	collectRequestURI bool
 	addrToPortCache   util.Cache
 }
 
-func newAccessLog(out io.Writer, cfg config.Config) (*accessLog, error) {
+func newAccessLog(out io.WriteCloser, cfg config.Config) (*accessLog, error) {
 	return (&accessLog{out: out}).init(cfg)
 }
 
 var formatPattern = regexp.MustCompile(`(%(>|{(.+?)})?([a-zA-Z%])|([^%]+))`)
+
+var timeNow = func() time.Time { return time.Now() }
+
+func (l *accessLog) Close() error {
+	l.appendFuncs = nil
+	l.collectRequestURI = false
+	l.addrToPortCache = nil
+	if l.out != nil {
+		if err := l.out.Close(); err != nil {
+			return err
+		}
+		l.out = nil
+	}
+	return nil
+}
 
 func (l *accessLog) init(cfg config.Config) (*accessLog, error) {
 	format := cfg.AccessLog.Format
@@ -123,7 +144,7 @@ func (l *accessLog) init(cfg config.Config) (*accessLog, error) {
 func (l *accessLog) Collect(ctx *fasthttp.RequestCtx) {
 	if l.collectRequestURI {
 		// NOTE: store string
-		uri := string(ctx.Request.RequestURI())
+		uri := string(ctx.URI().RequestURI())
 		ctx.SetUserValueBytes(UserKeyOriginalRequestURI, uri)
 	}
 }
@@ -137,7 +158,7 @@ func (l *accessLog) Log(ctx *fasthttp.RequestCtx) {
 
 	go func() {
 		defer bytebufferpool.Put(b)
-		l.out.Write(b.B)
+		l.out.Write(b.B) //nolint:errcheck
 	}()
 }
 
@@ -161,14 +182,14 @@ func (l *accessLog) portFromAddr(addr string) int {
 
 func (l *accessLog) appendLp(dst []byte, ctx *fasthttp.RequestCtx) []byte {
 	if p := l.portFromAddr(ctx.LocalAddr().String()); p > 0 {
-		return fasthttp.AppendUint(dst, 0)
+		return fasthttp.AppendUint(dst, p)
 	}
 	return appendNil(dst, nil)
 }
 
 func (l *accessLog) appendLpRemote(dst []byte, ctx *fasthttp.RequestCtx) []byte {
 	if p := l.portFromAddr(ctx.RemoteAddr().String()); p > 0 {
-		return fasthttp.AppendUint(dst, 0)
+		return fasthttp.AppendUint(dst, p)
 	}
 	return appendNil(dst, nil)
 }
@@ -291,13 +312,13 @@ var (
 	// In CLF format, i.e. a '-' rather than a 0 when no bytes are sent.
 	appendLb = func(dst []byte, ctx *fasthttp.RequestCtx) []byte {
 		if b := ctx.Response.Header.ContentLength(); b > 0 {
-			fasthttp.AppendUint(dst, b)
+			return fasthttp.AppendUint(dst, b)
 		}
 		return appendNil(dst, nil)
 	}
 	// appendD appends the time taken to serve the request, in microseconds.
 	appendD = func(dst []byte, ctx *fasthttp.RequestCtx) []byte {
-		t := time.Now().Sub(ctx.Time())
+		t := timeNow().Sub(ctx.Time())
 		return fasthttp.AppendUint(dst, int(t.Microseconds()))
 	}
 	// appendLf appends filename.
@@ -329,10 +350,9 @@ var (
 	// exists, otherwise an empty string).
 	appendLq = func(dst []byte, ctx *fasthttp.RequestCtx) []byte {
 		if qstr := ctx.URI().QueryString(); len(qstr) > 0 {
-			dst = append(dst, '?')
-			dst = append(dst, qstr...)
+			return append(append(dst, '?'), qstr...)
 		}
-		return dst
+		return appendNil(dst, nil)
 	}
 	// appendLr appends first line of request.
 	appendLr = func(dst []byte, ctx *fasthttp.RequestCtx) []byte {
@@ -355,7 +375,7 @@ var (
 	}
 	// appendT appends the time taken to serve the request, in seconds.
 	appendT = func(dst []byte, ctx *fasthttp.RequestCtx) []byte {
-		t := time.Now().Sub(ctx.Time())
+		t := timeNow().Sub(ctx.Time())
 		return fasthttp.AppendUint(dst, int(t.Seconds()))
 	}
 	// appendLu appends remote user if the request was authenticated.
@@ -415,6 +435,7 @@ var appendFuncs = map[string]appendFunc{
 	"D": appendD,
 	"f": appendLf,
 	"h": appendLh,
+	"H": appendH,
 	"k": appendLk,
 	"l": appendNil, // Unsupported
 	"L": appendL,
@@ -443,3 +464,4 @@ var (
 
 func (nilAccessLog) Collect(ctx *fasthttp.RequestCtx) {}
 func (nilAccessLog) Log(ctx *fasthttp.RequestCtx)     {}
+func (nilAccessLog) Close() error                     { return nil }

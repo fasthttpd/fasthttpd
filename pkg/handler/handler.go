@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/filter"
@@ -49,6 +50,19 @@ func NewMainHandler(cfg config.Config) (*MainHandler, error) {
 	return h, nil
 }
 
+func (h *MainHandler) Close() error {
+	var errs []string
+	if h.accessLog != nil {
+		if err := h.accessLog.Close(); err != nil {
+			errs = append(errs, err.Error())
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to close main handler: %s", strings.Join(errs, "; "))
+	}
+	return nil
+}
+
 func (h *MainHandler) init() error {
 	accessLog, err := accesslog.NewAccessLog(h.cfg)
 	if err != nil {
@@ -68,7 +82,9 @@ func (h *MainHandler) init() error {
 	h.handlers = map[string]fasthttp.RequestHandler{}
 	for name, hcfg := range h.cfg.Handlers {
 		if hcfg.Get("root").Value().String() == "" {
-			hcfg.Set("root", tree.ToValue(h.cfg.Root))
+			if err := hcfg.Set("root", tree.ToValue(h.cfg.Root)); err != nil {
+				return err
+			}
 		}
 		hh, err := NewHandler(hcfg)
 		if err != nil {

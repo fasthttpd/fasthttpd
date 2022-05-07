@@ -18,6 +18,7 @@ import (
 
 const (
 	cmd          = "fasthttpd"
+	version      = "0.0.1"
 	desc         = "FastHttpd is a HTTP server using valyala/fasthttp."
 	usage        = cmd + " [flags] [query] ([file...])"
 	examplesText = `Examples:
@@ -44,7 +45,6 @@ type FastHttpd struct {
 	flagSet    *flag.FlagSet
 	isVersion  bool
 	isHelp     bool
-	isDaemon   bool
 	configFile string
 	editExprs  stringList
 	server     *fasthttp.Server
@@ -123,6 +123,7 @@ func (d *FastHttpd) newServer(cfg config.Config) (*fasthttp.Server, error) {
 	s := &fasthttp.Server{
 		Handler:      h.Handle,
 		ErrorHandler: h.HandleError,
+		Logger:       logger.NilLogger,
 	}
 	if err := tree.Unmarshal(cfg.Server, s); err != nil {
 		return nil, err
@@ -144,6 +145,10 @@ func (d *FastHttpd) Run(args []string) error {
 		d.flagSet.Usage()
 		return nil
 	}
+	if d.isVersion {
+		fmt.Println(version)
+		return nil
+	}
 
 	cfg, err := d.initConfig()
 	if err != nil {
@@ -153,10 +158,13 @@ func (d *FastHttpd) Run(args []string) error {
 	if err != nil {
 		return err
 	}
-	ln, err := net.Listen(getNetwork(cfg.Listen), cfg.Listen)
+	ln, err := netListen(cfg.Listen)
 	if err != nil {
 		return err
 	}
+	s.Logger.Printf("Starting HTTP server on %q", cfg.Listen)
+	d.server = s
+
 	if tcpln, ok := ln.(*net.TCPListener); ok {
 		return s.Serve(tcpKeepaliveListener{
 			TCPListener:     tcpln,
@@ -164,13 +172,14 @@ func (d *FastHttpd) Run(args []string) error {
 			keepalivePeriod: s.TCPKeepalivePeriod,
 		})
 	}
-	s.Logger.Printf("Starting HTTP server on %q", cfg.Listen)
-	d.server = s
 	return s.Serve(ln)
 }
 
 func (d *FastHttpd) Shutdown() error {
-	return d.server.Shutdown()
+	if d.server != nil {
+		return d.server.Shutdown()
+	}
+	return nil
 }
 
 func RunFastHttpd(args []string) error {

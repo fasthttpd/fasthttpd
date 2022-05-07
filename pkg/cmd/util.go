@@ -24,6 +24,10 @@ func getNetwork(listen string) string {
 	return "tcp4"
 }
 
+var netListen = func(listen string) (net.Listener, error) {
+	return net.Listen(getNetwork(listen), listen)
+}
+
 // NOTE: Copy from fasthttp/server.go
 //
 // tcpKeepAliveListener sets TCP keep-alive timeouts on accepted

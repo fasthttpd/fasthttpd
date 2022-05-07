@@ -39,7 +39,9 @@ func (cfg Config) Normalize() (Config, error) {
 		cfg.Server = tree.Map{}
 	}
 	if !cfg.Server.Has("name") {
-		cfg.Server.Set("name", tree.ToValue(DefaultServerName))
+		if err := cfg.Server.Set("name", tree.ToValue(DefaultServerName)); err != nil {
+			return cfg, err
+		}
 	}
 	serverTimeDurationNames := []string{
 		"readTimeout",
@@ -58,7 +60,9 @@ func (cfg Config) Normalize() (Config, error) {
 				if err != nil {
 					return cfg, err
 				}
-				cfg.Server.Set(name, tree.NumberValue(d))
+				if err := cfg.Server.Set(name, tree.NumberValue(d)); err != nil {
+					return cfg, err
+				}
 			}
 		}
 	}
