@@ -25,7 +25,10 @@ func Test_UnmarshalYAMLPath(t *testing.T) {
 			"readBufferSize":  tree.ToValue(4096),
 			"writeBufferSize": tree.ToValue(4096),
 		},
-		Log: Log{Output: "stderr"},
+		Log: Log{
+			Output: "stderr",
+			Flags:  []string{"date", "time"},
+		},
 		AccessLog: AccessLog{
 			Output: "stdout",
 			Format: `%h %l %u %t "%r" %>s %b`,

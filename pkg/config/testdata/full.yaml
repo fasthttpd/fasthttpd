@@ -4,6 +4,8 @@ listen: ':8800'
 root: ./public
 log:
   output: stderr
+  # NOTE: Flags supports date|time|microseconds
+  flags: ['date', 'time']
 accessLog:
   output: stdout
   format: '%h %l %u %t "%r" %>s %b'

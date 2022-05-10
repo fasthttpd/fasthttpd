@@ -70,7 +70,9 @@ func (cfg Config) Normalize() (Config, error) {
 }
 
 type Log struct {
-	Output string `yaml:"output"`
+	Output string   `yaml:"output"`
+	Prefix string   `yaml:"prefix"`
+	Flags  []string `yaml:"flags"`
 }
 
 type AccessLog struct {
