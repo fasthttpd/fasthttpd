@@ -1,15 +1,26 @@
 package util
 
 import (
-	"bytes"
 	"math"
 )
 
 // AppendZeroPaddingUint appends n with zero padding that size of p to dst
 // and returns the extended dst.
 func AppendZeroPaddingUint(dst []byte, n, p int) []byte {
+	return AppendPaddingUint(dst, n, p, '0')
+}
+
+// AppendSpacePaddingUint appends n with space padding that size of p to dst
+// and returns the extended dst.
+func AppendSpacePaddingUint(dst []byte, n, p int) []byte {
+	return AppendPaddingUint(dst, n, p, ' ')
+}
+
+// AppendPaddingUint appends n with c padding that size of p to dst
+// and returns the extended dst.
+func AppendPaddingUint(dst []byte, n, p int, c byte) []byte {
 	if n < 0 {
-		panic("int must be positive")
+		panic("number must be positive")
 	}
 	if p < 1 {
 		panic("padding size must be at least 1")
@@ -33,18 +44,7 @@ func AppendZeroPaddingUint(dst []byte, n, p int) []byte {
 	buf[i] = '0' + byte(n)
 
 	for j := 0; j < i; j++ {
-		buf[j] = '0'
+		buf[j] = c
 	}
 	return append(dst, buf...)
-}
-
-// AppendQueryString appends queryString to dst.
-func AppendQueryString(dst, queryString []byte) []byte {
-	q := bytes.Index(dst, []byte{'?'})
-	if q == -1 {
-		dst = append(dst, '?')
-	} else {
-		dst = append(dst, '&')
-	}
-	return append(dst, queryString...)
 }

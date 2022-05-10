@@ -19,7 +19,7 @@ func Test_expireCache_Typical(t *testing.T) {
 	c.Set("key2", "value2")
 	c.Set("key3", "value3")
 	if len(c.store) != 3 {
-		t.Fatalf("len(c.store) is not 3\n")
+		t.Fatalf("unexpected size %d\n", len(c.store))
 	}
 
 	// NOTE: All values may be expired.
@@ -27,10 +27,12 @@ func Test_expireCache_Typical(t *testing.T) {
 	c.next = 0
 
 	// NOTE: Get a value and extends its expiration.
-	key := "key2"
-	want := "value2"
-	if got := c.Get(key); got != want {
-		t.Fatalf("c.Get(%q) returns %v; want %v", key, got, want)
+	if got := c.Get("key2"); got != "value2" {
+		t.Fatalf("unexpected value %v; want %v", got, "value2")
+	}
+
+	if got := c.Get("unknown"); got != nil {
+		t.Fatalf("unexpected value %v", got)
 	}
 
 	tries := 5
@@ -47,6 +49,23 @@ func Test_expireCache_Typical(t *testing.T) {
 		}
 	}
 	if !ok {
-		t.Fatalf("len(c.store) is not 1")
+		t.Fatalf("unexpected size %d\n", len(c.store))
+	}
+}
+
+func Test_expireCache_notify_return2nd(t *testing.T) {
+	c := NewExpireCache(0).(*expireCache)
+
+	c.mutex.Lock()
+
+	now := c.next + 1
+	c.notify(now)
+	c.next = now + 1
+	wantNext := c.next
+
+	c.mutex.Unlock()
+
+	if c.next != wantNext {
+		t.Errorf("unexpected c.next %d; want %d", c.next, wantNext)
 	}
 }

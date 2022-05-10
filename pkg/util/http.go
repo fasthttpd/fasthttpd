@@ -10,8 +10,8 @@ var (
 	HttpsProtocol = []byte("https://")
 )
 
-func IsHttpOrHttps(u []byte) bool {
-	return bytes.HasPrefix(u, HttpProtocol) || bytes.HasPrefix(u, HttpsProtocol)
+func IsHttpOrHttps(uri []byte) bool {
+	return bytes.HasPrefix(uri, HttpProtocol) || bytes.HasPrefix(uri, HttpsProtocol)
 }
 
 func IsHttpStatusRedirect(status int) bool {
@@ -35,4 +35,15 @@ func SplitRequestURI(uri []byte) ([]byte, []byte) {
 		return uri, nil
 	}
 	return uri[:q], uri[q+1:]
+}
+
+// AppendQueryString appends qstr to dst.
+func AppendQueryString(dst, qstr []byte) []byte {
+	q := bytes.Index(dst, []byte{'?'})
+	if q == -1 {
+		dst = append(dst, '?')
+	} else {
+		dst = append(dst, '&')
+	}
+	return append(dst, qstr...)
 }

@@ -33,3 +33,34 @@ func Test_AppendZeroPaddingUint(t *testing.T) {
 		}
 	}
 }
+
+func Test_AppendZeroPaddingUint_panics(t *testing.T) {
+	tests := []struct {
+		n      int
+		p      int
+		errstr string
+	}{
+		{
+			n:      -1,
+			errstr: "number must be positive",
+		}, {
+			p:      0,
+			errstr: "padding size must be at least 1",
+		},
+	}
+	fn := func(i, n, p int, errstr string) {
+		defer func() {
+			err := recover()
+			if err == nil {
+				t.Fatalf("tests[%d] unexpected no error", i)
+			}
+			if err != errstr {
+				t.Errorf("tests[%d] unexpected error %q; want %q", i, err, errstr)
+			}
+		}()
+		AppendZeroPaddingUint(nil, n, p)
+	}
+	for i, test := range tests {
+		fn(i, test.n, test.p, test.errstr)
+	}
+}
