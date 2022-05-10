@@ -2,8 +2,8 @@ github.com/andybalholm/brotli v1.0.4 h1:V7DdXeJtZscaqfNuAdSRuRFzuiKlHSC/Zh3zl9qY
 github.com/andybalholm/brotli v1.0.4/go.mod h1:fO7iG3H7G2nSZ7m0zPUDn85XEX2GTukHGRSepvi9Eig=
 github.com/jarxorg/io2 v0.6.1 h1:XmovakTSBQi51UGJx48djS0Q5W5mw/niLcN2nMgATdk=
 github.com/jarxorg/io2 v0.6.1/go.mod h1:8QgcffRwfV6AFbwwTxVtUqtoR0adjM95pQIyJCV0oGE=
-github.com/jarxorg/tree v0.6.2 h1:bC8OqJSajvXHQjIJfs7m/qdA6uuQhleKaXBSfuk+52c=
-github.com/jarxorg/tree v0.6.2/go.mod h1:mbXOKpv1OBhjV7kjzqvHPFm7kHCLfTLODmqVY1j9Pxg=
+github.com/jarxorg/tree v0.6.3 h1:997fbAQE0h2vXOY3fsT2ChSpp/iAE/+btJEEpOm4FX8=
+github.com/jarxorg/tree v0.6.3/go.mod h1:mbXOKpv1OBhjV7kjzqvHPFm7kHCLfTLODmqVY1j9Pxg=
 github.com/klauspost/compress v1.15.0 h1:xqfchp4whNFxn5A4XFyyYtitiWI8Hy5EW59jEwcyL6U=
 github.com/klauspost/compress v1.15.0/go.mod h1:/3/Vjq9QcHkK5uEr5lBEmyoZ1iFhe47etQ6QUkpK6sk=
 github.com/kr/pretty v0.1.0 h1:L/CwN0zerZDmRFUapSPitk6f+Q3+0za1rQkzVuMiMFI=
