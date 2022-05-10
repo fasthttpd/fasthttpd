@@ -34,7 +34,7 @@ func NewBasicAuth(cfg tree.Map) (*BasicAuth, error) {
 	f := &BasicAuth{
 		Realm: DefaultRealm,
 	}
-	if err := tree.Unmarshal(cfg, f); err != nil {
+	if err := tree.UnmarshalViaYAML(cfg, f); err != nil {
 		return nil, err
 	}
 	if err := f.init(); err != nil {

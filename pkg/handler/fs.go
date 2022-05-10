@@ -7,7 +7,7 @@ import (
 
 func NewFSHandler(cfg tree.Map) (fasthttp.RequestHandler, error) {
 	fs := &fasthttp.FS{}
-	if err := tree.Unmarshal(cfg, fs); err != nil {
+	if err := tree.UnmarshalViaYAML(cfg, fs); err != nil {
 		return nil, err
 	}
 	return fs.NewRequestHandler(), nil

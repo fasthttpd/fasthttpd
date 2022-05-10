@@ -14,7 +14,6 @@ import (
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/jarxorg/tree"
 	"github.com/valyala/fasthttp"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -90,11 +89,7 @@ func (d *FastHttpd) initConfig() (config.Config, error) {
 		}
 	}
 	if len(d.editExprs) > 0 {
-		y, err := yaml.Marshal(cfg)
-		if err != nil {
-			return cfg, err
-		}
-		n, err := tree.UnmarshalYAML(y)
+		n, err := tree.MarshalViaYAML(cfg)
 		if err != nil {
 			return cfg, err
 		}
@@ -113,12 +108,7 @@ func (d *FastHttpd) initConfig() (config.Config, error) {
 				return cfg, err
 			}
 		}
-		y, err = tree.MarshalYAML(n)
-		if err != nil {
-			return cfg, err
-		}
-		cfg = config.Config{}
-		if err := yaml.Unmarshal(y, &cfg); err != nil {
+		if err := tree.UnmarshalViaYAML(n, &cfg); err != nil {
 			return cfg, err
 		}
 	}
@@ -139,7 +129,7 @@ func (d *FastHttpd) newServer(cfg config.Config) (*fasthttp.Server, error) {
 		ErrorHandler: h.HandleError,
 		Logger:       l,
 	}
-	if err := tree.Unmarshal(cfg.Server, s); err != nil {
+	if err := tree.UnmarshalViaYAML(cfg.Server, s); err != nil {
 		return nil, err
 	}
 	return s, nil
