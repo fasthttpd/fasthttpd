@@ -1,0 +1,13 @@
+host: localhost
+listen: ':8800'
+
+handlers:
+
+  backend:
+    type: proxy
+    url: http://localhost:9000/
+
+routes:
+
+  - path: /
+    handler: backend

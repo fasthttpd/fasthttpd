@@ -1,11 +1,13 @@
 package route
 
 import (
+	"bytes"
 	"net/http"
 	"reflect"
 	"testing"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
+	"github.com/valyala/fasthttp"
 )
 
 func Test_Match(t *testing.T) {
@@ -141,17 +143,7 @@ func Test_NewRoutes(t *testing.T) {
 	}
 }
 
-func Test_Route(t *testing.T) {
-	c, err := config.UnmarshalYAMLPath("../config/testdata/full.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	rs, err := NewRoutes(c)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+func testRoutes(t *testing.T, rs *Routes) {
 	tests := []struct {
 		method string
 		path   string
@@ -188,7 +180,7 @@ func Test_Route(t *testing.T) {
 			method: http.MethodGet,
 			path:   "/redirect-external",
 			want: &RoutesResult{
-				RedirectURL:   []byte("http://example.com/"),
+				RedirectURI:   []byte("http://example.com/"),
 				StatusCode:    302,
 				StatusMessage: []byte(http.StatusText(302)),
 			},
@@ -196,7 +188,7 @@ func Test_Route(t *testing.T) {
 			method: http.MethodGet,
 			path:   "/redirect-internal",
 			want: &RoutesResult{
-				RedirectURL:       []byte("/internal?foo=bar"),
+				RedirectURI:       []byte("/internal?foo=bar"),
 				AppendQueryString: true,
 				StatusCode:        302,
 				StatusMessage:     []byte(http.StatusText(302)),
@@ -211,11 +203,35 @@ func Test_Route(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		got := rs.Route([]byte(test.method), []byte(test.path))
+		ctx := &fasthttp.RequestCtx{}
+		ctx.Request.Header.SetMethod(test.method)
+		ctx.URI().SetPath(test.path)
+		got := rs.CachedRouteCtx(ctx)
 		if !reflect.DeepEqual(got, test.want) {
-			t.Errorf("tests[%d] got %#v; want %#v", i, *got, *test.want)
+			t.Errorf("tests[%d] unexpected result %#v; want %#v", i, *got, *test.want)
+		}
+		if rs.cache != nil {
+			got2 := rs.CachedRoute([]byte(test.method), []byte(test.path))
+			if !reflect.DeepEqual(got2, test.want) {
+				t.Errorf("tests[%d] unexpected 2nd result %#v; want %#v", i, *got2, *test.want)
+			}
 		}
 	}
+}
+
+func Test_Routes(t *testing.T) {
+	c, err := config.UnmarshalYAMLPath("../config/testdata/full.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs, err := NewRoutes(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testRoutes(t, rs)
+
+	rs.cache = nil
+	testRoutes(t, rs)
 }
 
 func Test_RouteNotFound(t *testing.T) {
@@ -228,5 +244,83 @@ func Test_RouteNotFound(t *testing.T) {
 	want := &RoutesResult{StatusCode: http.StatusNotFound}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %#v; want %#v", got, want)
+	}
+}
+
+func Test_RoutesResult_RewriteURIWithQueryString(t *testing.T) {
+	tests := []struct {
+		result     *RoutesResult
+		requestUri []byte
+		want       []byte
+	}{
+		{
+			result: &RoutesResult{
+				RewriteURI:        []byte("/rewrite-uri"),
+				AppendQueryString: false,
+			},
+			requestUri: []byte("/path?a=1"),
+			want:       []byte("/rewrite-uri"),
+		}, {
+			result: &RoutesResult{
+				RewriteURI:        []byte("/rewrite-uri"),
+				AppendQueryString: true,
+			},
+			requestUri: []byte("/path?a=1"),
+			want:       []byte("/rewrite-uri?a=1"),
+		}, {
+			result: &RoutesResult{
+				RewriteURI:        []byte("/rewrite-uri?b=2"),
+				AppendQueryString: true,
+			},
+			requestUri: []byte("/path?a=1"),
+			want:       []byte("/rewrite-uri?b=2&a=1"),
+		},
+	}
+	for i, test := range tests {
+		ctx := &fasthttp.RequestCtx{}
+		ctx.Request.SetRequestURI(string(test.requestUri))
+		got := test.result.RewriteURIWithQueryString(ctx)
+		if !bytes.Equal(got, test.want) {
+			t.Errorf("tests[%d] unexpected uri %q; want %q", i, got, test.want)
+		}
+	}
+}
+
+func Test_RoutesResult_RedirectURIWithQueryString(t *testing.T) {
+	tests := []struct {
+		result     *RoutesResult
+		requestUri []byte
+		want       []byte
+	}{
+		{
+			result: &RoutesResult{
+				RedirectURI:       []byte("http://example.com/"),
+				AppendQueryString: false,
+			},
+			requestUri: []byte("/path?a=1"),
+			want:       []byte("http://example.com/"),
+		}, {
+			result: &RoutesResult{
+				RedirectURI:       []byte("http://example.com/"),
+				AppendQueryString: true,
+			},
+			requestUri: []byte("/path?a=1"),
+			want:       []byte("http://example.com/?a=1"),
+		}, {
+			result: &RoutesResult{
+				RedirectURI:       []byte("http://example.com/?a=1"),
+				AppendQueryString: true,
+			},
+			requestUri: []byte("/path?b=2"),
+			want:       []byte("http://example.com/?a=1&b=2"),
+		},
+	}
+	for i, test := range tests {
+		ctx := &fasthttp.RequestCtx{}
+		ctx.Request.SetRequestURI(string(test.requestUri))
+		got := test.result.RedirectURIWithQueryString(ctx)
+		if !bytes.Equal(got, test.want) {
+			t.Errorf("tests[%d] unexpected uri %q; want %q", i, got, test.want)
+		}
 	}
 }

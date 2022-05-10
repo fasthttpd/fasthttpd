@@ -7,13 +7,17 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/valyala/fasthttp"
 )
 
 func Test_ErrorPages(t *testing.T) {
 	logBuf := new(bytes.Buffer)
-	logger := logger.NewLogger(logBuf)
+	logger, err := logger.NewLoggerWriter(config.Log{}, logBuf)
+	if err != nil {
+		t.Fatal(err)
+	}
 	ctx := &fasthttp.RequestCtx{}
 
 	errorPages := NewErrorPages("testdata/public", map[string]string{

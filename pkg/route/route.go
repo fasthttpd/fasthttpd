@@ -100,7 +100,7 @@ type RoutesResult struct {
 	StatusCode        int
 	StatusMessage     []byte
 	RewriteURI        []byte
-	RedirectURL       []byte
+	RedirectURI       []byte
 	AppendQueryString bool
 	Handler           string
 	Filters           []string
@@ -114,10 +114,10 @@ func (r RoutesResult) RewriteURIWithQueryString(ctx *fasthttp.RequestCtx) []byte
 }
 
 func (r RoutesResult) RedirectURIWithQueryString(ctx *fasthttp.RequestCtx) []byte {
-	if r.AppendQueryString && len(r.RedirectURL) > 0 {
-		return util.AppendQueryString(r.RedirectURL, ctx.URI().QueryString())
+	if r.AppendQueryString && len(r.RedirectURI) > 0 {
+		return util.AppendQueryString(r.RedirectURI, ctx.URI().QueryString())
 	}
-	return r.RedirectURL
+	return r.RedirectURI
 }
 
 var DefaultRoutesCacheSize = 100
@@ -176,11 +176,11 @@ func (rs Routes) Route(method, path []byte) *RoutesResult {
 		if rewriteUri := r.rewrite(path); len(rewriteUri) > 0 {
 			result.AppendQueryString = r.cfg.Rewrite.AppendQueryString
 			if util.IsHttpOrHttps(rewriteUri) {
-				result.RedirectURL = rewriteUri
+				result.RedirectURI = rewriteUri
 				return result
 			}
 			if util.IsHttpStatusRedirect(result.StatusCode) {
-				result.RedirectURL = rewriteUri
+				result.RedirectURI = rewriteUri
 				return result
 			}
 			result.RewriteURI = rewriteUri
