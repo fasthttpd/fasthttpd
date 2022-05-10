@@ -254,6 +254,16 @@ func Test_AccessLog(t *testing.T) {
 				return ctx0
 			},
 			want: fmt.Sprintf("%d %d 0 - - - - - - -", os.Getegid(), ctx0.ID()),
+		}, {
+			cfg: config.Config{
+				AccessLog: config.AccessLog{
+					Format: "%{%Y-%m-%d %H:%I:%S %a %P}t",
+				},
+			},
+			ctx: func() *fasthttp.RequestCtx {
+				return &fasthttp.RequestCtx{}
+			},
+			want: `0001-01-01 00:00:00 Mon AM`,
 		},
 	}
 	wrote := make(chan bool)

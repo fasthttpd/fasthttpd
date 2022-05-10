@@ -10,6 +10,7 @@ import (
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/util"
+	"github.com/jarxorg/io2"
 	"github.com/valyala/bytebufferpool"
 	"github.com/valyala/fasthttp"
 )
@@ -42,9 +43,9 @@ func NewAccessLog(cfg config.Config) (AccessLog, error) {
 	case "":
 		return NilAccessLog, nil
 	case "stdout":
-		return newAccessLog(os.Stdout, cfg)
+		return newAccessLog(io2.NopWriteCloser(os.Stdout), cfg)
 	case "stderr":
-		return newAccessLog(os.Stderr, cfg)
+		return newAccessLog(io2.NopWriteCloser(os.Stderr), cfg)
 	default:
 		// TODO: rotation and close.
 		f, err := os.OpenFile(cfg.AccessLog.Output, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
@@ -111,6 +112,12 @@ func (l *accessLog) init(cfg config.Config) (*accessLog, error) {
 			}
 			if l.addrToPortCache == nil {
 				l.addrToPortCache = util.NewExpireCache(0)
+			}
+		case "t":
+			if ms[3] == "" {
+				fns = append(fns, appendLt)
+			} else {
+				fns = append(fns, newAppendStrftime(ms[3]))
 			}
 		case "v":
 			if cfg.Host != "" {
@@ -288,6 +295,13 @@ func newAppendResponseHeader(key string) appendFunc {
 			return append(dst, v...)
 		}
 		return appendNil(dst, nil)
+	}
+}
+
+func newAppendStrftime(format string) appendFunc {
+	s := util.NewStrftime(format)
+	return func(dst []byte, ctx *fasthttp.RequestCtx) []byte {
+		return s.AppendBytes(dst, ctx.Time())
 	}
 }
 
