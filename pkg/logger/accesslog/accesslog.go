@@ -44,9 +44,9 @@ func NewAccessLog(cfg config.Config) (AccessLog, error) {
 	case "":
 		return NilAccessLog, nil
 	case "stdout":
-		return newAccessLog(&logger.NopWriteCloseRotater{os.Stdout}, cfg)
+		return newAccessLog(&logger.NopWriteCloseRotater{Writer: os.Stdout}, cfg)
 	case "stderr":
-		return newAccessLog(&logger.NopWriteCloseRotater{os.Stderr}, cfg)
+		return newAccessLog(&logger.NopWriteCloseRotater{Writer: os.Stderr}, cfg)
 	default:
 		return newAccessLog(&lumberjack.Logger{
 			Filename:   cfg.AccessLog.Output,

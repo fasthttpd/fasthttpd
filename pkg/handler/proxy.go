@@ -15,7 +15,7 @@ type ProxyHandler struct {
 
 func NewProxyHandler(cfg tree.Map) (fasthttp.RequestHandler, error) {
 	h := &ProxyHandler{}
-	if err := tree.UnmarshalViaYAML(cfg, h); err != nil {
+	if err := tree.UnmarshalViaJSON(cfg, h); err != nil {
 		return nil, err
 	}
 	u, err := url.Parse(h.URL)

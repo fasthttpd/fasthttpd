@@ -61,7 +61,7 @@ func NewLogger(cfg config.Log) (Logger, error) {
 
 // NewLoggerWriter returns a new logger with out.
 func NewLoggerWriter(cfg config.Log, out io.Writer) (Logger, error) {
-	return newLogger(&NopWriteCloseRotater{out}, cfg)
+	return newLogger(&NopWriteCloseRotater{Writer: out}, cfg)
 }
 
 // NewLoggerWriteCloseRotater returns a new logger with out.
