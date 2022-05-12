@@ -38,7 +38,7 @@ func newMinimalConfig() (config.Config, error) {
 			},
 		},
 		Routes: []config.Route{{Handler: "static"}},
-	}.Normalize()
+	}.SetDefaults().Normalize()
 }
 
 type FastHttpd struct {

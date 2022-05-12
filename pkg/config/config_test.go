@@ -26,12 +26,14 @@ func Test_UnmarshalYAMLPath(t *testing.T) {
 			"writeBufferSize": tree.ToValue(4096),
 		},
 		Log: Log{
-			Output: "stderr",
-			Flags:  []string{"date", "time"},
+			Output:   "logs/error.log",
+			Flags:    []string{"date", "time"},
+			Rotation: Rotation{}.SetDefaults(),
 		},
 		AccessLog: AccessLog{
-			Output: "stdout",
-			Format: `%h %l %u %t "%r" %>s %b`,
+			Output:   "logs/access.log",
+			Format:   `%h %l %u %t "%r" %>s %b`,
+			Rotation: Rotation{}.SetDefaults(),
 		},
 		ErrorPages: map[string]string{
 			"404": "/err/404.html",
@@ -164,7 +166,7 @@ func Test_Config_Normalize(t *testing.T) {
 				Server: tree.Map{
 					"name": tree.ToValue("fasthttpd"),
 				},
-			},
+			}.SetDefaults(),
 		}, {
 			cfg: Config{
 				Server: tree.Map{
@@ -177,7 +179,7 @@ func Test_Config_Normalize(t *testing.T) {
 					"name":        tree.ToValue("fasthttpd"),
 					"readTimeout": tree.NumberValue(60 * time.Second),
 				},
-			},
+			}.SetDefaults(),
 		}, {
 			cfg: Config{
 				Server: tree.Map{
@@ -188,7 +190,7 @@ func Test_Config_Normalize(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		got, err := test.cfg.Normalize()
+		got, err := test.cfg.SetDefaults().Normalize()
 		if test.errstr != "" {
 			if err == nil {
 				t.Fatalf("tests[%d] no error", i)

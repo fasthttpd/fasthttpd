@@ -6,14 +6,36 @@ import (
 	"os"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
-	"github.com/jarxorg/io2"
 	"github.com/valyala/fasthttp"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
+
+type Rotater interface {
+	Rotate() error
+}
 
 // Logger is an interface to logging.
 type Logger interface {
 	fasthttp.Logger
-	Close() error
+	Rotater
+	io.Closer
+}
+
+type WriteCloseRotater interface {
+	io.WriteCloser
+	Rotater
+}
+
+type NopWriteCloseRotater struct {
+	io.Writer
+}
+
+func (*NopWriteCloseRotater) Rotate() error {
+	return nil
+}
+
+func (*NopWriteCloseRotater) Close() error {
+	return nil
 }
 
 // NewLogger returns a new logger.
@@ -26,31 +48,33 @@ func NewLogger(cfg config.Log) (Logger, error) {
 	case "stderr":
 		return NewLoggerWriter(cfg, os.Stderr)
 	default:
-		// TODO: rotation and close.
-		f, err := os.OpenFile(cfg.Output, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		if err != nil {
-			return nil, err
-		}
-		return NewLoggerWriteCloser(cfg, f)
+		return NewLoggerWriteCloseRotater(cfg, &lumberjack.Logger{
+			Filename:   cfg.Output,
+			MaxSize:    cfg.Rotation.MaxSize,
+			MaxBackups: cfg.Rotation.MaxBackups,
+			MaxAge:     cfg.Rotation.MaxAge,
+			Compress:   cfg.Rotation.Compress,
+			LocalTime:  cfg.Rotation.LocalTime,
+		})
 	}
 }
 
 // NewLoggerWriter returns a new logger with out.
 func NewLoggerWriter(cfg config.Log, out io.Writer) (Logger, error) {
-	return newLogger(io2.NopWriteCloser(out), cfg)
+	return newLogger(&NopWriteCloseRotater{out}, cfg)
 }
 
-// NewLoggerWriteCloser returns a new logger with out.
-func NewLoggerWriteCloser(cfg config.Log, out io.WriteCloser) (Logger, error) {
+// NewLoggerWriteCloseRotater returns a new logger with out.
+func NewLoggerWriteCloseRotater(cfg config.Log, out WriteCloseRotater) (Logger, error) {
 	return newLogger(out, cfg)
 }
 
 type logger struct {
 	*log.Logger
-	closer io.Closer
+	closeRotater WriteCloseRotater
 }
 
-func newLogger(out io.WriteCloser, cfg config.Log) (*logger, error) {
+func newLogger(out WriteCloseRotater, cfg config.Log) (*logger, error) {
 	flgs := 0
 	for _, flg := range cfg.Flags {
 		switch flg {
@@ -66,16 +90,24 @@ func newLogger(out io.WriteCloser, cfg config.Log) (*logger, error) {
 			flgs |= log.Lmsgprefix
 		}
 	}
-	return &logger{Logger: log.New(out, cfg.Prefix, flgs), closer: out}, nil
+	return &logger{Logger: log.New(out, cfg.Prefix, flgs), closeRotater: out}, nil
+}
+
+// Rotate rotate log stream.
+func (l *logger) Rotate() error {
+	if l.closeRotater != nil {
+		return l.closeRotater.Rotate()
+	}
+	return nil
 }
 
 // Close closes log stream.
 func (l *logger) Close() error {
-	if l.closer != nil {
-		if err := l.closer.Close(); err != nil {
+	if l.closeRotater != nil {
+		if err := l.closeRotater.Close(); err != nil {
 			return err
 		}
-		l.closer = nil
+		l.closeRotater = nil
 	}
 	return nil
 }
@@ -88,4 +120,5 @@ var (
 )
 
 func (nilLogger) Printf(format string, args ...interface{}) {}
+func (nilLogger) Rotate() error                             { return nil }
 func (nilLogger) Close() error                              { return nil }
