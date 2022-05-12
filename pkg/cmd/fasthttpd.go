@@ -11,7 +11,6 @@ import (
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/handler"
-	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/jarxorg/tree"
 	"github.com/valyala/fasthttp"
 )
@@ -31,6 +30,7 @@ func newMinimalConfig() (config.Config, error) {
 	return config.Config{
 		Host: "localhost",
 		Root: "./public",
+		Log:  config.Log{Output: "stderr"}.SetDefaults(),
 		Handlers: map[string]tree.Map{
 			"static": {
 				"type":       tree.ToValue("fs"),
@@ -38,7 +38,7 @@ func newMinimalConfig() (config.Config, error) {
 			},
 		},
 		Routes: []config.Route{{Handler: "static"}},
-	}.Normalize()
+	}.SetDefaults().Normalize()
 }
 
 type FastHttpd struct {
@@ -115,21 +115,13 @@ func (d *FastHttpd) initConfig() (config.Config, error) {
 	return cfg, nil
 }
 
-func (d *FastHttpd) newServer(cfg config.Config) (*fasthttp.Server, error) {
-	h, err := handler.NewMainHandler(cfg)
-	if err != nil {
-		return nil, err
-	}
-	l, err := logger.NewLogger(cfg.Log)
-	if err != nil {
-		return nil, err
-	}
+func (d *FastHttpd) newServer(cfg config.Config, h *handler.MainHandler) (*fasthttp.Server, error) {
 	s := &fasthttp.Server{
 		Handler:      h.Handle,
 		ErrorHandler: h.HandleError,
-		Logger:       l,
+		Logger:       h.Logger(),
 	}
-	if err := tree.UnmarshalViaYAML(cfg.Server, s); err != nil {
+	if err := tree.UnmarshalViaJSON(cfg.Server, s); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -152,7 +144,13 @@ func (d *FastHttpd) Run(args []string) error {
 	if err != nil {
 		return err
 	}
-	s, err := d.newServer(cfg)
+	h, err := handler.NewMainHandler(cfg)
+	if err != nil {
+		return err
+	}
+	defer h.Close()
+
+	s, err := d.newServer(cfg, h)
 	if err != nil {
 		return err
 	}

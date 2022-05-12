@@ -1,13 +1,17 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/filter"
+	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/fasthttpd/fasthttpd/pkg/logger/accesslog"
 	"github.com/fasthttpd/fasthttpd/pkg/route"
 	"github.com/jarxorg/tree"
@@ -32,7 +36,9 @@ func NewHandler(cfg tree.Map) (fasthttp.RequestHandler, error) {
 
 type MainHandler struct {
 	cfg        config.Config
+	logger     logger.Logger
 	accessLog  accesslog.AccessLog
+	stopHup    context.CancelFunc
 	errorPages *ErrorPages
 	filters    map[string]filter.Filter
 	handlers   map[string]fasthttp.RequestHandler
@@ -51,6 +57,11 @@ func NewMainHandler(cfg config.Config) (*MainHandler, error) {
 }
 
 func (h *MainHandler) Close() error {
+	if h.stopHup != nil {
+		stop := h.stopHup
+		h.stopHup = nil
+		stop()
+	}
 	var errs []string
 	if h.accessLog != nil {
 		if err := h.accessLog.Close(); err != nil {
@@ -64,11 +75,17 @@ func (h *MainHandler) Close() error {
 }
 
 func (h *MainHandler) init() error {
-	accessLog, err := accesslog.NewAccessLog(h.cfg)
+	l, err := logger.NewLogger(h.cfg.Log)
 	if err != nil {
 		return err
 	}
-	h.accessLog = accessLog
+	h.logger = l
+
+	al, err := accesslog.NewAccessLog(h.cfg)
+	if err != nil {
+		return err
+	}
+	h.accessLog = al
 
 	h.filters = map[string]filter.Filter{}
 	for name, filterCfg := range h.cfg.Filters {
@@ -98,6 +115,23 @@ func (h *MainHandler) init() error {
 		return err
 	}
 	h.routes = routes
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGHUP)
+	h.stopHup = stop
+	go func() {
+		for {
+			<-ctx.Done()
+			if h.stopHup == nil {
+				break
+			}
+			l.Printf("signal hup: rotate logs\n")
+			l.Rotate()  //nolint:errcheck
+			al.Rotate() //nolint:errcheck
+			stop()
+			ctx, stop = signal.NotifyContext(context.Background(), syscall.SIGHUP)
+			h.stopHup = stop
+		}
+	}()
 
 	return nil
 }
@@ -144,4 +178,9 @@ func (h *MainHandler) HandleError(ctx *fasthttp.RequestCtx, err error) {
 		ctx.Response.SetStatusCode(http.StatusBadRequest)
 	}
 	h.errorPages.Handle(ctx)
+}
+
+// Logger returns a logger.
+func (h *MainHandler) Logger() logger.Logger {
+	return h.logger
 }

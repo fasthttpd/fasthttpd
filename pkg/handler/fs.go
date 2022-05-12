@@ -5,9 +5,17 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-func NewFSHandler(cfg tree.Map) (fasthttp.RequestHandler, error) {
+func NewFS(cfg tree.Map) (*fasthttp.FS, error) {
 	fs := &fasthttp.FS{}
-	if err := tree.UnmarshalViaYAML(cfg, fs); err != nil {
+	if err := tree.UnmarshalViaJSON(cfg, fs); err != nil {
+		return nil, err
+	}
+	return fs, nil
+}
+
+func NewFSHandler(cfg tree.Map) (fasthttp.RequestHandler, error) {
+	fs, err := NewFS(cfg)
+	if err != nil {
 		return nil, err
 	}
 	return fs.NewRequestHandler(), nil

@@ -31,7 +31,7 @@ type Config struct {
 	RoutesCache RoutesCache         `yaml:"routesCache"`
 }
 
-func (cfg Config) Normalize() (Config, error) {
+func (cfg Config) SetDefaults() Config {
 	if cfg.Listen == "" {
 		cfg.Listen = DefaultListen
 	}
@@ -39,10 +39,15 @@ func (cfg Config) Normalize() (Config, error) {
 		cfg.Server = tree.Map{}
 	}
 	if !cfg.Server.Has("name") {
-		if err := cfg.Server.Set("name", tree.ToValue(DefaultServerName)); err != nil {
-			return cfg, err
-		}
+		cfg.Server.Set("name", tree.ToValue(DefaultServerName)) //nolint:errcheck
 	}
+
+	cfg.Log = cfg.Log.SetDefaults()
+	cfg.AccessLog = cfg.AccessLog.SetDefaults()
+	return cfg
+}
+
+func (cfg Config) Normalize() (Config, error) {
 	serverTimeDurationNames := []string{
 		"readTimeout",
 		"writeTimeout",
@@ -69,15 +74,45 @@ func (cfg Config) Normalize() (Config, error) {
 	return cfg, nil
 }
 
+type Rotation struct {
+	MaxSize    int  `yaml:"maxSize"`
+	MaxBackups int  `yaml:"maxBackups"`
+	MaxAge     int  `yaml:"maxAge"`
+	Compress   bool `yaml:"compress"`
+	LocalTime  bool `yaml:"localTime"`
+}
+
+func (r Rotation) SetDefaults() Rotation {
+	r.MaxSize = 100
+	r.MaxBackups = 14
+	r.MaxAge = 28
+	r.Compress = true
+	r.LocalTime = true
+	return r
+}
+
 type Log struct {
-	Output string   `yaml:"output"`
-	Prefix string   `yaml:"prefix"`
-	Flags  []string `yaml:"flags"`
+	Output   string   `yaml:"output"`
+	Prefix   string   `yaml:"prefix"`
+	Flags    []string `yaml:"flags"`
+	Rotation Rotation
+}
+
+func (l Log) SetDefaults() Log {
+	l.Flags = []string{"date", "time"}
+	l.Rotation = l.Rotation.SetDefaults()
+	return l
 }
 
 type AccessLog struct {
-	Output string `yaml:"output"`
-	Format string `yaml:"format"`
+	Output   string `yaml:"output"`
+	Format   string `yaml:"format"`
+	Rotation Rotation
+}
+
+func (l AccessLog) SetDefaults() AccessLog {
+	l.Rotation = l.Rotation.SetDefaults()
+	return l
 }
 
 type Route struct {
@@ -114,7 +149,7 @@ func UnmarshalYAMLPath(path string) (Config, error) {
 }
 
 func UnmarshalYAML(data []byte) (Config, error) {
-	var cfg Config
+	cfg := Config{}.SetDefaults()
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return cfg, err
 	}

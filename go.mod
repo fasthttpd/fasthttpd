@@ -7,10 +7,12 @@ require (
 	github.com/jarxorg/tree v0.6.3
 	github.com/valyala/bytebufferpool v1.0.0
 	github.com/valyala/fasthttp v1.35.0
+	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
+	github.com/BurntSushi/toml v1.1.0 // indirect
 	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/klauspost/compress v1.15.0 // indirect
 	github.com/kr/pretty v0.1.0 // indirect

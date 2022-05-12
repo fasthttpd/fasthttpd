@@ -9,10 +9,11 @@ import (
 	"time"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
+	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/fasthttpd/fasthttpd/pkg/util"
-	"github.com/jarxorg/io2"
 	"github.com/valyala/bytebufferpool"
 	"github.com/valyala/fasthttp"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 const (
@@ -29,12 +30,12 @@ var (
 
 // AccessLog is an interface to write access log.
 type AccessLog interface {
+	logger.Rotater
+	io.Closer
 	// Collect collects informations before Log.
 	Collect(ctx *fasthttp.RequestCtx)
 	// Log writes access log.
 	Log(ctx *fasthttp.RequestCtx)
-	// Close closes access log.
-	Close() error
 }
 
 // NewAccessLog returns a new AccessLog.
@@ -43,33 +44,42 @@ func NewAccessLog(cfg config.Config) (AccessLog, error) {
 	case "":
 		return NilAccessLog, nil
 	case "stdout":
-		return newAccessLog(io2.NopWriteCloser(os.Stdout), cfg)
+		return newAccessLog(&logger.NopWriteCloseRotater{Writer: os.Stdout}, cfg)
 	case "stderr":
-		return newAccessLog(io2.NopWriteCloser(os.Stderr), cfg)
+		return newAccessLog(&logger.NopWriteCloseRotater{Writer: os.Stderr}, cfg)
 	default:
-		// TODO: rotation and close.
-		f, err := os.OpenFile(cfg.AccessLog.Output, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		if err != nil {
-			return nil, err
-		}
-		return newAccessLog(f, cfg)
+		return newAccessLog(&lumberjack.Logger{
+			Filename:   cfg.AccessLog.Output,
+			MaxSize:    cfg.AccessLog.Rotation.MaxSize,
+			MaxBackups: cfg.AccessLog.Rotation.MaxBackups,
+			MaxAge:     cfg.AccessLog.Rotation.MaxAge,
+			Compress:   cfg.AccessLog.Rotation.Compress,
+			LocalTime:  cfg.AccessLog.Rotation.LocalTime,
+		}, cfg)
 	}
 }
 
 type accessLog struct {
-	out               io.WriteCloser
+	out               logger.WriteCloseRotater
 	appendFuncs       []appendFunc
 	collectRequestURI bool
 	addrToPortCache   util.Cache
 }
 
-func newAccessLog(out io.WriteCloser, cfg config.Config) (*accessLog, error) {
+func newAccessLog(out logger.WriteCloseRotater, cfg config.Config) (*accessLog, error) {
 	return (&accessLog{out: out}).init(cfg)
 }
 
 var formatPattern = regexp.MustCompile(`(%(>|{(.+?)})?([a-zA-Z%])|([^%]+))`)
 
 var timeNow = func() time.Time { return time.Now() }
+
+func (l *accessLog) Rotate() error {
+	if l.out != nil {
+		return l.out.Rotate()
+	}
+	return nil
+}
 
 func (l *accessLog) Close() error {
 	l.appendFuncs = nil
@@ -478,4 +488,5 @@ var (
 
 func (nilAccessLog) Collect(ctx *fasthttp.RequestCtx) {}
 func (nilAccessLog) Log(ctx *fasthttp.RequestCtx)     {}
+func (nilAccessLog) Rotate() error                    { return nil }
 func (nilAccessLog) Close() error                     { return nil }

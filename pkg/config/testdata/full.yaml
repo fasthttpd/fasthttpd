@@ -3,13 +3,24 @@ host: localhost
 listen: ':8800'
 root: ./public
 log:
-  output: stderr
+  output: logs/error.log
   # NOTE: Flags supports date|time|microseconds
   flags: ['date', 'time']
+  rotation:
+    maxSize: 100
+    maxBackups: 14
+    maxAge: 28
+    compress: true
+    localTime: true
 accessLog:
-  output: stdout
+  output: logs/access.log
   format: '%h %l %u %t "%r" %>s %b'
-
+  rotation:
+    maxSize: 100
+    maxBackups: 14
+    maxAge: 28
+    compress: true
+    localTime: true
 # Define fasthttp.Server settings.
 server:
   name: fasthttpd
