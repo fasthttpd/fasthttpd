@@ -18,7 +18,7 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-type NewHandlerFunc func(cfg tree.Map) (fasthttp.RequestHandler, error)
+type NewHandlerFunc func(cfg tree.Map, l logger.Logger) (fasthttp.RequestHandler, error)
 
 var typedNewHandlerFunc = map[string]NewHandlerFunc{}
 
@@ -26,16 +26,17 @@ func RegisterNewHandlerFunc(t string, fn NewHandlerFunc) {
 	typedNewHandlerFunc[t] = fn
 }
 
-func NewHandler(cfg tree.Map) (fasthttp.RequestHandler, error) {
+func NewHandler(cfg tree.Map, l logger.Logger) (fasthttp.RequestHandler, error) {
 	t := cfg.Get("type").Value().String()
 	if fn, ok := typedNewHandlerFunc[t]; ok {
-		return fn(cfg)
+		return fn(cfg, l)
 	}
 	return nil, fmt.Errorf("unknown handler type: %s", t)
 }
 
 type MainHandler struct {
 	cfg        config.Config
+	logger     logger.Logger
 	accessLog  accesslog.AccessLog
 	stopHup    context.CancelFunc
 	errorPages *ErrorPages
@@ -74,10 +75,15 @@ func (h *MainHandler) Close() error {
 }
 
 func (h *MainHandler) init() error {
+	l, err := logger.NewLogger(h.cfg.Log)
+	if err != nil {
+		return err
+	}
 	al, err := accesslog.NewAccessLog(h.cfg)
 	if err != nil {
 		return err
 	}
+	h.logger = l
 	h.accessLog = al
 
 	h.filters = map[string]filter.Filter{}
@@ -96,7 +102,7 @@ func (h *MainHandler) init() error {
 				return err
 			}
 		}
-		hh, err := NewHandler(hcfg)
+		hh, err := NewHandler(hcfg, l)
 		if err != nil {
 			return err
 		}
@@ -117,7 +123,6 @@ func (h *MainHandler) init() error {
 			if h.stopHup == nil {
 				break
 			}
-			l := logger.Global()
 			l.Printf("signal hup: rotate logs\n")
 			l.Rotate()  //nolint:errcheck
 			al.Rotate() //nolint:errcheck
@@ -128,6 +133,10 @@ func (h *MainHandler) init() error {
 	}()
 
 	return nil
+}
+
+func (h *MainHandler) Logger() logger.Logger {
+	return h.logger
 }
 
 // Handle handles requests.

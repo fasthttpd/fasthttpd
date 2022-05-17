@@ -1,7 +1,9 @@
 package config
 
 import (
+	"bytes"
 	"crypto/tls"
+	"io"
 	"io/ioutil"
 	"time"
 
@@ -169,18 +171,31 @@ type RoutesCache struct {
 	Expire int  `yaml:"expire"`
 }
 
-func UnmarshalYAMLPath(path string) (Config, error) {
+func UnmarshalYAMLPath(path string) ([]Config, error) {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		return Config{}, err
+		return nil, err
 	}
 	return UnmarshalYAML(data)
 }
 
-func UnmarshalYAML(data []byte) (Config, error) {
-	cfg := Config{}.SetDefaults()
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return cfg, err
+func UnmarshalYAML(data []byte) ([]Config, error) {
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	var cfgs []Config
+	for {
+		cfg := Config{}.SetDefaults()
+		err := dec.Decode(&cfg)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, err
+		}
+		cfg, err = cfg.Normalize()
+		if err != nil {
+			return nil, err
+		}
+		cfgs = append(cfgs, cfg)
 	}
-	return cfg.Normalize()
+	return cfgs, nil
 }

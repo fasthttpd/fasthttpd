@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/jarxorg/tree"
 	"github.com/valyala/fasthttp"
 )
@@ -68,7 +69,7 @@ func Test_FS_Handler(t *testing.T) {
 		"root":       tree.ToValue("testdata/public"),
 		"indexNames": tree.ToArrayValues("index.html"),
 	}
-	handler, err := NewFSHandler(cfg)
+	handler, err := NewFSHandler(cfg, logger.NilLogger)
 	if err != nil {
 		t.Fatal(err)
 	}

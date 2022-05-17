@@ -29,7 +29,7 @@ func Test_FastHttpd_Typical(t *testing.T) {
 	args := []string{"fasthttpd", "-e", "root=."}
 
 	go func() {
-		if err := d.Run(args); err != nil {
+		if err := d.Main(args); err != nil {
 			t.Error(err)
 		}
 	}()

@@ -40,7 +40,7 @@ type tcpKeepaliveListener struct {
 	keepalivePeriod time.Duration
 }
 
-func (ln tcpKeepaliveListener) Accept() (net.Conn, error) {
+func (ln *tcpKeepaliveListener) Accept() (net.Conn, error) {
 	tc, err := ln.AcceptTCP()
 	if err != nil {
 		return nil, err

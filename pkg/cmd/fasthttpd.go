@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"fmt"
 	"net"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -28,7 +30,7 @@ const (
 `
 )
 
-func newMinimalConfig() (config.Config, error) {
+func newMinimalConfig() config.Config {
 	return config.Config{
 		Host: "localhost",
 		Root: "./public",
@@ -40,7 +42,7 @@ func newMinimalConfig() (config.Config, error) {
 			},
 		},
 		Routes: []config.Route{{Handler: "static"}},
-	}.SetDefaults().Normalize()
+	}.SetDefaults()
 }
 
 type FastHttpd struct {
@@ -49,7 +51,7 @@ type FastHttpd struct {
 	isHelp     bool
 	configFile string
 	editExprs  stringList
-	server     *fasthttp.Server
+	servers    []*fasthttp.Server
 }
 
 func NewFastHttpd() *FastHttpd {
@@ -73,33 +75,31 @@ func (d *FastHttpd) initFlagSet(args []string) error {
 	return s.Parse(args[1:])
 }
 
-func (d *FastHttpd) initConfig() (config.Config, error) {
-	var err error
-	var cfg config.Config
-	if d.configFile != "" {
-		cfg, err = config.UnmarshalYAMLPath(d.configFile)
-		if err != nil {
-			return cfg, err
-		}
-		if err := os.Chdir(filepath.Dir(d.configFile)); err != nil {
-			return cfg, err
-		}
-	} else {
-		cfg, err = newMinimalConfig()
-		if err != nil {
-			return cfg, err
-		}
+func (d *FastHttpd) initConfigs() ([]config.Config, error) {
+	if d.configFile == "" {
+		return d.editConfigs([]config.Config{newMinimalConfig()})
 	}
+	cfgs, err := config.UnmarshalYAMLPath(d.configFile)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.Chdir(filepath.Dir(d.configFile)); err != nil {
+		return nil, err
+	}
+	return d.editConfigs(cfgs)
+}
+
+func (d *FastHttpd) editConfigs(cfgs []config.Config) ([]config.Config, error) {
 	if len(d.editExprs) > 0 {
-		n, err := tree.MarshalViaYAML(cfg)
+		n, err := tree.MarshalViaYAML(cfgs)
 		if err != nil {
-			return cfg, err
+			return nil, err
 		}
 		for _, expr := range d.editExprs {
 			lr := strings.SplitN(expr, "=", 2)
 			if len(lr) == 2 {
 				if !strings.HasPrefix(lr[0], ".") {
-					lr[0] = "." + lr[0]
+					lr[0] = ".[]." + lr[0]
 				}
 				if _, err := strconv.Atoi(lr[1]); err != nil && !strings.HasPrefix(lr[1], `"`) {
 					lr[1] = strconv.Quote(lr[1])
@@ -107,23 +107,14 @@ func (d *FastHttpd) initConfig() (config.Config, error) {
 				expr = lr[0] + "=" + lr[1]
 			}
 			if err := tree.Edit(&n, expr); err != nil {
-				return cfg, err
+				return nil, err
 			}
 		}
-		if err := tree.UnmarshalViaYAML(n, &cfg); err != nil {
-			return cfg, err
+		if err := tree.UnmarshalViaYAML(n, &cfgs); err != nil {
+			return nil, err
 		}
 	}
-	return cfg, nil
-}
-
-func (d *FastHttpd) initGlobalLogger(lcfg config.Log) error {
-	l, err := logger.NewLogger(lcfg)
-	if err != nil {
-		return err
-	}
-	logger.SetGlobal(l)
-	return nil
+	return cfgs, nil
 }
 
 func (d *FastHttpd) newServer(cfg config.Config, h *handler.MainHandler) (*fasthttp.Server, error) {
@@ -138,7 +129,98 @@ func (d *FastHttpd) newServer(cfg config.Config, h *handler.MainHandler) (*fasth
 	return s, nil
 }
 
-func (d *FastHttpd) Run(args []string) error {
+func (d *FastHttpd) listen(cfg config.Config, server *fasthttp.Server) (net.Listener, error) {
+	ln, err := netListen(cfg.Listen)
+	if err != nil {
+		return nil, err
+	}
+	if tcpln, ok := ln.(*net.TCPListener); ok {
+		ln = &tcpKeepaliveListener{
+			TCPListener:     tcpln,
+			keepalive:       server.TCPKeepalive,
+			keepalivePeriod: server.TCPKeepalivePeriod,
+		}
+	}
+	tlsCfg, err := cfg.SSL.TLSConfig()
+	if err != nil {
+		return nil, err
+	}
+	if tlsCfg != nil {
+		ln = tls.NewListener(ln, tlsCfg)
+	}
+	return ln, nil
+}
+
+func (d *FastHttpd) run() error {
+	cfgs, err := d.initConfigs()
+	if err != nil {
+		return err
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	go func() {
+		<-ctx.Done()
+		stop()
+		if err := d.Shutdown(); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to shutdown: %v", err)
+		}
+	}()
+
+	errChs := make(chan error, 2)
+	for _, cfg := range cfgs {
+		h, err := handler.NewMainHandler(cfg)
+		if err != nil {
+			return err
+		}
+		defer h.Close()
+
+		server, err := d.newServer(cfg, h)
+		if err != nil {
+			return err
+		}
+		ln, err := d.listen(cfg, server)
+		if err != nil {
+			return err
+		}
+
+		h.Logger().Printf("Starting HTTP server on %q", cfg.Listen)
+		d.servers = append(d.servers, server)
+
+		go func() {
+			err := server.Serve(ln)
+			errChs <- err
+		}()
+	}
+
+	var errs []string
+	for range cfgs {
+		select {
+		case err := <-errChs:
+			if err != nil {
+				errs = append(errs, err.Error())
+			}
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to serve: %s", strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+func (d *FastHttpd) Shutdown() error {
+	var errs []string
+	for _, server := range d.servers {
+		if err := server.Shutdown(); err != nil {
+			errs = append(errs, err.Error())
+		}
+	}
+	if len(errs) == 0 {
+		return nil
+	}
+	return fmt.Errorf(strings.Join(errs, "; "))
+}
+
+func (d *FastHttpd) Main(args []string) error {
 	if err := d.initFlagSet(args); err != nil {
 		return err
 	}
@@ -150,57 +232,9 @@ func (d *FastHttpd) Run(args []string) error {
 		fmt.Println(version)
 		return nil
 	}
-
-	cfg, err := d.initConfig()
-	if err != nil {
-		return err
-	}
-	if err := d.initGlobalLogger(cfg.Log); err != nil {
-		return err
-	}
-	h, err := handler.NewMainHandler(cfg)
-	if err != nil {
-		return err
-	}
-	defer h.Close()
-
-	s, err := d.newServer(cfg, h)
-	if err != nil {
-		return err
-	}
-	ln, err := netListen(cfg.Listen)
-	if err != nil {
-		return err
-	}
-	tlsCfg, err := cfg.SSL.TLSConfig()
-	if err != nil {
-		return err
-	}
-	if tlsCfg != nil {
-		logger.Global().Printf("Enable SSL")
-		ln = tls.NewListener(ln, tlsCfg)
-	}
-
-	logger.Global().Printf("Starting HTTP server on %q", cfg.Listen)
-	d.server = s
-
-	if tcpln, ok := ln.(*net.TCPListener); ok {
-		return s.Serve(tcpKeepaliveListener{
-			TCPListener:     tcpln,
-			keepalive:       s.TCPKeepalive,
-			keepalivePeriod: s.TCPKeepalivePeriod,
-		})
-	}
-	return s.Serve(ln)
-}
-
-func (d *FastHttpd) Shutdown() error {
-	if d.server != nil {
-		return d.server.Shutdown()
-	}
-	return nil
+	return d.run()
 }
 
 func RunFastHttpd(args []string) error {
-	return NewFastHttpd().Run(args)
+	return NewFastHttpd().Main(args)
 }

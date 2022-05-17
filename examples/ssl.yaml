@@ -1,13 +1,9 @@
 host: localhost
-listen: ':8443'
+listen: ':8080'
 root: ./public
 
 log:
   output: stderr
-
-ssl:
-  certFile: ./ssl/localhost.crt
-  keyFile: ./ssl/localhost.key
 
 handlers:
 
@@ -19,3 +15,26 @@ routes:
 
   - path: /
     handler: static
+
+---
+
+host: localhost
+listen: ':8443'
+
+log:
+  output: stderr
+
+ssl:
+  certFile: ./ssl/localhost.crt
+  keyFile: ./ssl/localhost.key
+
+handlers:
+
+  backend:
+    type: proxy
+    url: 'http://localhost:8080'
+
+routes:
+
+  - path: /
+    handler: backend

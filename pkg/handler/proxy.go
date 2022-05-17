@@ -14,7 +14,7 @@ type ProxyHandler struct {
 	URL string
 }
 
-func NewProxyHandler(cfg tree.Map) (fasthttp.RequestHandler, error) {
+func NewProxyHandler(cfg tree.Map, l logger.Logger) (fasthttp.RequestHandler, error) {
 	h := &ProxyHandler{}
 	if err := tree.UnmarshalViaJSON(cfg, h); err != nil {
 		return nil, err
@@ -25,7 +25,7 @@ func NewProxyHandler(cfg tree.Map) (fasthttp.RequestHandler, error) {
 	}
 	// TODO: Use fasthttp.Client, or ProxyHandler listed on TODO of valyala/fasthttp.
 	proxy := httputil.NewSingleHostReverseProxy(u)
-	proxy.ErrorLog = logger.Global().LogLogger()
+	proxy.ErrorLog = l.LogLogger()
 	return fasthttpadaptor.NewFastHTTPHandler(proxy), nil
 }
 

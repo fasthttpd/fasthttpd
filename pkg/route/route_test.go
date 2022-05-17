@@ -224,7 +224,7 @@ func Test_Routes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rs, err := NewRoutes(c)
+	rs, err := NewRoutes(c[0])
 	if err != nil {
 		t.Fatal(err)
 	}
