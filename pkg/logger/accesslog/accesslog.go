@@ -44,9 +44,9 @@ func NewAccessLog(cfg config.Config) (AccessLog, error) {
 	case "":
 		return NilAccessLog, nil
 	case "stdout":
-		return newAccessLog(&logger.NopWriteCloseRotater{Writer: os.Stdout}, cfg)
+		return newAccessLog(&logger.NopWriteRotateCloser{Writer: os.Stdout}, cfg)
 	case "stderr":
-		return newAccessLog(&logger.NopWriteCloseRotater{Writer: os.Stderr}, cfg)
+		return newAccessLog(&logger.NopWriteRotateCloser{Writer: os.Stderr}, cfg)
 	default:
 		return newAccessLog(&lumberjack.Logger{
 			Filename:   cfg.AccessLog.Output,
@@ -60,13 +60,13 @@ func NewAccessLog(cfg config.Config) (AccessLog, error) {
 }
 
 type accessLog struct {
-	out               logger.WriteCloseRotater
+	out               logger.WriteRotateCloser
 	appendFuncs       []appendFunc
 	collectRequestURI bool
 	addrToPortCache   util.Cache
 }
 
-func newAccessLog(out logger.WriteCloseRotater, cfg config.Config) (*accessLog, error) {
+func newAccessLog(out logger.WriteRotateCloser, cfg config.Config) (*accessLog, error) {
 	return (&accessLog{out: out}).init(cfg)
 }
 

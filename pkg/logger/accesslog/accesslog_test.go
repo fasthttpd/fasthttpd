@@ -279,7 +279,7 @@ func Test_AccessLog(t *testing.T) {
 		out.Reset()
 		ctx := test.ctx()
 
-		l, err := newAccessLog(&logger.NopWriteCloseRotater{Writer: dout}, test.cfg)
+		l, err := newAccessLog(&logger.NopWriteRotateCloser{Writer: dout}, test.cfg)
 		if err != nil {
 			l.Close()
 			t.Fatalf("tests[%d] unexpected error: %v", i, err)
