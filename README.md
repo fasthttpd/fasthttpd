@@ -152,5 +152,4 @@ routesCache:
 
 - Daemonize
 - Custom headers
-- Support https
 - Benchmark reports

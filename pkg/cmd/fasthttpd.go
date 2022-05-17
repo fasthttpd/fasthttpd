@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"net"
@@ -171,6 +172,15 @@ func (d *FastHttpd) Run(args []string) error {
 	if err != nil {
 		return err
 	}
+	tlsCfg, err := cfg.SSL.TLSConfig()
+	if err != nil {
+		return err
+	}
+	if tlsCfg != nil {
+		logger.Global().Printf("Enable SSL")
+		ln = tls.NewListener(ln, tlsCfg)
+	}
+
 	logger.Global().Printf("Starting HTTP server on %q", cfg.Listen)
 	d.server = s
 

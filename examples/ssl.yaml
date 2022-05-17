@@ -1,9 +1,13 @@
 host: localhost
-listen: ':8080'
+listen: ':8443'
 root: ./public
 
 log:
   output: stderr
+
+ssl:
+  certFile: ./ssl/localhost.crt
+  keyFile: ./ssl/localhost.key
 
 handlers:
 
