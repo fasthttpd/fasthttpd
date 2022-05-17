@@ -8,14 +8,14 @@ FastHttpd is a HTTP server using [valyala/fasthttp](https://github.com/valyala/f
 ## Install
 
 ```
-VERSION=0.1.0 GOOS=Darwin GOARCH=arm64; curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | tar xz fasthttpd && mv fasthttpd /usr/local/bin
+VERSION=0.2.1 GOOS=Darwin GOARCH=arm64; curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | tar xz fasthttpd && mv fasthttpd /usr/local/bin
 ```
 
 ## Quick start
 
 ```sh
-% fasthttpd -f config.yaml
-% fasthttpd -e root=./public -e listen=0.0.0.0:8800
+% fasthttpd -f examples/minimal.yaml
+% fasthttpd -e root=./examples/public -e listen=0.0.0.0:8080
 ```
 
 ## Configuration
@@ -39,16 +39,26 @@ The following is a configuration that uses most of the current FastHttpd feature
 
 ```yaml
 host: localhost
-# NOTE: Define listen addr. It is supported ipv6 `[::1]:8800`
-listen: ':8800'
+# NOTE: Define listen addr. It is supported ipv6 `[::1]:8080`
+listen: ':8080'
 root: ./public
+
 log:
-  output: stderr
+  output: logs/error.log
   # NOTE: Flags supports date|time|microseconds
   flags: ['date', 'time']
+  rotation:
+    maxSize: 100
+
 accessLog:
-  output: stdout
+  output: logs/access.log
   format: '%h %l %u %t "%r" %>s %b'
+  rotation:
+    maxSize: 100
+    maxBackups: 14
+    maxAge: 28
+    compress: true
+    localTime: true
 
 # Define fasthttp.Server settings.
 server:
@@ -136,13 +146,30 @@ routes:
 routesCache:
   enable: true
   expire: 60000
-```
 
+---
+
+host: localhost
+listen: ':8443'
+
+ssl:
+  certFile: ./ssl/localhost.crt
+  keyFile: ./ssl/localhost.key
+
+handlers:
+
+  backend:
+    type: proxy
+    url: 'http://localhost:8080'
+
+routes:
+
+  - path: /
+    handler: backend
+```
 
 ## TODO
 
 - Daemonize
 - Custom headers
-- Rotate logs
-- Support https
 - Benchmark reports

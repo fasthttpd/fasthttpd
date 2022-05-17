@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/jarxorg/tree"
 	"github.com/valyala/fasthttp"
 )
@@ -13,7 +14,7 @@ func NewFS(cfg tree.Map) (*fasthttp.FS, error) {
 	return fs, nil
 }
 
-func NewFSHandler(cfg tree.Map) (fasthttp.RequestHandler, error) {
+func NewFSHandler(cfg tree.Map, l logger.Logger) (fasthttp.RequestHandler, error) {
 	fs, err := NewFS(cfg)
 	if err != nil {
 		return nil, err

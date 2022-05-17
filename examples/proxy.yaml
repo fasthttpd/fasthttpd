@@ -1,5 +1,8 @@
 host: localhost
-listen: ':8800'
+listen: ':8080'
+
+log:
+  output: stderr
 
 handlers:
 

@@ -1,6 +1,9 @@
 package config
 
 import (
+	"bytes"
+	"crypto/tls"
+	"io"
 	"io/ioutil"
 	"time"
 
@@ -9,7 +12,7 @@ import (
 )
 
 const (
-	DefaultListen     = ":8800"
+	DefaultListen     = ":8080"
 	DefaultServerName = "fasthttpd"
 	MatchPrefix       = "prefix"
 	MatchEqual        = "equal"
@@ -20,6 +23,7 @@ const (
 type Config struct {
 	Host        string              `yaml:"host"`
 	Listen      string              `yaml:"listen"`
+	SSL         SSL                 `yaml:"ssl"`
 	Root        string              `yaml:"root"`
 	Server      tree.Map            `yaml:"server"`
 	Log         Log                 `yaml:"log"`
@@ -41,7 +45,6 @@ func (cfg Config) SetDefaults() Config {
 	if !cfg.Server.Has("name") {
 		cfg.Server.Set("name", tree.ToValue(DefaultServerName)) //nolint:errcheck
 	}
-
 	cfg.Log = cfg.Log.SetDefaults()
 	cfg.AccessLog = cfg.AccessLog.SetDefaults()
 	return cfg
@@ -74,6 +77,28 @@ func (cfg Config) Normalize() (Config, error) {
 	return cfg, nil
 }
 
+// SSL represents a configuration of SSL.
+type SSL struct {
+	CertFile string `yaml:"certFile"`
+	KeyFile  string `yaml:"keyFile"`
+}
+
+// TLSConfig returns a *tls.Config via tls.LoadX509KeyPair(s.CertFile, s.KeyFile).
+func (s SSL) TLSConfig() (*tls.Config, error) {
+	if s.CertFile == "" || s.KeyFile == "" {
+		return nil, nil
+	}
+	cert, err := tls.LoadX509KeyPair(s.CertFile, s.KeyFile)
+	if err != nil {
+		return nil, err
+	}
+	return &tls.Config{
+		NextProtos:   []string{"http/1.1"},
+		Certificates: []tls.Certificate{cert},
+	}, nil
+}
+
+// Rotation represents a configuration of log rotation.
 type Rotation struct {
 	MaxSize    int  `yaml:"maxSize"`
 	MaxBackups int  `yaml:"maxBackups"`
@@ -91,6 +116,7 @@ func (r Rotation) SetDefaults() Rotation {
 	return r
 }
 
+// Log represents a configuration of logging.
 type Log struct {
 	Output   string   `yaml:"output"`
 	Prefix   string   `yaml:"prefix"`
@@ -104,6 +130,7 @@ func (l Log) SetDefaults() Log {
 	return l
 }
 
+// AccessLog represents a configuration of access log.
 type AccessLog struct {
 	Output   string `yaml:"output"`
 	Format   string `yaml:"format"`
@@ -115,6 +142,7 @@ func (l AccessLog) SetDefaults() AccessLog {
 	return l
 }
 
+// Route represents a configuration of route.
 type Route struct {
 	Path    string   `yaml:"path"`
 	Match   string   `yaml:"match"`
@@ -125,33 +153,49 @@ type Route struct {
 	Status  Status   `yaml:"status"`
 }
 
+// Rewrite represents a configuration of rewrite.
 type Rewrite struct {
 	URI               string `yaml:"uri"`
 	AppendQueryString bool   `yaml:"appendQueryString"`
 }
 
+// Status represents a configuration of http status and message.
 type Status struct {
 	Code    int    `yaml:"code"`
 	Message string `yaml:"message"`
 }
 
+// RoutesCache represents a configuration of route cache.
 type RoutesCache struct {
 	Enable bool `yaml:"enable"`
 	Expire int  `yaml:"expire"`
 }
 
-func UnmarshalYAMLPath(path string) (Config, error) {
+func UnmarshalYAMLPath(path string) ([]Config, error) {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		return Config{}, err
+		return nil, err
 	}
 	return UnmarshalYAML(data)
 }
 
-func UnmarshalYAML(data []byte) (Config, error) {
-	cfg := Config{}.SetDefaults()
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return cfg, err
+func UnmarshalYAML(data []byte) ([]Config, error) {
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	var cfgs []Config
+	for {
+		cfg := Config{}.SetDefaults()
+		err := dec.Decode(&cfg)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, err
+		}
+		cfg, err = cfg.Normalize()
+		if err != nil {
+			return nil, err
+		}
+		cfgs = append(cfgs, cfg)
 	}
-	return cfg.Normalize()
+	return cfgs, nil
 }

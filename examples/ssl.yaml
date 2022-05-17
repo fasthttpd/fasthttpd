@@ -1,0 +1,40 @@
+host: localhost
+listen: ':8080'
+root: ./public
+
+log:
+  output: stderr
+
+handlers:
+
+  static:
+    type: fs
+    indexNames: ['index.html']
+
+routes:
+
+  - path: /
+    handler: static
+
+---
+
+host: localhost
+listen: ':8443'
+
+log:
+  output: stderr
+
+ssl:
+  certFile: ./ssl/localhost.crt
+  keyFile: ./ssl/localhost.key
+
+handlers:
+
+  backend:
+    type: proxy
+    url: 'http://localhost:8080'
+
+routes:
+
+  - path: /
+    handler: backend

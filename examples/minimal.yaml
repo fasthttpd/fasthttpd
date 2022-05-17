@@ -1,6 +1,9 @@
 host: localhost
-listen: ':8800'
+listen: ':8080'
 root: ./public
+
+log:
+  output: stderr
 
 handlers:
 

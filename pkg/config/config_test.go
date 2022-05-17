@@ -16,102 +16,128 @@ func Test_UnmarshalYAMLPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := Config{
-		Host:   "localhost",
-		Listen: ":8800",
-		Root:   "./public",
-		Server: tree.Map{
-			"name":            tree.ToValue("fasthttpd"),
-			"readBufferSize":  tree.ToValue(4096),
-			"writeBufferSize": tree.ToValue(4096),
-		},
-		Log: Log{
-			Output:   "logs/error.log",
-			Flags:    []string{"date", "time"},
-			Rotation: Rotation{}.SetDefaults(),
-		},
-		AccessLog: AccessLog{
-			Output:   "logs/access.log",
-			Format:   `%h %l %u %t "%r" %>s %b`,
-			Rotation: Rotation{}.SetDefaults(),
-		},
-		ErrorPages: map[string]string{
-			"404": "/err/404.html",
-			"5xx": "/err/5xx.html",
-		},
-		Filters: map[string]tree.Map{
-			"auth": {
-				"type": tree.ToValue("basicAuth"),
-				"users": tree.Array{
-					tree.Map{
-						"name":   tree.ToValue("fast"),
-						"secret": tree.ToValue("httpd"),
+	want := []Config{
+		{
+			Host:   "localhost",
+			Listen: ":8080",
+			Root:   "./public",
+			Server: tree.Map{
+				"name":            tree.ToValue("fasthttpd"),
+				"readBufferSize":  tree.ToValue(4096),
+				"writeBufferSize": tree.ToValue(4096),
+			},
+			Log: Log{
+				Output:   "logs/error.log",
+				Flags:    []string{"date", "time"},
+				Rotation: Rotation{}.SetDefaults(),
+			},
+			AccessLog: AccessLog{
+				Output:   "logs/access.log",
+				Format:   `%h %l %u %t "%r" %>s %b`,
+				Rotation: Rotation{}.SetDefaults(),
+			},
+			ErrorPages: map[string]string{
+				"404": "/err/404.html",
+				"5xx": "/err/5xx.html",
+			},
+			Filters: map[string]tree.Map{
+				"auth": {
+					"type": tree.ToValue("basicAuth"),
+					"users": tree.Array{
+						tree.Map{
+							"name":   tree.ToValue("fast"),
+							"secret": tree.ToValue("httpd"),
+						},
 					},
+					"usersFile": tree.ToValue("./users.yaml"),
 				},
-				"usersFile": tree.ToValue("./users.yaml"),
 			},
-		},
-		Handlers: map[string]tree.Map{
-			"static": {
-				"type":               tree.ToValue("fs"),
-				"indexNames":         tree.ToArrayValues("index.html"),
-				"compress":           tree.ToValue(true),
-				"generateIndexPages": tree.ToValue(false),
+			Handlers: map[string]tree.Map{
+				"static": {
+					"type":               tree.ToValue("fs"),
+					"indexNames":         tree.ToArrayValues("index.html"),
+					"compress":           tree.ToValue(true),
+					"generateIndexPages": tree.ToValue(false),
+				},
+				"backend": {
+					"type": tree.ToValue("proxy"),
+					"url":  tree.ToValue("http://localhost:9000"),
+				},
 			},
-			"backend": {
-				"type": tree.ToValue("proxy"),
-				"url":  tree.ToValue("http://localhost:9000"),
+			Routes: []Route{
+				{
+					Methods: []string{"PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"},
+					Status: Status{
+						Code:    405,
+						Message: "Method not allowed",
+					},
+				}, {
+					Path:    "/",
+					Match:   MatchEqual,
+					Handler: "static",
+				}, {
+					Path:  "/redirect-external",
+					Match: MatchEqual,
+					Rewrite: Rewrite{
+						URI: "http://example.com/",
+					},
+					Status: Status{
+						Code: 302,
+					},
+				}, {
+					Path:  "/redirect-internal",
+					Match: MatchEqual,
+					Rewrite: Rewrite{
+						URI:               "/internal?foo=bar",
+						AppendQueryString: true,
+					},
+					Status: Status{
+						Code: 302,
+					},
+				}, {
+					Methods: []string{"GET", "HEAD"},
+					Path:    `.*\.(js|css|jpg|png|gif|ico)$`,
+					Match:   MatchRegexp,
+					Handler: "static",
+				}, {
+					Path:  "^/view/(.+)",
+					Match: MatchRegexp,
+					Rewrite: Rewrite{
+						URI: "/view?id=$1",
+					},
+				}, {
+					Filters: []string{"auth"},
+					Handler: "backend",
+				},
 			},
-		},
-		Routes: []Route{
-			{
-				Methods: []string{"PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"},
-				Status: Status{
-					Code:    405,
-					Message: "Method not allowed",
-				},
-			}, {
-				Path:    "/",
-				Match:   MatchEqual,
-				Handler: "static",
-			}, {
-				Path:  "/redirect-external",
-				Match: MatchEqual,
-				Rewrite: Rewrite{
-					URI: "http://example.com/",
-				},
-				Status: Status{
-					Code: 302,
-				},
-			}, {
-				Path:  "/redirect-internal",
-				Match: MatchEqual,
-				Rewrite: Rewrite{
-					URI:               "/internal?foo=bar",
-					AppendQueryString: true,
-				},
-				Status: Status{
-					Code: 302,
-				},
-			}, {
-				Methods: []string{"GET", "HEAD"},
-				Path:    `.*\.(js|css|jpg|png|gif|ico)$`,
-				Match:   MatchRegexp,
-				Handler: "static",
-			}, {
-				Path:  "^/view/(.+)",
-				Match: MatchRegexp,
-				Rewrite: Rewrite{
-					URI: "/view?id=$1",
-				},
-			}, {
-				Filters: []string{"auth"},
-				Handler: "backend",
+			RoutesCache: RoutesCache{
+				Enable: true,
+				Expire: 60000,
 			},
-		},
-		RoutesCache: RoutesCache{
-			Enable: true,
-			Expire: 60000,
+		}, {
+			Host:      "localhost",
+			Listen:    ":8443",
+			Log:       Log{}.SetDefaults(),
+			AccessLog: AccessLog{}.SetDefaults(),
+			SSL: SSL{
+				CertFile: "./ssl/localhost.crt",
+				KeyFile:  "./ssl/localhost.key",
+			},
+			Server: tree.Map{
+				"name": tree.ToValue("fasthttpd"),
+			},
+			Handlers: map[string]tree.Map{
+				"backend": {
+					"type": tree.ToValue("proxy"),
+					"url":  tree.ToValue("http://localhost:8080"),
+				},
+			},
+			Routes: []Route{
+				{
+					Path:    "/",
+					Handler: "backend",
+				},
+			},
 		},
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -162,7 +188,7 @@ func Test_Config_Normalize(t *testing.T) {
 		{
 			cfg: Config{},
 			want: Config{
-				Listen: ":8800",
+				Listen: ":8080",
 				Server: tree.Map{
 					"name": tree.ToValue("fasthttpd"),
 				},
@@ -174,7 +200,7 @@ func Test_Config_Normalize(t *testing.T) {
 				},
 			},
 			want: Config{
-				Listen: ":8800",
+				Listen: ":8080",
 				Server: tree.Map{
 					"name":        tree.ToValue("fasthttpd"),
 					"readTimeout": tree.NumberValue(60 * time.Second),
