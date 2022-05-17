@@ -8,7 +8,7 @@ FastHttpd is a HTTP server using [valyala/fasthttp](https://github.com/valyala/f
 ## Install
 
 ```
-VERSION=0.1.0 GOOS=Darwin GOARCH=arm64; curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | tar xz fasthttpd && mv fasthttpd /usr/local/bin
+VERSION=0.2.0 GOOS=Darwin GOARCH=arm64; curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | tar xz fasthttpd && mv fasthttpd /usr/local/bin
 ```
 
 ## Quick start
@@ -146,6 +146,26 @@ routes:
 routesCache:
   enable: true
   expire: 60000
+
+---
+
+host: localhost
+listen: ':8443'
+
+ssl:
+  certFile: ./ssl/localhost.crt
+  keyFile: ./ssl/localhost.key
+
+handlers:
+
+  backend:
+    type: proxy
+    url: 'http://localhost:8080'
+
+routes:
+
+  - path: /
+    handler: backend
 ```
 
 ## TODO
