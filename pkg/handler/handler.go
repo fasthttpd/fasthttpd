@@ -36,7 +36,6 @@ func NewHandler(cfg tree.Map) (fasthttp.RequestHandler, error) {
 
 type MainHandler struct {
 	cfg        config.Config
-	logger     logger.Logger
 	accessLog  accesslog.AccessLog
 	stopHup    context.CancelFunc
 	errorPages *ErrorPages
@@ -75,12 +74,6 @@ func (h *MainHandler) Close() error {
 }
 
 func (h *MainHandler) init() error {
-	l, err := logger.NewLogger(h.cfg.Log)
-	if err != nil {
-		return err
-	}
-	h.logger = l
-
 	al, err := accesslog.NewAccessLog(h.cfg)
 	if err != nil {
 		return err
@@ -124,6 +117,7 @@ func (h *MainHandler) init() error {
 			if h.stopHup == nil {
 				break
 			}
+			l := logger.Global()
 			l.Printf("signal hup: rotate logs\n")
 			l.Rotate()  //nolint:errcheck
 			al.Rotate() //nolint:errcheck
@@ -178,9 +172,4 @@ func (h *MainHandler) HandleError(ctx *fasthttp.RequestCtx, err error) {
 		ctx.Response.SetStatusCode(http.StatusBadRequest)
 	}
 	h.errorPages.Handle(ctx)
-}
-
-// Logger returns a logger.
-func (h *MainHandler) Logger() logger.Logger {
-	return h.logger
 }

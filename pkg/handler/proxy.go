@@ -4,6 +4,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 
+	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/jarxorg/tree"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttpadaptor"
@@ -24,6 +25,7 @@ func NewProxyHandler(cfg tree.Map) (fasthttp.RequestHandler, error) {
 	}
 	// TODO: Use fasthttp.Client, or ProxyHandler listed on TODO of valyala/fasthttp.
 	proxy := httputil.NewSingleHostReverseProxy(u)
+	proxy.ErrorLog = logger.Global().LogLogger()
 	return fasthttpadaptor.NewFastHTTPHandler(proxy), nil
 }
 

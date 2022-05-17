@@ -11,6 +11,7 @@ import (
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/handler"
+	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/jarxorg/tree"
 	"github.com/valyala/fasthttp"
 )
@@ -115,11 +116,20 @@ func (d *FastHttpd) initConfig() (config.Config, error) {
 	return cfg, nil
 }
 
+func (d *FastHttpd) initGlobalLogger(lcfg config.Log) error {
+	l, err := logger.NewLogger(lcfg)
+	if err != nil {
+		return err
+	}
+	logger.SetGlobal(l)
+	return nil
+}
+
 func (d *FastHttpd) newServer(cfg config.Config, h *handler.MainHandler) (*fasthttp.Server, error) {
 	s := &fasthttp.Server{
 		Handler:      h.Handle,
 		ErrorHandler: h.HandleError,
-		Logger:       h.Logger(),
+		Logger:       logger.Global(),
 	}
 	if err := tree.UnmarshalViaJSON(cfg.Server, s); err != nil {
 		return nil, err
@@ -144,6 +154,9 @@ func (d *FastHttpd) Run(args []string) error {
 	if err != nil {
 		return err
 	}
+	if err := d.initGlobalLogger(cfg.Log); err != nil {
+		return err
+	}
 	h, err := handler.NewMainHandler(cfg)
 	if err != nil {
 		return err
@@ -158,7 +171,7 @@ func (d *FastHttpd) Run(args []string) error {
 	if err != nil {
 		return err
 	}
-	s.Logger.Printf("Starting HTTP server on %q", cfg.Listen)
+	logger.Global().Printf("Starting HTTP server on %q", cfg.Listen)
 	d.server = s
 
 	if tcpln, ok := ln.(*net.TCPListener); ok {

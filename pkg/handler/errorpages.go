@@ -36,11 +36,13 @@ func NewErrorPages(root string, cfg map[string]string) *ErrorPages {
 }
 
 func (p *ErrorPages) Handle(ctx *fasthttp.RequestCtx) {
-	if p.fs == nil {
-		return
-	}
 	status := ctx.Response.StatusCode()
 	if status < errorPagesStatusOffset || status >= errorPagesStatusUntil {
+		return
+	}
+	if p.fs == nil {
+		// TODO: Overwrite body
+		ctx.Error(http.StatusText(status), status)
 		return
 	}
 	if path := p.errorPaths[status-errorPagesStatusOffset]; path != nil {
