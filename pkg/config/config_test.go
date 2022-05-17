@@ -18,7 +18,7 @@ func Test_UnmarshalYAMLPath(t *testing.T) {
 	}
 	want := Config{
 		Host:   "localhost",
-		Listen: ":8800",
+		Listen: ":8080",
 		Root:   "./public",
 		Server: tree.Map{
 			"name":            tree.ToValue("fasthttpd"),
@@ -162,7 +162,7 @@ func Test_Config_Normalize(t *testing.T) {
 		{
 			cfg: Config{},
 			want: Config{
-				Listen: ":8800",
+				Listen: ":8080",
 				Server: tree.Map{
 					"name": tree.ToValue("fasthttpd"),
 				},
@@ -174,7 +174,7 @@ func Test_Config_Normalize(t *testing.T) {
 				},
 			},
 			want: Config{
-				Listen: ":8800",
+				Listen: ":8080",
 				Server: tree.Map{
 					"name":        tree.ToValue("fasthttpd"),
 					"readTimeout": tree.NumberValue(60 * time.Second),

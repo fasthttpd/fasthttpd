@@ -13,10 +13,10 @@ func Test_getNetwork(t *testing.T) {
 		want   string
 	}{
 		{
-			listen: ":8800",
+			listen: ":8080",
 			want:   "tcp4",
 		}, {
-			listen: "[::1]:8800",
+			listen: "[::1]:8080",
 			want:   "tcp6",
 		},
 	}

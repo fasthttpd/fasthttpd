@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	DefaultListen     = ":8800"
+	DefaultListen     = ":8080"
 	DefaultServerName = "fasthttpd"
 	MatchPrefix       = "prefix"
 	MatchEqual        = "equal"
@@ -41,7 +41,6 @@ func (cfg Config) SetDefaults() Config {
 	if !cfg.Server.Has("name") {
 		cfg.Server.Set("name", tree.ToValue(DefaultServerName)) //nolint:errcheck
 	}
-
 	cfg.Log = cfg.Log.SetDefaults()
 	cfg.AccessLog = cfg.AccessLog.SetDefaults()
 	return cfg

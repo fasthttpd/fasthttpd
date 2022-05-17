@@ -1,17 +1,15 @@
 host: localhost
-# NOTE: Define listen addr. It is supported ipv6 `[::1]:8800`
-listen: ':8800'
+# NOTE: Define listen addr. It is supported ipv6 `[::1]:8080`
+listen: ':8080'
 root: ./public
+
 log:
   output: logs/error.log
   # NOTE: Flags supports date|time|microseconds
   flags: ['date', 'time']
   rotation:
     maxSize: 100
-    maxBackups: 14
-    maxAge: 28
-    compress: true
-    localTime: true
+
 accessLog:
   output: logs/access.log
   format: '%h %l %u %t "%r" %>s %b'
@@ -21,6 +19,7 @@ accessLog:
     maxAge: 28
     compress: true
     localTime: true
+
 # Define fasthttp.Server settings.
 server:
   name: fasthttpd

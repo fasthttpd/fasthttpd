@@ -14,8 +14,8 @@ VERSION=0.1.0 GOOS=Darwin GOARCH=arm64; curl -fsSL "https://github.com/fasthttpd
 ## Quick start
 
 ```sh
-% fasthttpd -f config.yaml
-% fasthttpd -e root=./public -e listen=0.0.0.0:8800
+% fasthttpd -f examples/minimal.yaml
+% fasthttpd -e root=./examples/public -e listen=0.0.0.0:8080
 ```
 
 ## Configuration
@@ -39,16 +39,26 @@ The following is a configuration that uses most of the current FastHttpd feature
 
 ```yaml
 host: localhost
-# NOTE: Define listen addr. It is supported ipv6 `[::1]:8800`
-listen: ':8800'
+# NOTE: Define listen addr. It is supported ipv6 `[::1]:8080`
+listen: ':8080'
 root: ./public
+
 log:
-  output: stderr
+  output: logs/error.log
   # NOTE: Flags supports date|time|microseconds
   flags: ['date', 'time']
+  rotation:
+    maxSize: 100
+
 accessLog:
-  output: stdout
+  output: logs/access.log
   format: '%h %l %u %t "%r" %>s %b'
+  rotation:
+    maxSize: 100
+    maxBackups: 14
+    maxAge: 28
+    compress: true
+    localTime: true
 
 # Define fasthttp.Server settings.
 server:
@@ -138,11 +148,9 @@ routesCache:
   expire: 60000
 ```
 
-
 ## TODO
 
 - Daemonize
 - Custom headers
-- Rotate logs
 - Support https
 - Benchmark reports
