@@ -194,11 +194,8 @@ func (d *FastHttpd) run() error {
 
 	var errs []string
 	for range cfgs {
-		select {
-		case err := <-errChs:
-			if err != nil {
-				errs = append(errs, err.Error())
-			}
+		if err := <-errChs; err != nil {
+			errs = append(errs, err.Error())
 		}
 	}
 	if len(errs) > 0 {
