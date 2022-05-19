@@ -14,7 +14,6 @@ import (
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/handler"
-	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/jarxorg/tree"
 	"github.com/valyala/fasthttp"
 )
@@ -124,7 +123,7 @@ func (d *FastHttpd) newServer(cfg config.Config, h *handler.MainHandler) (*fasth
 	s := &fasthttp.Server{
 		Handler:      h.Handle,
 		ErrorHandler: h.HandleError,
-		Logger:       logger.Global(),
+		Logger:       h.Logger(),
 	}
 	if err := tree.UnmarshalViaJSON(cfg.Server, s); err != nil {
 		return nil, err
