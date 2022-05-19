@@ -6,12 +6,10 @@ log:
   output: stderr
 
 handlers:
-
   static:
     type: fs
     indexNames: ['index.html']
 
 routes:
-
   - path: /
     handler: static

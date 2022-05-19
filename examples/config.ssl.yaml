@@ -6,13 +6,11 @@ log:
   output: stderr
 
 handlers:
-
   static:
     type: fs
     indexNames: ['index.html']
 
 routes:
-
   - path: /
     handler: static
 
@@ -29,12 +27,10 @@ ssl:
   keyFile: ./ssl/localhost.key
 
 handlers:
-
   backend:
     type: proxy
     url: 'http://localhost:8080'
 
 routes:
-
   - path: /
     handler: backend

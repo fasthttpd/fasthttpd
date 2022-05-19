@@ -7,14 +7,42 @@ FastHttpd is a HTTP server using [valyala/fasthttp](https://github.com/valyala/f
 
 ## Install
 
+Go install
+
+```sh
+go install github.com/fasthttpd/fasthttpd/cmd/fasthttpd@latest
 ```
-VERSION=0.2.1 GOOS=Darwin GOARCH=arm64; curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | tar xz fasthttpd && mv fasthttpd /usr/local/bin
+
+Download binary
+
+```
+VERSION=0.2.1 GOOS=Darwin GOARCH=arm64 curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | tar xz fasthttpd && mv fasthttpd /usr/local/bin
 ```
 
 ## Quick start
 
+Usage
+
 ```sh
-% fasthttpd -f examples/minimal.yaml
+FastHttpd is a HTTP server using valyala/fasthttp.
+
+Usage:
+  fasthttpd [flags] [query] ([file...])
+
+Flags:
+  -e value
+    	edit expression (eg. -e KEY=VALUE)
+  -f string
+    	configuration file
+  -h	help for fasthttpd
+  -v	print version
+```
+
+Examples
+
+```sh
+% fasthttpd -f examples/config.minimal.yaml
+% fasthttpd -f examples/config.minimal.yaml -e accessLog.output=stdout
 % fasthttpd -e root=./examples/public -e listen=0.0.0.0:8080
 ```
 
