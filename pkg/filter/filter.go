@@ -7,8 +7,10 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-// Filter is a function that filters ctx and returns bool (false means break filters).
-type Filter func(ctx *fasthttp.RequestCtx) bool
+type Filter interface {
+	Request(ctx *fasthttp.RequestCtx) bool
+	Response(ctx *fasthttp.RequestCtx) bool
+}
 
 // NewFilterFunc is a function that returns a new filter.
 type NewFilterFunc func(cfg tree.Map) (Filter, error)

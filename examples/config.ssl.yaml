@@ -8,7 +8,7 @@ log:
 handlers:
   static:
     type: fs
-    indexNames: ['index.html']
+    indexNames: [index.html]
 
 routes:
   - path: /

@@ -22,16 +22,16 @@ type BasicAuthUser struct {
 	auth   []byte
 }
 
-// BasicAuth implements Filter.
-type BasicAuth struct {
+// BasicAuthFilter implements Filter.
+type BasicAuthFilter struct {
 	Realm     string           `yaml:"realm"`
 	Users     []*BasicAuthUser `yaml:"users"`
 	UsersFile string           `yaml:"usersFile"`
 }
 
-// NewBasicAuth returns a new BasicAuth.
-func NewBasicAuth(cfg tree.Map) (*BasicAuth, error) {
-	f := &BasicAuth{
+// NewBasicAuthFilter returns a new BasicAuthFilter.
+func NewBasicAuthFilter(cfg tree.Map) (Filter, error) {
+	f := &BasicAuthFilter{
 		Realm: DefaultRealm,
 	}
 	if err := tree.UnmarshalViaYAML(cfg, f); err != nil {
@@ -43,16 +43,7 @@ func NewBasicAuth(cfg tree.Map) (*BasicAuth, error) {
 	return f, nil
 }
 
-// NewBasicAuthFilter returns a Filter of the BasicAuth.
-func NewBasicAuthFilter(cfg tree.Map) (Filter, error) {
-	f, err := NewBasicAuth(cfg)
-	if err != nil {
-		return nil, err
-	}
-	return f.Filter, nil
-}
-
-func (f *BasicAuth) init() error {
+func (f *BasicAuthFilter) init() error {
 	if f.UsersFile != "" {
 		bin, err := ioutil.ReadFile(f.UsersFile)
 		if err != nil {
@@ -74,17 +65,17 @@ func (f *BasicAuth) init() error {
 	return nil
 }
 
-func (f *BasicAuth) unauthorized(ctx *fasthttp.RequestCtx) {
+func (f *BasicAuthFilter) unauthorized(ctx *fasthttp.RequestCtx) {
 	ctx.Error("Unauthorized", http.StatusUnauthorized)
 	ctx.Response.Header.Set("WWW-Authenticate", "Basic realm="+f.Realm)
 }
 
 var basicPrefix = []byte("Basic ")
 
-// Filter examines the Authorization header of the given ctx and matches it
+// Request examines the Authorization header of the given ctx and matches it
 // against the user it holds. If the user does not match, it sets 401
 // Unauthorized and returns false.
-func (f *BasicAuth) Filter(ctx *fasthttp.RequestCtx) bool {
+func (f *BasicAuthFilter) Request(ctx *fasthttp.RequestCtx) bool {
 	header := ctx.Request.Header.Peek(fasthttp.HeaderAuthorization)
 	if len(header) == 0 {
 		f.unauthorized(ctx)
@@ -103,6 +94,11 @@ func (f *BasicAuth) Filter(ctx *fasthttp.RequestCtx) bool {
 	}
 	f.unauthorized(ctx)
 	return false
+}
+
+// Response dose nothing and returns true.
+func (f *BasicAuthFilter) Response(ctx *fasthttp.RequestCtx) bool {
+	return true
 }
 
 func init() {
