@@ -51,6 +51,14 @@ func Test_UnmarshalYAMLPath(t *testing.T) {
 					},
 					"usersFile": tree.ToValue("./users.yaml"),
 				},
+				"cache": {
+					"type": tree.ToValue("header"),
+					"response": tree.Map{
+						"set": tree.Map{
+							"Cache-Control": tree.ToValue("private, max-age=3600"),
+						},
+					},
+				},
 			},
 			Handlers: map[string]tree.Map{
 				"static": {
@@ -96,6 +104,7 @@ func Test_UnmarshalYAMLPath(t *testing.T) {
 					},
 				}, {
 					Methods: []string{"GET", "HEAD"},
+					Filters: []string{"cache"},
 					Path:    `.*\.(js|css|jpg|png|gif|ico)$`,
 					Match:   MatchRegexp,
 					Handler: "static",

@@ -166,6 +166,7 @@ func testRoutes(t *testing.T, rs *Routes) {
 			method: http.MethodGet,
 			path:   "/img/test.png",
 			want: &RoutesResult{
+				Filters: []string{"cache"},
 				Handler: "static",
 			},
 		}, {

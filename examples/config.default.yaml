@@ -1,0 +1,18 @@
+host: localhost
+listen: ':80'
+root: /usr/share/fasthttpd/html
+
+log:
+  output: /var/log/fasthttpd/error.log
+
+accessLog:
+  output: /var/log/fasthttpd/access.log
+
+handlers:
+  static:
+    type: fs
+    indexNames: [index.html]
+
+routes:
+  - path: /
+    handler: static

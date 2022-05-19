@@ -7,14 +7,42 @@ FastHttpd is a HTTP server using [valyala/fasthttp](https://github.com/valyala/f
 
 ## Install
 
+Go install
+
+```sh
+go install github.com/fasthttpd/fasthttpd/cmd/fasthttpd@latest
 ```
-VERSION=0.2.1 GOOS=Darwin GOARCH=arm64; curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | tar xz fasthttpd && mv fasthttpd /usr/local/bin
+
+Download binary
+
+```
+VERSION=0.2.2 GOOS=Darwin GOARCH=arm64 curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | tar xz fasthttpd && mv fasthttpd /usr/local/bin
 ```
 
 ## Quick start
 
+Usage
+
 ```sh
-% fasthttpd -f examples/minimal.yaml
+FastHttpd is a HTTP server using valyala/fasthttp.
+
+Usage:
+  fasthttpd [flags] [query] ([file...])
+
+Flags:
+  -e value
+    	edit expression (eg. -e KEY=VALUE)
+  -f string
+    	configuration file
+  -h	help for fasthttpd
+  -v	print version
+```
+
+Examples
+
+```sh
+% fasthttpd -f examples/config.minimal.yaml
+% fasthttpd -f examples/config.minimal.yaml -e accessLog.output=stdout
 % fasthttpd -e root=./examples/public -e listen=0.0.0.0:8080
 ```
 
@@ -46,7 +74,7 @@ root: ./public
 log:
   output: logs/error.log
   # NOTE: Flags supports date|time|microseconds
-  flags: ['date', 'time']
+  flags: [date, time]
   rotation:
     maxSize: 100
 
@@ -82,12 +110,18 @@ filters:
         secret: httpd
     usersFile: ./users.yaml
 
+  cache:
+    type: header
+    response:
+      set:
+        Cache-Control: private, max-age=3600
+
 # Define named handlers
 handlers:
 
   static:
     type: fs
-    indexNames: ['index.html']
+    indexNames: [index.html]
     generateIndexPages: false
     compress: true
   
@@ -130,6 +164,7 @@ routes:
   # Route to static resources using regexp.
   - path: .*\.(js|css|jpg|png|gif|ico)$
     match: regexp
+    filters: [cache]
     methods: [GET, HEAD]
     handler: static
 
@@ -140,7 +175,7 @@ routes:
       uri: /view?id=$1
 
   # Other requests are routed to backend with auth filter.
-  - filters: ['auth']
+  - filters: [auth]
     handler: backend
 
 routesCache:
@@ -157,13 +192,11 @@ ssl:
   keyFile: ./ssl/localhost.key
 
 handlers:
-
   backend:
     type: proxy
     url: 'http://localhost:8080'
 
 routes:
-
   - path: /
     handler: backend
 ```
@@ -171,5 +204,4 @@ routes:
 ## TODO
 
 - Daemonize
-- Custom headers
 - Benchmark reports

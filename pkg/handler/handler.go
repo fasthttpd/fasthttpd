@@ -98,9 +98,7 @@ func (h *MainHandler) init() error {
 	h.handlers = map[string]fasthttp.RequestHandler{}
 	for name, hcfg := range h.cfg.Handlers {
 		if hcfg.Get("root").Value().String() == "" {
-			if err := hcfg.Set("root", tree.ToValue(h.cfg.Root)); err != nil {
-				return err
-			}
+			hcfg.Set("root", tree.ToValue(h.cfg.Root)) //nolint:errcheck
 		}
 		hh, err := NewHandler(hcfg, l)
 		if err != nil {
@@ -149,7 +147,7 @@ func (h *MainHandler) Handle(ctx *fasthttp.RequestCtx) {
 		ctx.Request.SetRequestURIBytes(uri)
 	}
 	for _, f := range result.Filters {
-		if !h.filters[f](ctx) {
+		if !h.filters[f].Request(ctx) {
 			h.errorPages.Handle(ctx)
 			return
 		}
@@ -162,13 +160,17 @@ func (h *MainHandler) Handle(ctx *fasthttp.RequestCtx) {
 		ctx.Response.Reset()
 		ctx.Response.SetStatusCode(result.StatusCode)
 		ctx.Response.Header.SetStatusMessage(result.StatusMessage)
-		h.errorPages.Handle(ctx)
-		return
-	}
-	if result.Handler != "" {
+	} else if result.Handler != "" {
 		h.handlers[result.Handler](ctx)
+	} else {
+		ctx.Response.SetStatusCode(http.StatusNotFound)
 	}
 	h.errorPages.Handle(ctx)
+	for _, f := range result.Filters {
+		if !h.filters[f].Response(ctx) {
+			break
+		}
+	}
 }
 
 // HandleError implements fasthttp.Server.ErrorHandler.

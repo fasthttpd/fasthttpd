@@ -14,18 +14,20 @@ import (
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/handler"
-	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/jarxorg/tree"
 	"github.com/valyala/fasthttp"
 )
 
+// EnvFasthttpdConfig is the environment variable name "FASTHTTPD_CONFIG" that indicates the default configuration file path.
+const EnvFasthttpdConfig = "FASTHTTPD_CONFIG"
+
 const (
 	cmd          = "fasthttpd"
-	version      = "0.2.1"
+	version      = "0.2.2"
 	desc         = "FastHttpd is a HTTP server using valyala/fasthttp."
 	usage        = cmd + " [flags] [query] ([file...])"
 	examplesText = `Examples:
-  % fasthttpd -f ./examples/minimal.yaml
+  % fasthttpd -f ./examples/config.minimal.yaml
   % fasthttpd -e root=./examples/public -e listen=:8080
 `
 )
@@ -64,7 +66,7 @@ func (d *FastHttpd) initFlagSet(args []string) error {
 
 	s.BoolVar(&d.isVersion, "v", false, "print version")
 	s.BoolVar(&d.isHelp, "h", false, "help for "+cmd)
-	s.StringVar(&d.configFile, "f", "", "configuration file")
+	s.StringVar(&d.configFile, "f", os.Getenv(EnvFasthttpdConfig), "configuration file")
 	s.Var(&d.editExprs, "e", "edit expression (eg. -e KEY=VALUE)")
 	s.Usage = func() {
 		fmt.Fprintf(os.Stderr, "%s\n\nUsage:\n  %s\n\n", desc, usage)
@@ -121,7 +123,7 @@ func (d *FastHttpd) newServer(cfg config.Config, h *handler.MainHandler) (*fasth
 	s := &fasthttp.Server{
 		Handler:      h.Handle,
 		ErrorHandler: h.HandleError,
-		Logger:       logger.Global(),
+		Logger:       h.Logger(),
 	}
 	if err := tree.UnmarshalViaJSON(cfg.Server, s); err != nil {
 		return nil, err

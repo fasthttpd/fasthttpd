@@ -9,22 +9,22 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-func Test_NewBasicAuth(t *testing.T) {
+func Test_NewBasicAuthFilter(t *testing.T) {
 	tests := []struct {
 		cfg    tree.Map
-		want   *BasicAuth
+		want   *BasicAuthFilter
 		errstr string
 	}{
 		{
 			cfg: tree.Map{},
-			want: &BasicAuth{
+			want: &BasicAuthFilter{
 				Realm: DefaultRealm,
 			},
 		}, {
 			cfg: tree.Map{
 				"realm": tree.ToValue("staff only"),
 			},
-			want: &BasicAuth{
+			want: &BasicAuthFilter{
 				Realm: "staff only",
 			},
 		}, {
@@ -36,7 +36,7 @@ func Test_NewBasicAuth(t *testing.T) {
 					},
 				},
 			},
-			want: &BasicAuth{
+			want: &BasicAuthFilter{
 				Realm: DefaultRealm,
 				Users: []*BasicAuthUser{
 					{
@@ -55,7 +55,7 @@ func Test_NewBasicAuth(t *testing.T) {
 				},
 				"usersFile": tree.ToValue("../config/testdata/users.yaml"),
 			},
-			want: &BasicAuth{
+			want: &BasicAuthFilter{
 				Realm: DefaultRealm,
 				Users: []*BasicAuthUser{
 					{
@@ -79,7 +79,7 @@ func Test_NewBasicAuth(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		got, err := NewBasicAuth(test.cfg)
+		got, err := NewBasicAuthFilter(test.cfg)
 		if test.errstr != "" {
 			if err == nil {
 				t.Fatalf("tests[%d] is no error; want %q", i, test.errstr)
@@ -93,20 +93,20 @@ func Test_NewBasicAuth(t *testing.T) {
 			t.Fatalf("tests[%d] error %v", i, err)
 		}
 		if !reflect.DeepEqual(got, test.want) {
-			t.Errorf("tests[%d] got %#v; want %#v", i, *got, *test.want)
+			t.Errorf("tests[%d] got %#v; want %#v", i, got, *test.want)
 		}
 	}
 }
 
-func Test_BasicAuth_Filter(t *testing.T) {
+func Test_BasicAuthFilter(t *testing.T) {
 	tests := []struct {
-		auth       *BasicAuth
+		auth       *BasicAuthFilter
 		ctx        func() *fasthttp.RequestCtx
 		want       bool
 		statusCode int
 	}{
 		{
-			auth: &BasicAuth{
+			auth: &BasicAuthFilter{
 				Users: []*BasicAuthUser{
 					{
 						Name:   "foo",
@@ -120,7 +120,7 @@ func Test_BasicAuth_Filter(t *testing.T) {
 			},
 			statusCode: http.StatusUnauthorized,
 		}, {
-			auth: &BasicAuth{
+			auth: &BasicAuthFilter{
 				Users: []*BasicAuthUser{
 					{
 						Name:   "foo",
@@ -136,7 +136,7 @@ func Test_BasicAuth_Filter(t *testing.T) {
 			want:       true,
 			statusCode: http.StatusOK,
 		}, {
-			auth: &BasicAuth{
+			auth: &BasicAuthFilter{
 				Users: []*BasicAuthUser{
 					{
 						Name:   "foo",
@@ -152,7 +152,7 @@ func Test_BasicAuth_Filter(t *testing.T) {
 			want:       false,
 			statusCode: http.StatusBadRequest,
 		}, {
-			auth: &BasicAuth{
+			auth: &BasicAuthFilter{
 				Users: []*BasicAuthUser{
 					{
 						Name:   "foo",
@@ -174,13 +174,16 @@ func Test_BasicAuth_Filter(t *testing.T) {
 			t.Fatal(err)
 		}
 		ctx := test.ctx()
-		got := test.auth.Filter(ctx)
+		got := test.auth.Request(ctx)
 		if got != test.want {
 			t.Fatalf("tests[%d] got %v; want %v", i, got, test.want)
 		}
 		statusCode := ctx.Response.StatusCode()
 		if statusCode != test.statusCode {
 			t.Errorf("tests[%d] statusCode is %d; want %d", i, statusCode, test.statusCode)
+		}
+		if !test.auth.Response(ctx) {
+			t.Errorf("tests[%d] response returns false", i)
 		}
 	}
 }
