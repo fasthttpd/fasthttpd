@@ -61,6 +61,14 @@ func Test_Match(t *testing.T) {
 			want:   true,
 		}, {
 			cfg: config.Route{
+				Path:  "/",
+				Match: "invalid-match",
+			},
+			method: http.MethodGet,
+			path:   "/",
+			errstr: `unknown match: invalid-match`,
+		}, {
+			cfg: config.Route{
 				Path:  "(invalid regexp",
 				Match: config.MatchRegexp,
 			},
