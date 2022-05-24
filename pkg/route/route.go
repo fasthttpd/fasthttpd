@@ -30,15 +30,15 @@ type Route struct {
 func NewRoute(rcfg config.Route) (*Route, error) {
 	r := &Route{
 		filters:                  rcfg.Filters,
-		rewriteUriBytes:          []byte(rcfg.Rewrite.URI),
-		rewriteAppendQueryString: rcfg.Rewrite.AppendQueryString,
+		rewriteUriBytes:          []byte(rcfg.Rewrite),
+		rewriteAppendQueryString: rcfg.RewriteAppendQueryString,
 		handler:                  rcfg.Handler,
-		statusCode:               rcfg.Status.Code,
+		statusCode:               rcfg.Status,
 	}
-	if rcfg.Status.Message != "" {
-		r.statusMessageBytes = []byte(rcfg.Status.Message)
-	} else if rcfg.Status.Code > 0 {
-		r.statusMessageBytes = []byte(http.StatusText(rcfg.Status.Code))
+	if rcfg.StatusMessage != "" {
+		r.statusMessageBytes = []byte(rcfg.StatusMessage)
+	} else if rcfg.Status > 0 {
+		r.statusMessageBytes = []byte(http.StatusText(rcfg.Status))
 	}
 	if len(rcfg.Methods) > 0 {
 		r.methodsBytes = make([][]byte, len(rcfg.Methods))
