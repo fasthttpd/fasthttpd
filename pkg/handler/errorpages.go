@@ -36,13 +36,11 @@ func NewErrorPages(root string, cfg map[string]string) *ErrorPages {
 }
 
 func (p *ErrorPages) Handle(ctx *fasthttp.RequestCtx) {
-	status := ctx.Response.StatusCode()
-	if status < errorPagesStatusOffset || status >= errorPagesStatusUntil {
+	if p.fs == nil {
 		return
 	}
-	if p.fs == nil {
-		// TODO: Overwrite body
-		ctx.Error(http.StatusText(status), status)
+	status := ctx.Response.StatusCode()
+	if status < errorPagesStatusOffset || status >= errorPagesStatusUntil {
 		return
 	}
 	if path := p.errorPaths[status-errorPagesStatusOffset]; path != nil {
@@ -73,7 +71,6 @@ func (p *ErrorPages) handleStatus(ctx *fasthttp.RequestCtx, status int, sb []byt
 
 func (p *ErrorPages) sendError(ctx *fasthttp.RequestCtx, status int, path []byte) {
 	if len(path) == 0 {
-		ctx.Error(http.StatusText(status), status)
 		return
 	}
 
@@ -85,9 +82,7 @@ func (p *ErrorPages) sendError(ctx *fasthttp.RequestCtx, status int, path []byte
 	if ctx.Response.StatusCode() == http.StatusOK {
 		ctx.SetStatusCode(status)
 	} else {
-		ctx.Logger().Printf("error page %q status %d", path, ctx.Response.StatusCode())
-		// NOTE: store the path has error.
-		p.errorPaths[status-errorPagesStatusOffset] = []byte{}
+		ctx.Logger().Printf("error page %q status: %d", path, ctx.Response.StatusCode())
 		ctx.Error(http.StatusText(status), status)
 	}
 }

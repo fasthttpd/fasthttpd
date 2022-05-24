@@ -87,8 +87,8 @@ func Test_ErrorPages(t *testing.T) {
 			},
 			wantStatusCode:  400,
 			wantContentType: "text/plain; charset=utf-8",
-			wantBody:        http.StatusText(400),
-			wantLogOutput:   `error page "/err/400.html" status 404`,
+			wantBody:        http.StatusText(http.StatusBadRequest),
+			wantLogOutput:   `error page "/err/400.html" status: 404`,
 		},
 	}
 
@@ -116,7 +116,7 @@ func Test_ErrorPages(t *testing.T) {
 	}
 
 	wantErrorPaths := make([][]byte, 200)
-	wantErrorPaths[400-errorPagesStatusOffset] = []byte{}
+	wantErrorPaths[400-errorPagesStatusOffset] = []byte("/err/400.html")
 	wantErrorPaths[403-errorPagesStatusOffset] = []byte{}
 	wantErrorPaths[404-errorPagesStatusOffset] = []byte("/err/404.html")
 	wantErrorPaths[500-errorPagesStatusOffset] = []byte("/err/5xx.html")
