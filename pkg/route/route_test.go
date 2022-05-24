@@ -50,15 +50,21 @@ func Test_Match(t *testing.T) {
 			path:   "/img/test.png",
 		}, {
 			cfg: config.Route{
-				Path:  "^/view/(.+)",
-				Match: config.MatchRegexp,
-				Rewrite: config.Rewrite{
-					URI: "/view?id=$1",
-				},
+				Path:    "^/view/(.+)",
+				Match:   config.MatchRegexp,
+				Rewrite: "/view?id=$1",
 			},
 			method: http.MethodGet,
 			path:   "/view/1",
 			want:   true,
+		}, {
+			cfg: config.Route{
+				Path:  "/",
+				Match: "invalid-match",
+			},
+			method: http.MethodGet,
+			path:   "/",
+			errstr: `unknown match: invalid-match`,
 		}, {
 			cfg: config.Route{
 				Path:  "(invalid regexp",

@@ -13,10 +13,10 @@ Go install
 go install github.com/fasthttpd/fasthttpd/cmd/fasthttpd@latest
 ```
 
-Download binary
+Download binary (Linux x86_64)
 
-```
-VERSION=0.2.2 GOOS=Darwin GOARCH=arm64 curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | tar xz fasthttpd && mv fasthttpd /usr/local/bin
+```sh
+VERSION=0.3.0 GOOS=Linux GOARCH=x86_64; curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | tar xz fasthttpd && mv fasthttpd /usr/local/bin
 ```
 
 ## Quick start
@@ -134,9 +134,8 @@ routes:
 
   # Allows GET, POST, HEAD only.
   - methods: [PUT, DELETE, CONNECT, OPTIONS, TRACE, PATCH]
-    status:
-      code: 405
-      message: Method not allowed
+    status: 405
+    statusMessage: Method not allowed
 
   # Route to /index.html.
   - path: /
@@ -146,20 +145,16 @@ routes:
   # Redirect to external url with status code 302.
   - path: /redirect-external
     match: equal
-    rewrite:
-      uri: http://example.com/
-    status:
-      code: 302
+    rewrite: http://example.com/
+    status: 302
 
   # Redirect to internal uri with status code 302 and appendQueryString.
   # If "GET /redirect-internal?name=value" is requested then it redirect to "/internal?foo=bar&name=value"
   - path: /redirect-internal
     match: equal
-    rewrite:
-      uri: /internal?foo=bar
-      appendQueryString: true
-    status:
-      code: 302
+    rewrite: /internal?foo=bar
+    rewriteAppendQueryString: true
+    status: 302
   
   # Route to static resources using regexp.
   - path: .*\.(js|css|jpg|png|gif|ico)$
@@ -171,8 +166,7 @@ routes:
   # Rewrite the path and route to next (no handler and no status).
   - path: ^/view/(.+)
     match: regexp
-    rewrite:
-      uri: /view?id=$1
+    rewrite: /view?id=$1
 
   # Other requests are routed to backend with auth filter.
   - filters: [auth]

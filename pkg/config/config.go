@@ -144,25 +144,15 @@ func (l AccessLog) SetDefaults() AccessLog {
 
 // Route represents a configuration of route.
 type Route struct {
-	Path    string   `yaml:"path"`
-	Match   string   `yaml:"match"`
-	Methods []string `yaml:"methods"`
-	Filters []string `yaml:"filters"`
-	Rewrite Rewrite  `yaml:"rewrite"`
-	Handler string   `yaml:"handler"`
-	Status  Status   `yaml:"status"`
-}
-
-// Rewrite represents a configuration of rewrite.
-type Rewrite struct {
-	URI               string `yaml:"uri"`
-	AppendQueryString bool   `yaml:"appendQueryString"`
-}
-
-// Status represents a configuration of http status and message.
-type Status struct {
-	Code    int    `yaml:"code"`
-	Message string `yaml:"message"`
+	Path                     string   `yaml:"path"`
+	Match                    string   `yaml:"match"`
+	Methods                  []string `yaml:"methods"`
+	Filters                  []string `yaml:"filters"`
+	Rewrite                  string   `yaml:"rewrite"`
+	RewriteAppendQueryString bool     `yaml:"rewriteAppendQueryString"`
+	Handler                  string   `yaml:"handler"`
+	Status                   int      `yaml:"status"`
+	StatusMessage            string   `yaml:"statusMessage"`
 }
 
 // RoutesCache represents a configuration of route cache.
