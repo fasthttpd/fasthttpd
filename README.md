@@ -13,10 +13,10 @@ Go install
 go install github.com/fasthttpd/fasthttpd/cmd/fasthttpd@latest
 ```
 
-Download binary
+Download binary (Linux x86_64)
 
-```
-VERSION=0.2.2 GOOS=Darwin GOARCH=arm64 curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | tar xz fasthttpd && mv fasthttpd /usr/local/bin
+```sh
+VERSION=0.3.0 GOOS=Linux GOARCH=x86_64; curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | tar xz fasthttpd && mv fasthttpd /usr/local/bin
 ```
 
 ## Quick start
