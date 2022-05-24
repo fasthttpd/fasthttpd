@@ -160,9 +160,9 @@ func (d *FastHttpd) run() error {
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
 	go func() {
 		<-ctx.Done()
-		stop()
 		if err := d.Shutdown(); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to shutdown: %v", err)
 		}
