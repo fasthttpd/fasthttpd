@@ -55,19 +55,19 @@ func Test_tcpKeepaliveListener(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		c, err := tcpLn.Accept()
+		serverConn, err := tcpLn.Accept()
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
-		c.Close()
+		serverConn.Close()
 	}()
 
-	d := net.Dialer{Timeout: 10 * time.Millisecond}
-	c, err := d.Dial("tcp", ln.Addr().String())
+	dialer := net.Dialer{Timeout: 10 * time.Millisecond}
+	conn, err := dialer.Dial("tcp", ln.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Close()
+	conn.Close()
 
 	ln.Close()
 	wg.Wait()
