@@ -74,34 +74,24 @@ func Test_UnmarshalYAMLPath(t *testing.T) {
 			},
 			Routes: []Route{
 				{
-					Methods: []string{"PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"},
-					Status: Status{
-						Code:    405,
-						Message: "Method not allowed",
-					},
+					Methods:       []string{"PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"},
+					Status:        405,
+					StatusMessage: "Method not allowed",
 				}, {
 					Path:    "/",
 					Match:   MatchEqual,
 					Handler: "static",
 				}, {
-					Path:  "/redirect-external",
-					Match: MatchEqual,
-					Rewrite: Rewrite{
-						URI: "http://example.com/",
-					},
-					Status: Status{
-						Code: 302,
-					},
+					Path:    "/redirect-external",
+					Match:   MatchEqual,
+					Rewrite: "http://example.com/",
+					Status:  302,
 				}, {
-					Path:  "/redirect-internal",
-					Match: MatchEqual,
-					Rewrite: Rewrite{
-						URI:               "/internal?foo=bar",
-						AppendQueryString: true,
-					},
-					Status: Status{
-						Code: 302,
-					},
+					Path:                     "/redirect-internal",
+					Match:                    MatchEqual,
+					Rewrite:                  "/internal?foo=bar",
+					RewriteAppendQueryString: true,
+					Status:                   302,
 				}, {
 					Methods: []string{"GET", "HEAD"},
 					Filters: []string{"cache"},
@@ -109,11 +99,9 @@ func Test_UnmarshalYAMLPath(t *testing.T) {
 					Match:   MatchRegexp,
 					Handler: "static",
 				}, {
-					Path:  "^/view/(.+)",
-					Match: MatchRegexp,
-					Rewrite: Rewrite{
-						URI: "/view?id=$1",
-					},
+					Path:    "^/view/(.+)",
+					Match:   MatchRegexp,
+					Rewrite: "/view?id=$1",
 				}, {
 					Filters: []string{"auth"},
 					Handler: "backend",
