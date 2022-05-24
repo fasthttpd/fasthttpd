@@ -16,7 +16,10 @@ go install github.com/fasthttpd/fasthttpd/cmd/fasthttpd@latest
 Download binary (Linux x86_64)
 
 ```sh
-VERSION=0.3.0 GOOS=Linux GOARCH=x86_64; curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | tar xz fasthttpd && mv fasthttpd /usr/local/bin
+VERSION=0.3.1 GOOS=Linux GOARCH=x86_64; \
+  curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | \
+  tar xz fasthttpd && \
+  sudo mv fasthttpd /usr/sbin
 ```
 
 ## Quick start
@@ -199,3 +202,4 @@ routes:
 
 - Daemonize
 - Benchmark reports
+- Multi host
