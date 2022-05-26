@@ -4,33 +4,10 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/valyala/fasthttp"
-	"gopkg.in/natefinch/lumberjack.v2"
 )
-
-var global Logger
-
-// Global returns a logger that is set as global. If the global logger is not
-// set then it returns NilLogger.
-func Global() Logger {
-	if global == nil {
-		return NilLogger
-	}
-	return global
-}
-
-// SetGlobal sets a logger as global logger.
-func SetGlobal(l Logger) {
-	global = l
-}
-
-// Rotater is the interface that defines the methods to rotate files.
-type Rotater interface {
-	Rotate() error
-}
 
 // Logger is the interface that defines the methods to logging.
 type Logger interface {
@@ -40,65 +17,36 @@ type Logger interface {
 	LogLogger() *log.Logger
 }
 
-// WriteRotateCloser is the interface that groups the Rotate and basic Write,
-// Close methods.
-type WriteRotateCloser interface {
-	io.WriteCloser
-	Rotater
-}
-
-// NopWriteRotateCloser is a Writer with no-op Rotate and Close methods.
-type NopWriteRotateCloser struct {
-	io.Writer
-}
-
-// Rotate does nothing, returns nil.
-func (*NopWriteRotateCloser) Rotate() error {
-	return nil
-}
-
-// Close does nothing, returns nil.
-func (*NopWriteRotateCloser) Close() error {
-	return nil
-}
-
-// NewLogger returns a new logger.
+// NewLogger creates a new logger.
 func NewLogger(cfg config.Log) (Logger, error) {
-	switch cfg.Output {
-	case "":
+	if cfg.Output == "" {
 		return NilLogger, nil
-	case "stdout":
-		return NewLoggerWriter(cfg, os.Stdout)
-	case "stderr":
-		return NewLoggerWriter(cfg, os.Stderr)
-	default:
-		return NewLoggerWriteRotateCloser(cfg, &lumberjack.Logger{
-			Filename:   cfg.Output,
-			MaxSize:    cfg.Rotation.MaxSize,
-			MaxBackups: cfg.Rotation.MaxBackups,
-			MaxAge:     cfg.Rotation.MaxAge,
-			Compress:   cfg.Rotation.Compress,
-			LocalTime:  cfg.Rotation.LocalTime,
-		})
 	}
+	out, err := SharedRotater(cfg.Output, cfg.Rotation)
+	if err != nil {
+		return nil, err
+	}
+	l, err := newLogger(out, cfg)
+	if err != nil {
+		out.Close() //nolint:errcheck
+		return nil, err
+	}
+	return l, nil
 }
 
 // NewLoggerWriter returns a new logger with out.
 func NewLoggerWriter(cfg config.Log, out io.Writer) (Logger, error) {
-	return newLogger(&NopWriteRotateCloser{Writer: out}, cfg)
-}
-
-// NewLoggerWriteRotateCloser returns a new logger with out.
-func NewLoggerWriteRotateCloser(cfg config.Log, out WriteRotateCloser) (Logger, error) {
-	return newLogger(out, cfg)
+	return newLogger(&NopRotater{Writer: out}, cfg)
 }
 
 type logger struct {
 	*log.Logger
-	rotateCloser WriteRotateCloser
+	rotater Rotater
 }
 
-func newLogger(out WriteRotateCloser, cfg config.Log) (*logger, error) {
+var _ Logger = (*logger)(nil)
+
+func newLogger(out Rotater, cfg config.Log) (*logger, error) {
 	flgs := 0
 	for _, flg := range cfg.Flags {
 		switch flg {
@@ -116,24 +64,35 @@ func newLogger(out WriteRotateCloser, cfg config.Log) (*logger, error) {
 			return nil, fmt.Errorf("unknown flag: %s", flg)
 		}
 	}
-	return &logger{Logger: log.New(out, cfg.Prefix, flgs), rotateCloser: out}, nil
+	return &logger{
+		Logger:  log.New(out, cfg.Prefix, flgs),
+		rotater: out,
+	}, nil
 }
 
 // Rotate rotate log stream.
 func (l *logger) Rotate() error {
-	if l.rotateCloser != nil {
-		return l.rotateCloser.Rotate()
+	if l.rotater != nil {
+		return l.rotater.Rotate()
 	}
 	return nil
 }
 
+// Write writes to log stream.
+func (l *logger) Write(p []byte) (int, error) {
+	if l.rotater != nil {
+		return l.rotater.Write(p)
+	}
+	return 0, nil
+}
+
 // Close closes log stream.
 func (l *logger) Close() error {
-	if l.rotateCloser != nil {
-		if err := l.rotateCloser.Close(); err != nil {
+	if l.rotater != nil {
+		if err := l.rotater.Close(); err != nil {
 			return err
 		}
-		l.rotateCloser = nil
+		l.rotater = nil
 	}
 	return nil
 }
@@ -152,5 +111,6 @@ var (
 
 func (nilLogger) Printf(format string, args ...interface{}) {}
 func (nilLogger) Rotate() error                             { return nil }
+func (nilLogger) Write([]byte) (int, error)                 { return 0, nil }
 func (nilLogger) Close() error                              { return nil }
 func (nilLogger) LogLogger() *log.Logger                    { return NilLogLogger }

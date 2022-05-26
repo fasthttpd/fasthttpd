@@ -2,7 +2,6 @@ package logger
 
 import (
 	"bytes"
-	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -13,23 +12,7 @@ import (
 	"testing"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
-	"gopkg.in/natefinch/lumberjack.v2"
 )
-
-func Test_Global(t *testing.T) {
-	globalOrg := Global()
-	defer SetGlobal(globalOrg)
-
-	l, err := NewLoggerWriter(config.Log{}, io.Discard)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	SetGlobal(l)
-	if g := Global(); g != l {
-		t.Errorf("unexpected global logger %#v; want %#v", g, l)
-	}
-}
 
 func Test_NewLogger(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "*.logger_test")
@@ -51,19 +34,19 @@ func Test_NewLogger(t *testing.T) {
 		}, {
 			cfg: config.Log{Output: "stdout"},
 			want: func(cfg config.Log) Logger {
-				out := &NopWriteRotateCloser{Writer: os.Stdout}
+				out, _ := SharedRotater("stdout", cfg.Rotation)
 				return &logger{
-					Logger:       log.New(out, "", 0),
-					rotateCloser: out,
+					Logger:  log.New(out, "", 0),
+					rotater: out,
 				}
 			},
 		}, {
 			cfg: config.Log{Output: "stderr"},
 			want: func(cfg config.Log) Logger {
-				out := &NopWriteRotateCloser{Writer: os.Stderr}
+				out, _ := SharedRotater("stderr", cfg.Rotation)
 				return &logger{
-					Logger:       log.New(out, "", 0),
-					rotateCloser: out,
+					Logger:  log.New(out, "", 0),
+					rotater: out,
 				}
 			},
 		}, {
@@ -78,17 +61,10 @@ func Test_NewLogger(t *testing.T) {
 				},
 			},
 			want: func(cfg config.Log) Logger {
-				out := &lumberjack.Logger{
-					Filename:   cfg.Output,
-					MaxSize:    cfg.Rotation.MaxSize,
-					MaxBackups: cfg.Rotation.MaxBackups,
-					MaxAge:     cfg.Rotation.MaxAge,
-					Compress:   cfg.Rotation.Compress,
-					LocalTime:  cfg.Rotation.LocalTime,
-				}
+				out, _ := SharedRotater(filepath.Join(tmpDir, "test.log"), cfg.Rotation)
 				return &logger{
-					Logger:       log.New(out, "", 0),
-					rotateCloser: out,
+					Logger:  log.New(out, "", 0),
+					rotater: out,
 				}
 			},
 		}, {
@@ -141,27 +117,33 @@ func Test_Logger_Printf(t *testing.T) {
 			want: `test [0-9]+$`,
 		}, {
 			cfg: config.Log{
+				Output: "stdout",
 				Prefix: "PREFIX ",
 				Flags:  []string{"time", "date"},
 			},
 			want: `^PREFIX [0-9]+/[0-9]+/[0-9]+ [0-9]+:[0-9]+:[0-9]+ test [0-9]+$`,
 		}, {
 			cfg: config.Log{
+				Output: "stdout",
 				Prefix: "MSGPREFIX ",
 				Flags:  []string{"time", "date", "msgprefix"},
 			},
 			want: `^[0-9]+/[0-9]+/[0-9]+ [0-9]+:[0-9]+:[0-9]+ MSGPREFIX test [0-9]+$`,
 		}, {
 			cfg: config.Log{
-				Flags: []string{"time", "date", "microsecond", "utc"},
+				Output: "stdout",
+				Flags:  []string{"time", "date", "microsecond", "utc"},
 			},
 			want: `^[0-9]+/[0-9]+/[0-9]+ [0-9]+:[0-9]+:[0-9]+\.[0-9]+ test [0-9]+$`,
 		},
 	}
+
 	b := new(bytes.Buffer)
+	out := &NopRotater{Writer: b}
+
 	for i, test := range tests {
 		b.Reset()
-		l, err := NewLoggerWriter(test.cfg, b)
+		l, err := newLogger(out, test.cfg)
 		if err != nil {
 			t.Fatal(err)
 		}
