@@ -16,7 +16,7 @@ go install github.com/fasthttpd/fasthttpd/cmd/fasthttpd@latest
 Download binary (Linux x86_64)
 
 ```sh
-VERSION=0.3.1 GOOS=Linux GOARCH=x86_64; \
+VERSION=0.3.2 GOOS=Linux GOARCH=x86_64; \
   curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | \
   tar xz fasthttpd && \
   sudo mv fasthttpd /usr/sbin
