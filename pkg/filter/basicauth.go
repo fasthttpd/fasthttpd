@@ -66,7 +66,7 @@ func (f *BasicAuthFilter) init() error {
 }
 
 func (f *BasicAuthFilter) unauthorized(ctx *fasthttp.RequestCtx) {
-	ctx.Error("Unauthorized", http.StatusUnauthorized)
+	ctx.Response.SetStatusCode(http.StatusUnauthorized)
 	ctx.Response.Header.Set("WWW-Authenticate", "Basic realm="+f.Realm)
 }
 

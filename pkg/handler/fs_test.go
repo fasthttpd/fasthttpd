@@ -58,6 +58,7 @@ func Test_NewFS(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		got.PathNotFound = nil
 		if !reflect.DeepEqual(got, test.want) {
 			t.Errorf("tests[%d] got %#v; want %#v", i, got, test.want)
 		}

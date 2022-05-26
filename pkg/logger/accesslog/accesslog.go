@@ -2,10 +2,9 @@ package accesslog
 
 import (
 	"io"
+	"net"
 	"os"
 	"regexp"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
@@ -13,7 +12,6 @@ import (
 	"github.com/fasthttpd/fasthttpd/pkg/util"
 	"github.com/valyala/bytebufferpool"
 	"github.com/valyala/fasthttp"
-	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 const (
@@ -40,33 +38,26 @@ type AccessLog interface {
 
 // NewAccessLog returns a new AccessLog.
 func NewAccessLog(cfg config.Config) (AccessLog, error) {
-	switch cfg.AccessLog.Output {
-	case "":
-		return NilAccessLog, nil
-	case "stdout":
-		return newAccessLog(&logger.NopWriteRotateCloser{Writer: os.Stdout}, cfg)
-	case "stderr":
-		return newAccessLog(&logger.NopWriteRotateCloser{Writer: os.Stderr}, cfg)
-	default:
-		return newAccessLog(&lumberjack.Logger{
-			Filename:   cfg.AccessLog.Output,
-			MaxSize:    cfg.AccessLog.Rotation.MaxSize,
-			MaxBackups: cfg.AccessLog.Rotation.MaxBackups,
-			MaxAge:     cfg.AccessLog.Rotation.MaxAge,
-			Compress:   cfg.AccessLog.Rotation.Compress,
-			LocalTime:  cfg.AccessLog.Rotation.LocalTime,
-		}, cfg)
+	out, err := logger.SharedRotater(cfg.AccessLog.Output, cfg.AccessLog.Rotation)
+	if err != nil {
+		return nil, err
 	}
+	l, err := newAccessLog(out, cfg)
+	if err != nil {
+		out.Close() //nolint:errcheck
+		return nil, err
+	}
+	return l, nil
 }
 
 type accessLog struct {
-	out               logger.WriteRotateCloser
+	out               logger.Rotater
 	appendFuncs       []appendFunc
 	collectRequestURI bool
 	addrToPortCache   util.Cache
 }
 
-func newAccessLog(out logger.WriteRotateCloser, cfg config.Config) (*accessLog, error) {
+func newAccessLog(out logger.Rotater, cfg config.Config) (*accessLog, error) {
 	return (&accessLog{out: out}).init(cfg)
 }
 
@@ -74,6 +65,7 @@ var formatPattern = regexp.MustCompile(`(%(>|{(.+?)})?([a-zA-Z%])|([^%]+))`)
 
 var timeNow = func() time.Time { return time.Now() }
 
+// Rotate rotate log stream.
 func (l *accessLog) Rotate() error {
 	if l.out != nil {
 		return l.out.Rotate()
@@ -81,6 +73,15 @@ func (l *accessLog) Rotate() error {
 	return nil
 }
 
+// Write writes to log stream.
+func (l *accessLog) Write(p []byte) (int, error) {
+	if l.out != nil {
+		return l.out.Write(p)
+	}
+	return 0, nil
+}
+
+// Close closes log stream.
 func (l *accessLog) Close() error {
 	l.appendFuncs = nil
 	l.collectRequestURI = false
@@ -179,34 +180,30 @@ func (l *accessLog) Log(ctx *fasthttp.RequestCtx) {
 	}()
 }
 
-func (l *accessLog) portFromAddr(addr string) int {
-	if port := l.addrToPortCache.Get(addr); port != nil {
-		return port.(int)
+func (l *accessLog) portFromAddr(addr string) []byte {
+	if portBytes := l.addrToPortCache.Get(addr); portBytes != nil {
+		return portBytes.([]byte)
 	}
-	colon := strings.Index(addr, ":")
-	if colon == -1 {
-		l.addrToPortCache.Set(addr, 0)
-		return 0
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil || port == "0" {
+		l.addrToPortCache.Set(addr, []byte{})
+		return nil
 	}
-	port, err := strconv.Atoi(addr[colon+1:])
-	if err != nil {
-		l.addrToPortCache.Set(addr, 0)
-		return 0
-	}
-	l.addrToPortCache.Set(addr, port)
-	return port
+	portBytes := []byte(port)
+	l.addrToPortCache.Set(addr, portBytes)
+	return portBytes
 }
 
 func (l *accessLog) appendLp(dst []byte, ctx *fasthttp.RequestCtx) []byte {
-	if p := l.portFromAddr(ctx.LocalAddr().String()); p > 0 {
-		return fasthttp.AppendUint(dst, p)
+	if p := l.portFromAddr(ctx.LocalAddr().String()); len(p) > 0 {
+		return append(dst, p...)
 	}
 	return appendNil(dst, nil)
 }
 
 func (l *accessLog) appendLpRemote(dst []byte, ctx *fasthttp.RequestCtx) []byte {
-	if p := l.portFromAddr(ctx.RemoteAddr().String()); p > 0 {
-		return fasthttp.AppendUint(dst, p)
+	if p := l.portFromAddr(ctx.RemoteAddr().String()); len(p) > 0 {
+		return append(dst, p...)
 	}
 	return appendNil(dst, nil)
 }
@@ -489,4 +486,5 @@ var (
 func (nilAccessLog) Collect(ctx *fasthttp.RequestCtx) {}
 func (nilAccessLog) Log(ctx *fasthttp.RequestCtx)     {}
 func (nilAccessLog) Rotate() error                    { return nil }
+func (nilAccessLog) Write([]byte) (int, error)        { return 0, nil }
 func (nilAccessLog) Close() error                     { return nil }

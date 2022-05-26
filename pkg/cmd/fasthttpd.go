@@ -5,15 +5,18 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/handler"
+	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/jarxorg/tree"
 	"github.com/valyala/fasthttp"
 )
@@ -23,9 +26,9 @@ const EnvFasthttpdConfig = "FASTHTTPD_CONFIG"
 
 const (
 	cmd          = "fasthttpd"
-	version      = "0.3.0"
+	version      = "0.3.2"
 	desc         = "FastHttpd is a HTTP server using valyala/fasthttp."
-	usage        = cmd + " [flags] [query] ([file...])"
+	usage        = cmd + " [flags]"
 	examplesText = `Examples:
   % fasthttpd -f ./examples/config.minimal.yaml
   % fasthttpd -e root=./examples/public -e listen=:8080
@@ -54,6 +57,7 @@ type FastHttpd struct {
 	configFile string
 	editExprs  stringList
 	servers    []*fasthttp.Server
+	stopHup    context.CancelFunc
 }
 
 func NewFastHttpd() *FastHttpd {
@@ -159,14 +163,17 @@ func (d *FastHttpd) run() error {
 		return err
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT)
 	defer stop()
 	go func() {
 		<-ctx.Done()
+		// log.Printf("signal int: shutdown fasthttpd")
 		if err := d.Shutdown(); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to shutdown: %v", err)
+			log.Printf("failed to shutdown: %v", err)
 		}
 	}()
+
+	d.handleHUP()
 
 	errChs := make(chan error, 2)
 	for _, cfg := range cfgs {
@@ -185,7 +192,7 @@ func (d *FastHttpd) run() error {
 			return err
 		}
 
-		h.Logger().Printf("Starting HTTP server on %q", cfg.Listen)
+		h.Logger().Printf("starting fasthttpd on %q", cfg.Listen)
 		d.servers = append(d.servers, server)
 
 		go func() {
@@ -206,7 +213,31 @@ func (d *FastHttpd) run() error {
 	return nil
 }
 
+func (d *FastHttpd) handleHUP() {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGHUP)
+	d.stopHup = stop
+	go func() {
+		for {
+			<-ctx.Done()
+			if d.stopHup == nil {
+				break
+			}
+			// log.Printf("signal hup: rotate logs")
+			if err := logger.RotateShared(); err != nil {
+				log.Printf("failed to rotate stored: %v", err)
+			}
+			stop()
+			ctx, stop = signal.NotifyContext(context.Background(), syscall.SIGHUP)
+			d.stopHup = stop
+		}
+	}()
+}
+
 func (d *FastHttpd) Shutdown() error {
+	if stopHup := d.stopHup; stopHup != nil {
+		d.stopHup = nil
+		stopHup()
+	}
 	var errs []string
 	for _, server := range d.servers {
 		if err := server.Shutdown(); err != nil {
@@ -223,14 +254,15 @@ func (d *FastHttpd) Main(args []string) error {
 	if err := d.initFlagSet(args); err != nil {
 		return err
 	}
-	if d.isHelp || (d.configFile == "" && len(d.editExprs) == 0) {
-		d.flagSet.Usage()
-		return nil
-	}
 	if d.isVersion {
 		fmt.Println(version)
 		return nil
 	}
+	if d.isHelp || (d.configFile == "" && len(d.editExprs) == 0) {
+		d.flagSet.Usage()
+		return nil
+	}
+
 	return d.run()
 }
 

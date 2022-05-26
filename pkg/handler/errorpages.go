@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/valyala/bytebufferpool"
 	"github.com/valyala/fasthttp"
 )
 
@@ -41,22 +42,23 @@ func (p *ErrorPages) Handle(ctx *fasthttp.RequestCtx) {
 		return
 	}
 	if p.fs == nil {
-		// TODO: Overwrite body
-		ctx.Error(http.StatusText(status), status)
+		sendDefaultError(ctx)
 		return
 	}
 	if path := p.errorPaths[status-errorPagesStatusOffset]; path != nil {
-		p.sendError(ctx, status, path)
+		p.sendError(ctx, path)
 		return
 	}
 	sb := []byte(strconv.Itoa(status))
-	p.handleStatus(ctx, status, sb, len(sb))
+	p.handleStatus(ctx, sb, len(sb))
 }
 
-func (p *ErrorPages) handleStatus(ctx *fasthttp.RequestCtx, status int, sb []byte, l int) {
+func (p *ErrorPages) handleStatus(ctx *fasthttp.RequestCtx, sb []byte, l int) {
+	status := ctx.Response.StatusCode()
 	if l < 0 {
 		// NOTE: store no erorr page.
 		p.errorPaths[status-errorPagesStatusOffset] = []byte{}
+		sendDefaultError(ctx)
 		return
 	}
 	if l < len(sb) {
@@ -65,29 +67,66 @@ func (p *ErrorPages) handleStatus(ctx *fasthttp.RequestCtx, status int, sb []byt
 	if page := p.cfg[string(sb)]; page != "" {
 		path := []byte(page)
 		p.errorPaths[status-errorPagesStatusOffset] = path
-		p.sendError(ctx, status, path)
+		p.sendError(ctx, path)
 		return
 	}
-	p.handleStatus(ctx, status, sb, l-1)
+	p.handleStatus(ctx, sb, l-1)
 }
 
-func (p *ErrorPages) sendError(ctx *fasthttp.RequestCtx, status int, path []byte) {
+func (p *ErrorPages) sendError(ctx *fasthttp.RequestCtx, path []byte) {
 	if len(path) == 0 {
-		ctx.Error(http.StatusText(status), status)
+		sendDefaultError(ctx)
 		return
 	}
 
+	status := ctx.Response.StatusCode()
 	uri := string(ctx.Request.RequestURI())
+
 	ctx.Request.SetRequestURIBytes(path)
 	p.fs(ctx)
-	ctx.Request.SetRequestURI(uri)
+	statusFS := ctx.Response.StatusCode()
 
-	if ctx.Response.StatusCode() == http.StatusOK {
-		ctx.SetStatusCode(status)
-	} else {
-		ctx.Logger().Printf("error page %q status %d", path, ctx.Response.StatusCode())
-		// NOTE: store the path has error.
+	ctx.Request.SetRequestURI(uri)
+	ctx.SetStatusCode(status)
+
+	if statusFS != http.StatusOK {
+		// NOTE: store no erorr page.
 		p.errorPaths[status-errorPagesStatusOffset] = []byte{}
-		ctx.Error(http.StatusText(status), status)
+		ctx.Logger().Printf("invalid ErrorPages.fs status %d on %q", statusFS, path)
+
+		ctx.Response.SetBody([]byte{})
+		sendDefaultError(ctx)
 	}
+}
+
+var (
+	defaultErrorContentType = []byte("text/html; charset=utf-8")
+	defaultErrorHtmls       = [][]byte{
+		[]byte(`<!DOCTYPE html><html><head><title>`),
+		nil,
+		[]byte(`</title><style>h1,p { text-align: center; }</style></head><body><h1>`),
+		nil,
+		[]byte(`</h1></body></html>`),
+	}
+)
+
+func sendDefaultError(ctx *fasthttp.RequestCtx) {
+	if len(ctx.Response.Body()) > 0 {
+		return
+	}
+
+	status := ctx.Response.StatusCode()
+	b := bytebufferpool.Get()
+	for _, h := range defaultErrorHtmls {
+		if len(h) == 0 {
+			b.B = fasthttp.AppendUint(b.B, status)
+			b.B = append(b.B, ' ')
+			b.B = append(b.B, []byte(http.StatusText(status))...)
+			continue
+		}
+		b.B = append(b.B, h...)
+	}
+	ctx.Response.Header.SetContentTypeBytes(defaultErrorContentType)
+	ctx.Response.SetBody(b.B)
+	bytebufferpool.Put(b)
 }

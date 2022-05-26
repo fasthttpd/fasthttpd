@@ -7,7 +7,9 @@ import (
 )
 
 func NewFS(cfg tree.Map) (*fasthttp.FS, error) {
-	fs := &fasthttp.FS{}
+	fs := &fasthttp.FS{
+		PathNotFound: sendDefaultError,
+	}
 	if err := tree.UnmarshalViaJSON(cfg, fs); err != nil {
 		return nil, err
 	}

@@ -1,13 +1,10 @@
 package handler
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"net/http"
-	"os/signal"
 	"strings"
-	"syscall"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/filter"
@@ -38,7 +35,6 @@ type MainHandler struct {
 	cfg        config.Config
 	logger     logger.Logger
 	accessLog  accesslog.AccessLog
-	stopHup    context.CancelFunc
 	errorPages *ErrorPages
 	filters    map[string]filter.Filter
 	handlers   map[string]fasthttp.RequestHandler
@@ -57,11 +53,6 @@ func NewMainHandler(cfg config.Config) (*MainHandler, error) {
 }
 
 func (h *MainHandler) Close() error {
-	if h.stopHup != nil {
-		stop := h.stopHup
-		h.stopHup = nil
-		stop()
-	}
 	var errs []string
 	if h.accessLog != nil {
 		if err := h.accessLog.Close(); err != nil {
@@ -112,23 +103,6 @@ func (h *MainHandler) init() error {
 		return err
 	}
 	h.routes = routes
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGHUP)
-	h.stopHup = stop
-	go func() {
-		for {
-			<-ctx.Done()
-			if h.stopHup == nil {
-				break
-			}
-			l.Printf("signal hup: rotate logs\n")
-			l.Rotate()  //nolint:errcheck
-			al.Rotate() //nolint:errcheck
-			stop()
-			ctx, stop = signal.NotifyContext(context.Background(), syscall.SIGHUP)
-			h.stopHup = stop
-		}
-	}()
 
 	return nil
 }
