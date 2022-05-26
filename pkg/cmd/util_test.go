@@ -69,6 +69,6 @@ func Test_tcpKeepaliveListener(t *testing.T) {
 	}
 	conn.Close()
 
-	ln.Close()
 	wg.Wait()
+	ln.Close()
 }
