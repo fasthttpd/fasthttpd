@@ -82,13 +82,11 @@ func Test_ErrorPages(t *testing.T) {
 				ctx.Request.Header.SetMethod(http.MethodGet)
 				ctx.Request.SetRequestURI("/bad-request.html")
 				ctx.Response.SetStatusCode(400)
-				ctx.Response.Header.SetContentType("text/html; charset=utf-8")
-				ctx.Response.SetBody([]byte("bad request"))
 			},
 			wantStatusCode:  400,
-			wantContentType: "text/plain; charset=utf-8",
-			wantBody:        http.StatusText(http.StatusBadRequest),
-			wantLogOutput:   `error page "/err/400.html" status: 404`,
+			wantContentType: "text/html; charset=utf-8",
+			wantBody:        `<!DOCTYPE html><html><head><title>400 Bad Request</title><style>h1,p { text-align: center; }</style></head><body><h1>400 Bad Request</h1></body></html>`,
+			wantLogOutput:   `invalid ErrorPages.fs status 404 on "/err/400.html"`,
 		},
 	}
 
@@ -116,7 +114,7 @@ func Test_ErrorPages(t *testing.T) {
 	}
 
 	wantErrorPaths := make([][]byte, 200)
-	wantErrorPaths[400-errorPagesStatusOffset] = []byte("/err/400.html")
+	wantErrorPaths[400-errorPagesStatusOffset] = []byte{}
 	wantErrorPaths[403-errorPagesStatusOffset] = []byte{}
 	wantErrorPaths[404-errorPagesStatusOffset] = []byte("/err/404.html")
 	wantErrorPaths[500-errorPagesStatusOffset] = []byte("/err/5xx.html")
@@ -124,5 +122,10 @@ func Test_ErrorPages(t *testing.T) {
 
 	if !reflect.DeepEqual(errorPages.errorPaths, wantErrorPaths) {
 		t.Errorf("errorPaths got %v; want %v", errorPages.errorPaths, wantErrorPaths)
+		for status, errPath := range errorPages.errorPaths {
+			if errPath != nil {
+				t.Errorf("errorPaths[%d] %s", status, errPath)
+			}
+		}
 	}
 }
