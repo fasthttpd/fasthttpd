@@ -223,14 +223,15 @@ func (d *FastHttpd) Main(args []string) error {
 	if err := d.initFlagSet(args); err != nil {
 		return err
 	}
-	if d.isHelp || (d.configFile == "" && len(d.editExprs) == 0) {
-		d.flagSet.Usage()
-		return nil
-	}
 	if d.isVersion {
 		fmt.Println(version)
 		return nil
 	}
+	if d.isHelp || (d.configFile == "" && len(d.editExprs) == 0) {
+		d.flagSet.Usage()
+		return nil
+	}
+
 	return d.run()
 }
 
