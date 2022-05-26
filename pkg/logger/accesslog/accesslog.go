@@ -2,10 +2,9 @@ package accesslog
 
 import (
 	"io"
+	"net"
 	"os"
 	"regexp"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
@@ -179,34 +178,30 @@ func (l *accessLog) Log(ctx *fasthttp.RequestCtx) {
 	}()
 }
 
-func (l *accessLog) portFromAddr(addr string) int {
-	if port := l.addrToPortCache.Get(addr); port != nil {
-		return port.(int)
+func (l *accessLog) portFromAddr(addr string) []byte {
+	if portBytes := l.addrToPortCache.Get(addr); portBytes != nil {
+		return portBytes.([]byte)
 	}
-	colon := strings.Index(addr, ":")
-	if colon == -1 {
-		l.addrToPortCache.Set(addr, 0)
-		return 0
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil || port == "0" {
+		l.addrToPortCache.Set(addr, []byte{})
+		return nil
 	}
-	port, err := strconv.Atoi(addr[colon+1:])
-	if err != nil {
-		l.addrToPortCache.Set(addr, 0)
-		return 0
-	}
-	l.addrToPortCache.Set(addr, port)
-	return port
+	portBytes := []byte(port)
+	l.addrToPortCache.Set(addr, portBytes)
+	return portBytes
 }
 
 func (l *accessLog) appendLp(dst []byte, ctx *fasthttp.RequestCtx) []byte {
-	if p := l.portFromAddr(ctx.LocalAddr().String()); p > 0 {
-		return fasthttp.AppendUint(dst, p)
+	if p := l.portFromAddr(ctx.LocalAddr().String()); len(p) > 0 {
+		return append(dst, p...)
 	}
 	return appendNil(dst, nil)
 }
 
 func (l *accessLog) appendLpRemote(dst []byte, ctx *fasthttp.RequestCtx) []byte {
-	if p := l.portFromAddr(ctx.RemoteAddr().String()); p > 0 {
-		return fasthttp.AppendUint(dst, p)
+	if p := l.portFromAddr(ctx.RemoteAddr().String()); len(p) > 0 {
+		return append(dst, p...)
 	}
 	return appendNil(dst, nil)
 }
