@@ -25,7 +25,7 @@ const (
 	cmd          = "fasthttpd"
 	version      = "0.3.1"
 	desc         = "FastHttpd is a HTTP server using valyala/fasthttp."
-	usage        = cmd + " [flags] [query] ([file...])"
+	usage        = cmd + " [flags]"
 	examplesText = `Examples:
   % fasthttpd -f ./examples/config.minimal.yaml
   % fasthttpd -e root=./examples/public -e listen=:8080
