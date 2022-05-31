@@ -7,21 +7,27 @@ import (
 )
 
 type Content struct {
-	resp fasthttp.Response
+	headerKeys   [][]byte
+	headerValues [][]byte
+	body         []byte
 }
 
 func NewContent(cfg tree.Map) *Content {
-	var resp fasthttp.Response
-	for k, v := range cfg.Get("headers").Map() {
-		resp.Header.AddBytesKV([]byte(k), []byte(v.Value().String()))
+	c := &Content{
+		body: []byte(cfg.Get("body").Value().String()),
 	}
-	resp.SetBodyString(cfg.Get("body").Value().String())
-
-	return &Content{resp: resp}
+	for k, v := range cfg.Get("headers").Map() {
+		c.headerKeys = append(c.headerKeys, []byte(k))
+		c.headerValues = append(c.headerValues, []byte(v.Value().String()))
+	}
+	return c
 }
 
 func (h *Content) Handle(ctx *fasthttp.RequestCtx) {
-	h.resp.CopyTo(&ctx.Response)
+	for i, k := range h.headerKeys {
+		ctx.Response.Header.SetBytesKV(k, h.headerValues[i])
+	}
+	ctx.Response.SetBody(h.body)
 }
 
 func NewContentHandler(cfg tree.Map, _ logger.Logger) (fasthttp.RequestHandler, error) {
