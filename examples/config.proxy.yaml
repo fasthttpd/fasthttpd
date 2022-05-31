@@ -5,7 +5,7 @@ log:
   output: stderr
 
 handlers:
-  backend:
+  'backend':
     type: proxy
     url: http://localhost:9000/
 
