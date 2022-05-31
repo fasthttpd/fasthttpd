@@ -1,0 +1,63 @@
+host: localhost
+listen: ':8080'
+root: ./public
+
+log:
+  output: stderr
+
+handlers:
+  'static':
+    type: fs
+    indexNames: [index.html]
+
+routes:
+  - path: /
+    handler: static
+
+---
+
+host: localhost
+listen: ':8443'
+
+log:
+  output: stderr
+
+ssl:
+  certFile: ./ssl/localhost.crt
+  keyFile: ./ssl/localhost.key
+
+handlers:
+  'localhost':
+    type: content
+    headers:
+      Content-Type: 'text/plain; charset=utf-8'
+    body: |
+      Hello localhost
+
+routes:
+  - path: /
+    handler: localhost
+
+---
+
+host: 127.0.0.1
+listen: ':8443'
+
+log:
+  output: stderr
+
+ssl:
+  certFile: ./ssl/127.0.0.1.crt
+  keyFile: ./ssl/127.0.0.1.key
+
+handlers:
+  'loopback':
+    type: content
+    headers:
+      Content-Type: 'text/plain; charset=utf-8'
+    body: |
+      Hello 127.0.0.1
+
+routes:
+  - path: /
+    handler: loopback

@@ -67,9 +67,15 @@ func Test_UnmarshalYAMLPath(t *testing.T) {
 					"compress":           tree.ToValue(true),
 					"generateIndexPages": tree.ToValue(false),
 				},
-				"backend": {
-					"type": tree.ToValue("proxy"),
-					"url":  tree.ToValue("http://localhost:9000"),
+				"expvar": {
+					"type": tree.ToValue("expvar"),
+				},
+				"hello": {
+					"type": tree.ToValue("content"),
+					"headers": tree.Map{
+						"Content-Type": tree.ToValue("text/plain; charset=utf-8"),
+					},
+					"body": tree.ToValue("Hello FastHttpd\n"),
 				},
 			},
 			Routes: []Route{
@@ -81,6 +87,10 @@ func Test_UnmarshalYAMLPath(t *testing.T) {
 					Path:    "/",
 					Match:   MatchEqual,
 					Handler: "static",
+				}, {
+					Path:    "/expvar",
+					Match:   MatchEqual,
+					Handler: "expvar",
 				}, {
 					Path:    "/redirect-external",
 					Match:   MatchEqual,
@@ -104,7 +114,7 @@ func Test_UnmarshalYAMLPath(t *testing.T) {
 					Rewrite: "/view?id=$1",
 				}, {
 					Filters: []string{"auth"},
-					Handler: "backend",
+					Handler: "hello",
 				},
 			},
 			RoutesCache: RoutesCache{

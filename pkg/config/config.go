@@ -2,7 +2,6 @@ package config
 
 import (
 	"bytes"
-	"crypto/tls"
 	"io"
 	"io/ioutil"
 	"time"
@@ -81,21 +80,6 @@ func (cfg Config) Normalize() (Config, error) {
 type SSL struct {
 	CertFile string `yaml:"certFile"`
 	KeyFile  string `yaml:"keyFile"`
-}
-
-// TLSConfig returns a *tls.Config via tls.LoadX509KeyPair(s.CertFile, s.KeyFile).
-func (s SSL) TLSConfig() (*tls.Config, error) {
-	if s.CertFile == "" || s.KeyFile == "" {
-		return nil, nil
-	}
-	cert, err := tls.LoadX509KeyPair(s.CertFile, s.KeyFile)
-	if err != nil {
-		return nil, err
-	}
-	return &tls.Config{
-		NextProtos:   []string{"http/1.1"},
-		Certificates: []tls.Certificate{cert},
-	}, nil
 }
 
 // Rotation represents a configuration of log rotation.

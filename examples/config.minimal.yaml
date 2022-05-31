@@ -6,7 +6,7 @@ log:
   output: stderr
 
 handlers:
-  static:
+  'static':
     type: fs
     indexNames: [index.html]
 

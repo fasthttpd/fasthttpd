@@ -9,7 +9,7 @@ accessLog:
   output: /var/log/fasthttpd/access.log
 
 handlers:
-  static:
+  'static':
     type: fs
     indexNames: [index.html]
 
