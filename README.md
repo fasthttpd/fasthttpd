@@ -16,7 +16,7 @@ go install github.com/fasthttpd/fasthttpd/cmd/fasthttpd@latest
 Download binary (Linux x86_64)
 
 ```sh
-VERSION=0.3.2 GOOS=Linux GOARCH=x86_64; \
+VERSION=0.3.3 GOOS=Linux GOARCH=x86_64; \
   curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | \
   tar xz fasthttpd && \
   sudo mv fasthttpd /usr/sbin
@@ -74,6 +74,12 @@ host: localhost
 listen: ':8080'
 root: ./public
 
+# Define fasthttp.Server settings.
+server:
+  name: fasthttpd
+  readBufferSize: 4096
+  writeBufferSize: 4096
+
 log:
   output: logs/error.log
   # NOTE: Flags supports date|time|microseconds
@@ -90,12 +96,6 @@ accessLog:
     maxAge: 28
     compress: true
     localTime: true
-
-# Define fasthttp.Server settings.
-server:
-  name: fasthttpd
-  readBufferSize: 4096
-  writeBufferSize: 4096
  
 # Define custom error pages (x matches [0-9])
 errorPages:
@@ -105,7 +105,7 @@ errorPages:
 # Define named filters
 filters:
 
-  auth:
+  'auth':
     type: basicAuth
     users:
       # WARNING: It is unsafe to define plain secrets. It is recommended for development use only.
@@ -113,24 +113,30 @@ filters:
         secret: httpd
     usersFile: ./users.yaml
 
-  cache:
+  'cache':
     type: header
     response:
       set:
-        Cache-Control: private, max-age=3600
+        'Cache-Control': 'private, max-age=3600'
 
 # Define named handlers
 handlers:
 
-  static:
+  'static':
     type: fs
     indexNames: [index.html]
     generateIndexPages: false
     compress: true
-  
-  backend:
-    type: proxy
-    url: 'http://localhost:9000'
+
+  'expvar':
+    type: expvar
+
+  'hello':
+    type: content
+    headers:
+      'Content-Type': 'text/plain; charset=utf-8'
+    body: |
+      Hello FastHttpd
 
 # Define routes
 routes:
@@ -138,12 +144,17 @@ routes:
   # Allows GET, POST, HEAD only.
   - methods: [PUT, DELETE, CONNECT, OPTIONS, TRACE, PATCH]
     status: 405
-    statusMessage: Method not allowed
+    statusMessage: 'Method not allowed'
 
   # Route to /index.html.
   - path: /
     match: equal
     handler: static
+
+  # Route to expvar handler.
+  - path: /expvar
+    match: equal
+    handler: expvar
 
   # Redirect to external url with status code 302.
   - path: /redirect-external
@@ -171,9 +182,9 @@ routes:
     match: regexp
     rewrite: /view?id=$1
 
-  # Other requests are routed to backend with auth filter.
+  # Other requests are routed to hello with auth filter.
   - filters: [auth]
-    handler: backend
+    handler: hello
 
 routesCache:
   enable: true
@@ -189,7 +200,7 @@ ssl:
   keyFile: ./ssl/localhost.key
 
 handlers:
-  backend:
+  'backend':
     type: proxy
     url: 'http://localhost:8080'
 
@@ -202,4 +213,3 @@ routes:
 
 - Daemonize
 - Benchmark reports
-- Multi host

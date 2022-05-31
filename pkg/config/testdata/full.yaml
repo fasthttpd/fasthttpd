@@ -46,7 +46,7 @@ filters:
     type: header
     response:
       set:
-        Cache-Control: private, max-age=3600
+        'Cache-Control': 'private, max-age=3600'
 
 # Define named handlers
 handlers:
@@ -63,7 +63,7 @@ handlers:
   'hello':
     type: content
     headers:
-      Content-Type: 'text/plain; charset=utf-8'
+      'Content-Type': 'text/plain; charset=utf-8'
     body: |
       Hello FastHttpd
 
@@ -73,7 +73,7 @@ routes:
   # Allows GET, POST, HEAD only.
   - methods: [PUT, DELETE, CONNECT, OPTIONS, TRACE, PATCH]
     status: 405
-    statusMessage: Method not allowed
+    statusMessage: 'Method not allowed'
 
   # Route to /index.html.
   - path: /
@@ -111,7 +111,7 @@ routes:
     match: regexp
     rewrite: /view?id=$1
 
-  # Other requests are routed to backend with auth filter.
+  # Other requests are routed to hello with auth filter.
   - filters: [auth]
     handler: hello
 
