@@ -179,7 +179,7 @@ func testRoutes(t *testing.T, rs *Routes) {
 			method: http.MethodGet,
 			path:   "/view/1",
 			want: &RoutesResult{
-				Handler:    "backend",
+				Handler:    "hello",
 				Filters:    []string{"auth"},
 				RewriteURI: []byte("/view?id=1"),
 			},
@@ -202,9 +202,9 @@ func testRoutes(t *testing.T, rs *Routes) {
 			},
 		}, {
 			method: http.MethodGet,
-			path:   "/route/to/bachend",
+			path:   "/route/to/hello",
 			want: &RoutesResult{
-				Handler: "backend",
+				Handler: "hello",
 				Filters: []string{"auth"},
 			},
 		},
