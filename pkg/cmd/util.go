@@ -1,9 +1,12 @@
 package cmd
 
 import (
+	"crypto/tls"
 	"net"
 	"strings"
 	"time"
+
+	"github.com/fasthttpd/fasthttpd/pkg/config"
 )
 
 type stringList []string
@@ -26,6 +29,29 @@ func getNetwork(listen string) string {
 
 var netListen = func(listen string) (net.Listener, error) {
 	return net.Listen(getNetwork(listen), listen)
+}
+
+// tlsConfig returns a *tls.Config via tls.LoadX509KeyPair.
+func tlsConfig(cfgs []config.Config) (*tls.Config, error) {
+	var certs []tls.Certificate
+	for _, cfg := range cfgs {
+		if cfg.SSL.CertFile == "" || cfg.SSL.KeyFile == "" {
+			return nil, nil
+		}
+		cert, err := tls.LoadX509KeyPair(cfg.SSL.CertFile, cfg.SSL.KeyFile)
+		if err != nil {
+			return nil, err
+		}
+		certs = append(certs, cert)
+	}
+	tlsCfg := &tls.Config{
+		NextProtos:   []string{"http/1.1"},
+		Certificates: certs,
+	}
+	if len(certs) > 1 {
+		tlsCfg.BuildNameToCertificate()
+	}
+	return tlsCfg, nil
 }
 
 // NOTE: Copy from fasthttp/server.go

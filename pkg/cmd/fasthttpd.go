@@ -21,7 +21,8 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-// EnvFasthttpdConfig is the environment variable name "FASTHTTPD_CONFIG" that indicates the default configuration file path.
+// EnvFasthttpdConfig is the environment variable name "FASTHTTPD_CONFIG" that
+// indicates the default configuration file path.
 const EnvFasthttpdConfig = "FASTHTTPD_CONFIG"
 
 const (
@@ -81,7 +82,7 @@ func (d *FastHttpd) initFlagSet(args []string) error {
 	return s.Parse(args[1:])
 }
 
-func (d *FastHttpd) initConfigs() ([]config.Config, error) {
+func (d *FastHttpd) loadConfigs() (map[string][]config.Config, error) {
 	if d.configFile == "" {
 		return d.editConfigs([]config.Config{newMinimalConfig()})
 	}
@@ -95,7 +96,7 @@ func (d *FastHttpd) initConfigs() ([]config.Config, error) {
 	return d.editConfigs(cfgs)
 }
 
-func (d *FastHttpd) editConfigs(cfgs []config.Config) ([]config.Config, error) {
+func (d *FastHttpd) editConfigs(cfgs []config.Config) (map[string][]config.Config, error) {
 	if len(d.editExprs) > 0 {
 		n, err := tree.MarshalViaYAML(cfgs)
 		if err != nil {
@@ -120,23 +121,27 @@ func (d *FastHttpd) editConfigs(cfgs []config.Config) ([]config.Config, error) {
 			return nil, err
 		}
 	}
-	return cfgs, nil
+	m := map[string][]config.Config{}
+	for _, cfg := range cfgs {
+		m[cfg.Listen] = append(m[cfg.Listen], cfg)
+	}
+	return m, nil
 }
 
-func (d *FastHttpd) newServer(cfg config.Config, h *handler.MainHandler) (*fasthttp.Server, error) {
+func (d *FastHttpd) newServer(h handler.ServerHandler) (*fasthttp.Server, error) {
 	s := &fasthttp.Server{
 		Handler:      h.Handle,
 		ErrorHandler: h.HandleError,
 		Logger:       h.Logger(),
 	}
-	if err := tree.UnmarshalViaJSON(cfg.Server, s); err != nil {
+	if err := tree.UnmarshalViaJSON(h.Config(), s); err != nil {
 		return nil, err
 	}
 	return s, nil
 }
 
-func (d *FastHttpd) listen(cfg config.Config, server *fasthttp.Server) (net.Listener, error) {
-	ln, err := netListen(cfg.Listen)
+func (d *FastHttpd) listen(cfgs []config.Config, server *fasthttp.Server) (net.Listener, error) {
+	ln, err := netListen(cfgs[0].Listen)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +152,7 @@ func (d *FastHttpd) listen(cfg config.Config, server *fasthttp.Server) (net.List
 			keepalivePeriod: server.TCPKeepalivePeriod,
 		}
 	}
-	tlsCfg, err := cfg.SSL.TLSConfig()
+	tlsCfg, err := tlsConfig(cfgs)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +163,7 @@ func (d *FastHttpd) listen(cfg config.Config, server *fasthttp.Server) (net.List
 }
 
 func (d *FastHttpd) run() error {
-	cfgs, err := d.initConfigs()
+	lcfgs, err := d.loadConfigs()
 	if err != nil {
 		return err
 	}
@@ -176,23 +181,23 @@ func (d *FastHttpd) run() error {
 	d.handleHUP()
 
 	errChs := make(chan error, 2)
-	for _, cfg := range cfgs {
-		h, err := handler.NewMainHandler(cfg)
+	for l, cfgs := range lcfgs {
+		h, err := handler.NewServerHandler(cfgs)
 		if err != nil {
 			return err
 		}
 		defer h.Close()
 
-		server, err := d.newServer(cfg, h)
+		server, err := d.newServer(h)
 		if err != nil {
 			return err
 		}
-		ln, err := d.listen(cfg, server)
+		ln, err := d.listen(cfgs, server)
 		if err != nil {
 			return err
 		}
 
-		h.Logger().Printf("starting fasthttpd on %q", cfg.Listen)
+		h.Logger().Printf("starting fasthttpd on %q", l)
 		d.servers = append(d.servers, server)
 
 		go func() {
@@ -202,7 +207,7 @@ func (d *FastHttpd) run() error {
 	}
 
 	var errs []string
-	for range cfgs {
+	for range lcfgs {
 		if err := <-errChs; err != nil {
 			errs = append(errs, err.Error())
 		}
