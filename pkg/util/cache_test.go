@@ -15,9 +15,9 @@ func Test_expireCache_Typical(t *testing.T) {
 	}
 
 	c := NewExpireCache(0).(*expireCache)
-	c.Set("key1", "value1")
-	c.Set("key2", "value2")
-	c.Set("key3", "value3")
+	c.Set(CacheKeyString("key1"), "value1")
+	c.Set(CacheKeyString("key2"), "value2")
+	c.Set(CacheKeyString("key3"), "value3")
 	if len(c.store) != 3 {
 		t.Fatalf("unexpected size %d\n", len(c.store))
 	}
@@ -27,11 +27,11 @@ func Test_expireCache_Typical(t *testing.T) {
 	c.next = 0
 
 	// NOTE: Get a value and extends its expiration.
-	if got := c.Get("key2"); got != "value2" {
+	if got := c.Get(CacheKeyString("key2")); got != "value2" {
 		t.Fatalf("unexpected value %v; want %v", got, "value2")
 	}
 
-	if got := c.Get("unknown"); got != nil {
+	if got := c.Get(CacheKeyString("unknown")); got != nil {
 		t.Fatalf("unexpected value %v", got)
 	}
 

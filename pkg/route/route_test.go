@@ -3,8 +3,8 @@ package route
 import (
 	"bytes"
 	"net/http"
-	"reflect"
 	"testing"
+	"time"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/valyala/fasthttp"
@@ -214,15 +214,17 @@ func testRoutes(t *testing.T, rs *Routes) {
 		ctx.Request.Header.SetMethod(test.method)
 		ctx.URI().SetPath(test.path)
 		got := rs.CachedRouteCtx(ctx)
-		if !reflect.DeepEqual(got, test.want) {
+		if !got.equal(test.want) {
 			t.Errorf("tests[%d] unexpected result %#v; want %#v", i, *got, *test.want)
 		}
 		if rs.cache != nil {
-			got2 := rs.CachedRoute([]byte(test.method), []byte(test.path))
-			if !reflect.DeepEqual(got2, test.want) {
+			got2 := rs.CachedRouteCtx(ctx)
+			if !got2.equal(test.want) {
 				t.Errorf("tests[%d] unexpected 2nd result %#v; want %#v", i, *got2, *test.want)
 			}
+			got2.Release()
 		}
+		got.Release()
 	}
 }
 
@@ -248,8 +250,10 @@ func Test_RouteNotFound(t *testing.T) {
 	}
 
 	got := rs.Route([]byte(http.MethodGet), []byte("/"))
+	defer got.Release()
+
 	want := &RoutesResult{StatusCode: http.StatusNotFound}
-	if !reflect.DeepEqual(got, want) {
+	if !got.equal(want) {
 		t.Errorf("got %#v; want %#v", got, want)
 	}
 }
@@ -329,5 +333,45 @@ func Test_RoutesResult_RedirectURIWithQueryString(t *testing.T) {
 		if !bytes.Equal(got, test.want) {
 			t.Errorf("tests[%d] unexpected uri %q; want %q", i, got, test.want)
 		}
+	}
+}
+
+func Test_onRoutesResultExpired(t *testing.T) {
+	cfg := config.Config{
+		Routes: []config.Route{
+			{
+				Path:   "/",
+				Match:  config.MatchPrefix,
+				Status: http.StatusOK,
+			},
+		},
+		RoutesCache: config.RoutesCache{
+			Enable:   true,
+			Expire:   1,
+			Interval: 1,
+		},
+	}
+	rs, err := NewRoutes(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_ = rs.CachedRoute([]byte(http.MethodGet), []byte("/1"))
+	_ = rs.CachedRoute([]byte(http.MethodGet), []byte("/2"))
+	_ = rs.CachedRoute([]byte(http.MethodGet), []byte("/3"))
+	if size := rs.cache.Len(); size != 3 {
+		t.Errorf("unexpected cache size %d; want 3", size)
+	}
+
+	time.Sleep(2 * time.Millisecond)
+	// NOTE: maybe call rs.cache.notify.
+	_ = rs.CachedRoute([]byte(http.MethodGet), []byte("/4"))
+
+	// NOTE: wait rs.cache.expires.
+	time.Sleep(2 * time.Millisecond)
+
+	// NOTE: old cached items are deleted.
+	if size := rs.cache.Len(); size != 1 {
+		t.Errorf("unexpected cache size %d; want 1", size)
 	}
 }

@@ -141,8 +141,9 @@ type Route struct {
 
 // RoutesCache represents a configuration of route cache.
 type RoutesCache struct {
-	Enable bool `yaml:"enable"`
-	Expire int  `yaml:"expire"`
+	Enable   bool `yaml:"enable"`
+	Expire   int  `yaml:"expire"`
+	Interval int  `yaml:"interval"`
 }
 
 func UnmarshalYAMLPath(path string) ([]Config, error) {
