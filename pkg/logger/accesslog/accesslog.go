@@ -181,16 +181,17 @@ func (l *accessLog) Log(ctx *fasthttp.RequestCtx) {
 }
 
 func (l *accessLog) portFromAddr(addr string) []byte {
-	if portBytes := l.addrToPortCache.Get(addr); portBytes != nil {
+	key := util.CacheKeyString(addr)
+	if portBytes := l.addrToPortCache.Get(key); portBytes != nil {
 		return portBytes.([]byte)
 	}
 	_, port, err := net.SplitHostPort(addr)
 	if err != nil || port == "0" {
-		l.addrToPortCache.Set(addr, []byte{})
+		l.addrToPortCache.Set(key, []byte{})
 		return nil
 	}
 	portBytes := []byte(port)
-	l.addrToPortCache.Set(addr, portBytes)
+	l.addrToPortCache.Set(key, portBytes)
 	return portBytes
 }
 

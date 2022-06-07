@@ -201,6 +201,8 @@ func (h *hostHandler) Handle(ctx *fasthttp.RequestCtx) {
 	defer h.accessLog.Log(ctx)
 
 	result := h.routes.CachedRouteCtx(ctx)
+	defer result.Release()
+
 	if uri := result.RewriteURIWithQueryString(ctx); len(uri) > 0 {
 		ctx.Request.SetRequestURIBytes(uri)
 	}
