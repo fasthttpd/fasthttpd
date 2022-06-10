@@ -164,10 +164,8 @@ func (l *accessLog) Log(ctx *fasthttp.RequestCtx) {
 	}
 	b.B = append(b.B, '\n')
 
-	go func() {
-		defer bytebufferpool.Put(b)
-		l.out.Write(b.B) //nolint:errcheck
-	}()
+	l.out.Write(b.B) //nolint:errcheck
+	bytebufferpool.Put(b)
 }
 
 func (l *accessLog) portFromAddr(addr string) []byte {
