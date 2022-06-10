@@ -3,7 +3,6 @@ module github.com/fasthttpd/fasthttpd
 go 1.18
 
 require (
-	github.com/jarxorg/io2 v0.6.1
 	github.com/jarxorg/tree v0.6.3
 	github.com/valyala/bytebufferpool v1.0.0
 	github.com/valyala/fasthttp v1.35.0

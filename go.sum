@@ -2,7 +2,6 @@ github.com/BurntSushi/toml v1.1.0 h1:ksErzDEI1khOiGPgpwuI7x2ebx/uXQNw7xJpn9Eq1+I
 github.com/BurntSushi/toml v1.1.0/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
 github.com/andybalholm/brotli v1.0.4 h1:V7DdXeJtZscaqfNuAdSRuRFzuiKlHSC/Zh3zl9qY3JY=
 github.com/andybalholm/brotli v1.0.4/go.mod h1:fO7iG3H7G2nSZ7m0zPUDn85XEX2GTukHGRSepvi9Eig=
-github.com/jarxorg/io2 v0.6.1 h1:XmovakTSBQi51UGJx48djS0Q5W5mw/niLcN2nMgATdk=
 github.com/jarxorg/io2 v0.6.1/go.mod h1:8QgcffRwfV6AFbwwTxVtUqtoR0adjM95pQIyJCV0oGE=
 github.com/jarxorg/tree v0.6.3 h1:997fbAQE0h2vXOY3fsT2ChSpp/iAE/+btJEEpOm4FX8=
 github.com/jarxorg/tree v0.6.3/go.mod h1:mbXOKpv1OBhjV7kjzqvHPFm7kHCLfTLODmqVY1j9Pxg=
