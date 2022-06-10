@@ -1,7 +1,5 @@
 package util
 
-import "math"
-
 // AppendZeroPaddingUint appends n with zero padding that size of p to dst
 // and returns the extended dst.
 func AppendZeroPaddingUint(dst []byte, n, p int) []byte {
@@ -43,35 +41,4 @@ func AppendPaddingUint(dst []byte, n, p int, c byte) []byte {
 	}
 
 	return append(dst, buf[i:]...)
-}
-
-func AppendPaddingUintOld(dst []byte, n, p int, c byte) []byte {
-	if n < 0 {
-		panic("number must be positive")
-	}
-	if p < 1 {
-		panic("padding size must be at least 1")
-	}
-
-	if q := int(math.Log10(float64(n))) + 1; p < q {
-		p = q
-	}
-
-	b := make([]byte, p)
-	buf := b[:]
-	i := len(buf)
-	var q int
-	for n >= 10 {
-		i--
-		q = n / 10
-		buf[i] = '0' + byte(n-q*10)
-		n = q
-	}
-	i--
-	buf[i] = '0' + byte(n)
-
-	for j := 0; j < i; j++ {
-		buf[j] = c
-	}
-	return append(dst, buf...)
 }
