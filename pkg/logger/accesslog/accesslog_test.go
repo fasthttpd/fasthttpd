@@ -12,7 +12,6 @@ import (
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
-	"github.com/jarxorg/io2"
 	"github.com/valyala/fasthttp"
 )
 
@@ -266,27 +265,18 @@ func Test_AccessLog(t *testing.T) {
 			want: `0001-01-01 00:00:00 Mon AM`,
 		},
 	}
-	wrote := make(chan bool)
 	out := new(bytes.Buffer)
-	dout := &io2.Delegator{
-		WriteFunc: func(p []byte) (int, error) {
-			n, err := out.Write(p)
-			wrote <- true
-			return n, err
-		},
-	}
 	for i, test := range tests {
 		out.Reset()
 		ctx := test.ctx()
 
-		l, err := newAccessLog(&logger.NopRotator{Writer: dout}, test.cfg)
+		l, err := newAccessLog(&logger.NopRotator{Writer: out}, test.cfg)
 		if err != nil {
 			l.Close()
 			t.Fatalf("tests[%d] unexpected error: %v", i, err)
 		}
 		l.Collect(ctx)
 		l.Log(ctx)
-		<-wrote
 
 		got := strings.TrimRight(out.String(), "\n")
 		if got != test.want {

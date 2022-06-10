@@ -23,22 +23,47 @@ func AppendPaddingUint(dst []byte, n, p int, c byte) []byte {
 	}
 
 	var b [20]byte
-	buf := b[:]
-	i := len(buf)
+	off := CopyPaddingRightUint(b[:], n, p, c)
+
+	return append(dst, b[off:]...)
+}
+
+// CopyPaddingRightUint copies n with c padding that size of p to the
+// right side of dst, and returns coppied offset of dst.
+func CopyPaddingRightUint(dst []byte, n, p int, c byte) (offset int) {
+	i := len(dst)
 	var q int
-	for n >= 10 {
+	for i > 0 && n >= 10 {
 		i--
 		q = n / 10
-		buf[i] = '0' + byte(n-q*10)
+		dst[i] = '0' + byte(n-q*10)
 		n = q
 	}
-	i--
-	buf[i] = '0' + byte(n)
-
-	for o := len(b) - p; i > o; {
+	if i > 0 {
 		i--
-		buf[i] = c
-	}
+		dst[i] = '0' + byte(n)
 
-	return append(dst, buf[i:]...)
+		for o := len(dst) - p; i > o; {
+			i--
+			dst[i] = c
+		}
+	}
+	return i
+}
+
+// CopyRightUint copies n to the right side of dst.
+func CopyRightUint(dst []byte, n int) (offset int) {
+	i := len(dst)
+	var q int
+	for i > 0 && n >= 10 {
+		i--
+		q = n / 10
+		dst[i] = '0' + byte(n-q*10)
+		n = q
+	}
+	if i > 0 {
+		i--
+		dst[i] = '0' + byte(n)
+	}
+	return i
 }

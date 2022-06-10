@@ -20,10 +20,8 @@ const (
 )
 
 var (
-	// UserKeyOriginalRequestURI is a key to store original RequestURI.
-	UserKeyOriginalRequestURI = []byte("Original-Request-URI")
-	// UserKeyUsername is a key to store username.
-	UserKeyUsername = []byte("Username")
+	// HeaderKeyOriginalRequestURI is a key to store original RequestURI.
+	HeaderKeyOriginalRequestURI = []byte("Original-Request-URI")
 )
 
 // AccessLog is an interface to write access log.
@@ -155,9 +153,7 @@ func (l *accessLog) init(cfg config.Config) (*accessLog, error) {
 // Collect stores Request-URI to ctx as UserValue if '%r' is specified in format.
 func (l *accessLog) Collect(ctx *fasthttp.RequestCtx) {
 	if l.collectRequestURI {
-		// NOTE: store string
-		uri := string(ctx.URI().RequestURI())
-		ctx.SetUserValueBytes(UserKeyOriginalRequestURI, uri)
+		ctx.Request.Header.SetBytesKV(HeaderKeyOriginalRequestURI, ctx.RequestURI())
 	}
 }
 
@@ -168,10 +164,8 @@ func (l *accessLog) Log(ctx *fasthttp.RequestCtx) {
 	}
 	b.B = append(b.B, '\n')
 
-	go func() {
-		defer bytebufferpool.Put(b)
-		l.out.Write(b.B) //nolint:errcheck
-	}()
+	l.out.Write(b.B) //nolint:errcheck
+	bytebufferpool.Put(b)
 }
 
 func (l *accessLog) portFromAddr(addr string) []byte {
@@ -211,29 +205,38 @@ func appendNCSADate(dst []byte, date time.Time) []byte {
 	m := (date.Month() - 1) * 3
 	_, zo := date.Zone()
 
-	dst = append(dst, '[')
-	dst = util.AppendZeroPaddingUint(dst, date.Day(), 2)
-	dst = append(dst, '/')
-	dst = append(dst, ncsaMonths[m:m+3]...)
-	dst = append(dst, '/')
-	dst = util.AppendZeroPaddingUint(dst, date.Year(), 4)
-	dst = append(dst, ':')
-	dst = util.AppendZeroPaddingUint(dst, date.Hour(), 2)
-	dst = append(dst, ':')
-	dst = util.AppendZeroPaddingUint(dst, date.Minute(), 2)
-	dst = append(dst, ':')
-	dst = util.AppendZeroPaddingUint(dst, date.Second(), 2)
-	dst = append(dst, ' ')
+	b := []byte{
+		'[',
+		'0', 0,
+		'/',
+		0, 0, 0,
+		'/',
+		'0', '0', '0', 0,
+		':',
+		'0', 0,
+		':',
+		'0', 0,
+		':',
+		'0', 0,
+		' ',
+		0, '0', 0,
+		'0', '0', ']',
+	}
+	util.CopyRightUint(b[1:3], date.Day())
+	copy(b[4:7], ncsaMonths[m:m+3])
+	util.CopyRightUint(b[8:12], date.Year())
+	util.CopyRightUint(b[13:15], date.Hour())
+	util.CopyRightUint(b[16:18], date.Minute())
+	util.CopyRightUint(b[19:21], date.Second())
 	if zo < 0 {
-		dst = append(dst, '-')
+		b[22] = '-'
 		zo = -zo
 	} else {
-		dst = append(dst, '+')
+		b[22] = '+'
 	}
-	dst = util.AppendZeroPaddingUint(dst, zo/(60*60), 2)
-	dst = append(dst, '0', '0', ']')
+	util.CopyRightUint(b[23:25], zo/(60*60))
 
-	return dst
+	return append(dst, b...)
 }
 
 // appendNCSARequest appends NCSA common format of request (method uri protocol)
@@ -372,8 +375,11 @@ var (
 	}
 	// appendLr appends first line of request.
 	appendLr = func(dst []byte, ctx *fasthttp.RequestCtx) []byte {
-		uri := ctx.UserValueBytes(UserKeyOriginalRequestURI).(string)
-		return appendNCSARequest(dst, ctx.Method(), []byte(uri), ctx.Request.Header.Protocol())
+		uri := ctx.Request.Header.PeekBytes(HeaderKeyOriginalRequestURI)
+		if len(uri) == 0 {
+			return appendNil(dst, nil)
+		}
+		return appendNCSARequest(dst, ctx.Method(), uri, ctx.Request.Header.Protocol())
 	}
 	// appendL appends the request log ID from the error log (or '-' if
 	// nothing has been logged to the error log for this request).
