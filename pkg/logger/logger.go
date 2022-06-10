@@ -12,7 +12,7 @@ import (
 // Logger is the interface that defines the methods to logging.
 type Logger interface {
 	fasthttp.Logger
-	Rotater
+	Rotator
 	io.Closer
 	LogLogger() *log.Logger
 }
@@ -22,7 +22,7 @@ func NewLogger(cfg config.Log) (Logger, error) {
 	if cfg.Output == "" {
 		return NilLogger, nil
 	}
-	out, err := SharedRotater(cfg.Output, cfg.Rotation)
+	out, err := SharedRotator(cfg.Output, cfg.Rotation)
 	if err != nil {
 		return nil, err
 	}
@@ -36,17 +36,17 @@ func NewLogger(cfg config.Log) (Logger, error) {
 
 // NewLoggerWriter returns a new logger with out.
 func NewLoggerWriter(cfg config.Log, out io.Writer) (Logger, error) {
-	return newLogger(&NopRotater{Writer: out}, cfg)
+	return newLogger(&NopRotator{Writer: out}, cfg)
 }
 
 type logger struct {
 	*log.Logger
-	rotater Rotater
+	rotator Rotator
 }
 
 var _ Logger = (*logger)(nil)
 
-func newLogger(out Rotater, cfg config.Log) (*logger, error) {
+func newLogger(out Rotator, cfg config.Log) (*logger, error) {
 	flgs := 0
 	for _, flg := range cfg.Flags {
 		switch flg {
@@ -66,33 +66,33 @@ func newLogger(out Rotater, cfg config.Log) (*logger, error) {
 	}
 	return &logger{
 		Logger:  log.New(out, cfg.Prefix, flgs),
-		rotater: out,
+		rotator: out,
 	}, nil
 }
 
 // Rotate rotate log stream.
 func (l *logger) Rotate() error {
-	if l.rotater != nil {
-		return l.rotater.Rotate()
+	if l.rotator != nil {
+		return l.rotator.Rotate()
 	}
 	return nil
 }
 
 // Write writes to log stream.
 func (l *logger) Write(p []byte) (int, error) {
-	if l.rotater != nil {
-		return l.rotater.Write(p)
+	if l.rotator != nil {
+		return l.rotator.Write(p)
 	}
 	return 0, nil
 }
 
 // Close closes log stream.
 func (l *logger) Close() error {
-	if l.rotater != nil {
-		if err := l.rotater.Close(); err != nil {
+	if l.rotator != nil {
+		if err := l.rotator.Close(); err != nil {
 			return err
 		}
-		l.rotater = nil
+		l.rotator = nil
 	}
 	return nil
 }

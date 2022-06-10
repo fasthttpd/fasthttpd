@@ -1,9 +1,5 @@
 package util
 
-import (
-	"math"
-)
-
 // AppendZeroPaddingUint appends n with zero padding that size of p to dst
 // and returns the extended dst.
 func AppendZeroPaddingUint(dst []byte, n, p int) []byte {
@@ -16,35 +12,58 @@ func AppendSpacePaddingUint(dst []byte, n, p int) []byte {
 	return AppendPaddingUint(dst, n, p, ' ')
 }
 
-// AppendPaddingUint appends n with c padding that size of p to dst
-// and returns the extended dst.
+// AppendPaddingUint appends n with c padding that size of p to dst and returns
+// the extended dst.
 func AppendPaddingUint(dst []byte, n, p int, c byte) []byte {
 	if n < 0 {
 		panic("number must be positive")
 	}
-	if p < 1 {
-		panic("padding size must be at least 1")
+	if p > 20 {
+		panic("padding size must be at most 20")
 	}
 
-	if q := int(math.Log10(float64(n))) + 1; p < q {
-		p = q
-	}
+	var b [20]byte
+	off := CopyPaddingRightUint(b[:], n, p, c)
 
-	b := make([]byte, p)
-	buf := b[:]
-	i := len(buf)
+	return append(dst, b[off:]...)
+}
+
+// CopyPaddingRightUint copies n with c padding that size of p to the
+// right side of dst, and returns coppied offset of dst.
+func CopyPaddingRightUint(dst []byte, n, p int, c byte) (offset int) {
+	i := len(dst)
 	var q int
-	for n >= 10 {
+	for i > 0 && n >= 10 {
 		i--
 		q = n / 10
-		buf[i] = '0' + byte(n-q*10)
+		dst[i] = '0' + byte(n-q*10)
 		n = q
 	}
-	i--
-	buf[i] = '0' + byte(n)
+	if i > 0 {
+		i--
+		dst[i] = '0' + byte(n)
 
-	for j := 0; j < i; j++ {
-		buf[j] = c
+		for o := len(dst) - p; i > o; {
+			i--
+			dst[i] = c
+		}
 	}
-	return append(dst, buf...)
+	return i
+}
+
+// CopyRightUint copies n to the right side of dst.
+func CopyRightUint(dst []byte, n int) (offset int) {
+	i := len(dst)
+	var q int
+	for i > 0 && n >= 10 {
+		i--
+		q = n / 10
+		dst[i] = '0' + byte(n-q*10)
+		n = q
+	}
+	if i > 0 {
+		i--
+		dst[i] = '0' + byte(n)
+	}
+	return i
 }

@@ -198,9 +198,15 @@ func (h *hostHandler) Logger() logger.Logger {
 // Handle handles the provided request.
 func (h *hostHandler) Handle(ctx *fasthttp.RequestCtx) {
 	h.accessLog.Collect(ctx)
-	defer h.accessLog.Log(ctx)
 
 	result := h.routes.CachedRouteCtx(ctx)
+	h.handleRouteResult(ctx, result)
+	result.Release()
+
+	h.accessLog.Log(ctx)
+}
+
+func (h *hostHandler) handleRouteResult(ctx *fasthttp.RequestCtx, result *route.RoutesResult) {
 	if uri := result.RewriteURIWithQueryString(ctx); len(uri) > 0 {
 		ctx.Request.SetRequestURIBytes(uri)
 	}

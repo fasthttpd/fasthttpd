@@ -20,15 +20,13 @@ const (
 )
 
 var (
-	// UserKeyOriginalRequestURI is a key to store original RequestURI.
-	UserKeyOriginalRequestURI = []byte("Original-Request-URI")
-	// UserKeyUsername is a key to store username.
-	UserKeyUsername = []byte("Username")
+	// HeaderKeyOriginalRequestURI is a key to store original RequestURI.
+	HeaderKeyOriginalRequestURI = []byte("Original-Request-URI")
 )
 
 // AccessLog is an interface to write access log.
 type AccessLog interface {
-	logger.Rotater
+	logger.Rotator
 	io.Closer
 	// Collect collects informations before Log.
 	Collect(ctx *fasthttp.RequestCtx)
@@ -38,7 +36,7 @@ type AccessLog interface {
 
 // NewAccessLog returns a new AccessLog.
 func NewAccessLog(cfg config.Config) (AccessLog, error) {
-	out, err := logger.SharedRotater(cfg.AccessLog.Output, cfg.AccessLog.Rotation)
+	out, err := logger.SharedRotator(cfg.AccessLog.Output, cfg.AccessLog.Rotation)
 	if err != nil {
 		return nil, err
 	}
@@ -51,13 +49,13 @@ func NewAccessLog(cfg config.Config) (AccessLog, error) {
 }
 
 type accessLog struct {
-	out               logger.Rotater
+	out               logger.Rotator
 	appendFuncs       []appendFunc
 	collectRequestURI bool
 	addrToPortCache   util.Cache
 }
 
-func newAccessLog(out logger.Rotater, cfg config.Config) (*accessLog, error) {
+func newAccessLog(out logger.Rotator, cfg config.Config) (*accessLog, error) {
 	return (&accessLog{out: out}).init(cfg)
 }
 
@@ -67,18 +65,12 @@ var timeNow = func() time.Time { return time.Now() }
 
 // Rotate rotate log stream.
 func (l *accessLog) Rotate() error {
-	if l.out != nil {
-		return l.out.Rotate()
-	}
-	return nil
+	return l.out.Rotate()
 }
 
 // Write writes to log stream.
 func (l *accessLog) Write(p []byte) (int, error) {
-	if l.out != nil {
-		return l.out.Write(p)
-	}
-	return 0, nil
+	return l.out.Write(p)
 }
 
 // Close closes log stream.
@@ -86,11 +78,11 @@ func (l *accessLog) Close() error {
 	l.appendFuncs = nil
 	l.collectRequestURI = false
 	l.addrToPortCache = nil
-	if l.out != nil {
-		if err := l.out.Close(); err != nil {
+	if out := l.out; out != nil {
+		l.out = logger.NilRotator
+		if err := out.Close(); err != nil {
 			return err
 		}
-		l.out = nil
 	}
 	return nil
 }
@@ -161,9 +153,7 @@ func (l *accessLog) init(cfg config.Config) (*accessLog, error) {
 // Collect stores Request-URI to ctx as UserValue if '%r' is specified in format.
 func (l *accessLog) Collect(ctx *fasthttp.RequestCtx) {
 	if l.collectRequestURI {
-		// NOTE: store string
-		uri := string(ctx.URI().RequestURI())
-		ctx.SetUserValueBytes(UserKeyOriginalRequestURI, uri)
+		ctx.Request.Header.SetBytesKV(HeaderKeyOriginalRequestURI, ctx.RequestURI())
 	}
 }
 
@@ -174,23 +164,22 @@ func (l *accessLog) Log(ctx *fasthttp.RequestCtx) {
 	}
 	b.B = append(b.B, '\n')
 
-	go func() {
-		defer bytebufferpool.Put(b)
-		l.out.Write(b.B) //nolint:errcheck
-	}()
+	l.out.Write(b.B) //nolint:errcheck
+	bytebufferpool.Put(b)
 }
 
 func (l *accessLog) portFromAddr(addr string) []byte {
-	if portBytes := l.addrToPortCache.Get(addr); portBytes != nil {
+	key := util.CacheKeyString(addr)
+	if portBytes := l.addrToPortCache.Get(key); portBytes != nil {
 		return portBytes.([]byte)
 	}
 	_, port, err := net.SplitHostPort(addr)
 	if err != nil || port == "0" {
-		l.addrToPortCache.Set(addr, []byte{})
+		l.addrToPortCache.Set(key, []byte{})
 		return nil
 	}
 	portBytes := []byte(port)
-	l.addrToPortCache.Set(addr, portBytes)
+	l.addrToPortCache.Set(key, portBytes)
 	return portBytes
 }
 
@@ -216,29 +205,38 @@ func appendNCSADate(dst []byte, date time.Time) []byte {
 	m := (date.Month() - 1) * 3
 	_, zo := date.Zone()
 
-	dst = append(dst, '[')
-	dst = util.AppendZeroPaddingUint(dst, date.Day(), 2)
-	dst = append(dst, '/')
-	dst = append(dst, ncsaMonths[m:m+3]...)
-	dst = append(dst, '/')
-	dst = util.AppendZeroPaddingUint(dst, date.Year(), 4)
-	dst = append(dst, ':')
-	dst = util.AppendZeroPaddingUint(dst, date.Hour(), 2)
-	dst = append(dst, ':')
-	dst = util.AppendZeroPaddingUint(dst, date.Minute(), 2)
-	dst = append(dst, ':')
-	dst = util.AppendZeroPaddingUint(dst, date.Second(), 2)
-	dst = append(dst, ' ')
+	b := []byte{
+		'[',
+		'0', 0,
+		'/',
+		0, 0, 0,
+		'/',
+		'0', '0', '0', 0,
+		':',
+		'0', 0,
+		':',
+		'0', 0,
+		':',
+		'0', 0,
+		' ',
+		0, '0', 0,
+		'0', '0', ']',
+	}
+	util.CopyRightUint(b[1:3], date.Day())
+	copy(b[4:7], ncsaMonths[m:m+3])
+	util.CopyRightUint(b[8:12], date.Year())
+	util.CopyRightUint(b[13:15], date.Hour())
+	util.CopyRightUint(b[16:18], date.Minute())
+	util.CopyRightUint(b[19:21], date.Second())
 	if zo < 0 {
-		dst = append(dst, '-')
+		b[22] = '-'
 		zo = -zo
 	} else {
-		dst = append(dst, '+')
+		b[22] = '+'
 	}
-	dst = util.AppendZeroPaddingUint(dst, zo/(60*60), 2)
-	dst = append(dst, '0', '0', ']')
+	util.CopyRightUint(b[23:25], zo/(60*60))
 
-	return dst
+	return append(dst, b...)
 }
 
 // appendNCSARequest appends NCSA common format of request (method uri protocol)
@@ -377,8 +375,11 @@ var (
 	}
 	// appendLr appends first line of request.
 	appendLr = func(dst []byte, ctx *fasthttp.RequestCtx) []byte {
-		uri := ctx.UserValueBytes(UserKeyOriginalRequestURI).(string)
-		return appendNCSARequest(dst, ctx.Method(), []byte(uri), ctx.Request.Header.Protocol())
+		uri := ctx.Request.Header.PeekBytes(HeaderKeyOriginalRequestURI)
+		if len(uri) == 0 {
+			return appendNil(dst, nil)
+		}
+		return appendNCSARequest(dst, ctx.Method(), uri, ctx.Request.Header.Protocol())
 	}
 	// appendL appends the request log ID from the error log (or '-' if
 	// nothing has been logged to the error log for this request).

@@ -6,6 +6,8 @@ import (
 )
 
 func Test_AppendZeroPaddingUint(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		n    int
 		p    int
@@ -25,9 +27,9 @@ func Test_AppendZeroPaddingUint(t *testing.T) {
 			want: []byte("123"),
 		},
 	}
+	var got []byte
 	for i, test := range tests {
-		var got []byte
-		got = AppendZeroPaddingUint(got, test.n, test.p)
+		got = AppendZeroPaddingUint(got[:0], test.n, test.p)
 		if !bytes.Equal(got, test.want) {
 			t.Errorf("tests[%d] got %q; want %q", i, got, test.want)
 		}
@@ -35,6 +37,8 @@ func Test_AppendZeroPaddingUint(t *testing.T) {
 }
 
 func Test_AppendZeroPaddingUint_panics(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		n      int
 		p      int
@@ -44,8 +48,8 @@ func Test_AppendZeroPaddingUint_panics(t *testing.T) {
 			n:      -1,
 			errstr: "number must be positive",
 		}, {
-			p:      0,
-			errstr: "padding size must be at least 1",
+			p:      21,
+			errstr: "padding size must be at most 20",
 		},
 	}
 	fn := func(i, n, p int, errstr string) {
@@ -62,5 +66,89 @@ func Test_AppendZeroPaddingUint_panics(t *testing.T) {
 	}
 	for i, test := range tests {
 		fn(i, test.n, test.p, test.errstr)
+	}
+}
+
+func Test_CopyPaddingRightUint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		dst        []byte
+		n          int
+		p          int
+		c          byte
+		want       []byte
+		wantOffset int
+	}{
+		{
+			dst:        make([]byte, 3),
+			n:          1,
+			p:          2,
+			c:          '0',
+			want:       []byte{0, '0', '1'},
+			wantOffset: 1,
+		}, {
+			dst:        []byte{'a', 'b', 'c'},
+			n:          1,
+			p:          -1,
+			c:          0,
+			want:       []byte{'a', 'b', '1'},
+			wantOffset: 2,
+		}, {
+			dst:        make([]byte, 3),
+			n:          1234,
+			p:          -1,
+			c:          0,
+			want:       []byte{'2', '3', '4'},
+			wantOffset: 0,
+		},
+	}
+	for i, test := range tests {
+		got := test.dst
+		gotOffset := CopyPaddingRightUint(got, test.n, test.p, test.c)
+		if gotOffset != test.wantOffset {
+			t.Errorf("tests[%d] got offset %d; want offset %d", i, gotOffset, test.wantOffset)
+		}
+		if !bytes.Equal(got, test.want) {
+			t.Errorf("tests[%d] got %q; want %q", i, got, test.want)
+		}
+	}
+}
+
+func Test_CopyRightUint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		dst        []byte
+		n          int
+		want       []byte
+		wantOffset int
+	}{
+		{
+			dst:        make([]byte, 3),
+			n:          1,
+			want:       []byte{0, 0, '1'},
+			wantOffset: 2,
+		}, {
+			dst:        []byte{'a', 'b', 'c'},
+			n:          1,
+			want:       []byte{'a', 'b', '1'},
+			wantOffset: 2,
+		}, {
+			dst:        make([]byte, 3),
+			n:          1234,
+			want:       []byte{'2', '3', '4'},
+			wantOffset: 0,
+		},
+	}
+	for i, test := range tests {
+		got := test.dst
+		gotOffset := CopyRightUint(got, test.n)
+		if gotOffset != test.wantOffset {
+			t.Errorf("tests[%d] got offset %d; want offset %d", i, gotOffset, test.wantOffset)
+		}
+		if !bytes.Equal(got, test.want) {
+			t.Errorf("tests[%d] got %q; want %q", i, got, test.want)
+		}
 	}
 }

@@ -10,14 +10,14 @@ import (
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 )
 
-func Test_SharedRotater(t *testing.T) {
-	stdout, err := SharedRotater("stdout", config.Rotation{})
+func Test_SharedRotator(t *testing.T) {
+	stdout, err := SharedRotator("stdout", config.Rotation{})
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer stdout.Close()
 
-	stdout2, err := SharedRotater("stdout", config.Rotation{})
+	stdout2, err := SharedRotator("stdout", config.Rotation{})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -27,21 +27,21 @@ func Test_SharedRotater(t *testing.T) {
 		t.Errorf("unexpected loggers: %#v != %#v", stdout, stdout2)
 	}
 
-	stderr, err := SharedRotater("stderr", config.Rotation{})
+	stderr, err := SharedRotator("stderr", config.Rotation{})
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer stderr.Close()
 
-	if len(sharedRotaters) != 2 {
-		t.Errorf("unexpected sharedRotaters length: %d; want 2", len(sharedRotaters))
+	if len(sharedRotators) != 2 {
+		t.Errorf("unexpected sharedRotators length: %d; want 2", len(sharedRotators))
 	}
 
 	stdout.Close()
 	stdout2.Close()
 	stderr.Close()
-	if len(sharedRotaters) != 0 {
-		t.Errorf("unexpected sharedRotaters length: %d; want 0", len(sharedRotaters))
+	if len(sharedRotators) != 0 {
+		t.Errorf("unexpected sharedRotators length: %d; want 0", len(sharedRotators))
 	}
 }
 
@@ -53,7 +53,7 @@ func Test_RotateShared(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	output := filepath.Join(tmpDir, "test.log")
-	o, err := SharedRotater(output, config.Rotation{
+	o, err := SharedRotator(output, config.Rotation{
 		MaxSize:    1,
 		MaxBackups: 2,
 		MaxAge:     3,
@@ -65,7 +65,7 @@ func Test_RotateShared(t *testing.T) {
 	}
 	defer o.Close()
 
-	o2, err := SharedRotater("stdout", config.Rotation{})
+	o2, err := SharedRotator("stdout", config.Rotation{})
 	if err != nil {
 		t.Fatal(err)
 	}
