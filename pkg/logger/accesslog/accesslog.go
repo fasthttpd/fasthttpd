@@ -20,10 +20,8 @@ const (
 )
 
 var (
-	// UserKeyOriginalRequestURI is a key to store original RequestURI.
-	UserKeyOriginalRequestURI = []byte("Original-Request-URI")
-	// UserKeyUsername is a key to store username.
-	UserKeyUsername = []byte("Username")
+	// HeaderKeyOriginalRequestURI is a key to store original RequestURI.
+	HeaderKeyOriginalRequestURI = []byte("Original-Request-URI")
 )
 
 // AccessLog is an interface to write access log.
@@ -155,9 +153,7 @@ func (l *accessLog) init(cfg config.Config) (*accessLog, error) {
 // Collect stores Request-URI to ctx as UserValue if '%r' is specified in format.
 func (l *accessLog) Collect(ctx *fasthttp.RequestCtx) {
 	if l.collectRequestURI {
-		// NOTE: store string
-		uri := string(ctx.URI().RequestURI())
-		ctx.SetUserValueBytes(UserKeyOriginalRequestURI, uri)
+		ctx.Request.Header.SetBytesKV(HeaderKeyOriginalRequestURI, ctx.RequestURI())
 	}
 }
 
@@ -372,8 +368,11 @@ var (
 	}
 	// appendLr appends first line of request.
 	appendLr = func(dst []byte, ctx *fasthttp.RequestCtx) []byte {
-		uri := ctx.UserValueBytes(UserKeyOriginalRequestURI).(string)
-		return appendNCSARequest(dst, ctx.Method(), []byte(uri), ctx.Request.Header.Protocol())
+		uri := ctx.Request.Header.PeekBytes(HeaderKeyOriginalRequestURI)
+		if len(uri) == 0 {
+			return appendNil(dst, nil)
+		}
+		return appendNCSARequest(dst, ctx.Method(), uri, ctx.Request.Header.Protocol())
 	}
 	// appendL appends the request log ID from the error log (or '-' if
 	// nothing has been logged to the error log for this request).
