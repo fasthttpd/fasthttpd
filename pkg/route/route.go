@@ -198,7 +198,7 @@ func (r *RoutesResult) Release() {
 	routesResultPool.Put(r)
 }
 
-func onRoutesResultExpired(_ util.CacheKey, value interface{}) {
+func onRoutesResultReleased(_ util.CacheKey, value interface{}) {
 	if r, ok := value.(*RoutesResult); ok {
 		r.Release()
 	}
@@ -236,7 +236,7 @@ func NewRoutes(cfg config.Config) (*Routes, error) {
 			int64(cfg.RoutesCache.Expire),
 			int64(cfg.RoutesCache.Interval),
 		)
-		rs.cache.OnExpired(onRoutesResultExpired)
+		rs.cache.OnRelease(onRoutesResultReleased)
 	}
 	return rs, nil
 }

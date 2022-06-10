@@ -32,7 +32,6 @@ var (
 		},
 		RoutesCache: config.RoutesCache{
 			Enable: true,
-			Expire: 1000,
 		},
 	}
 	benchmarkRoutes, _ = NewRoutes(benchmarkRoutesConfig)

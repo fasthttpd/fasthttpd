@@ -34,9 +34,11 @@ func CacheKeyBytes(bs ...[]byte) CacheKey {
 	return CacheKey(key)
 }
 
-func CacheKeyString(s string) CacheKey {
+func CacheKeyString(ss ...string) CacheKey {
 	h := acquireHash64()
-	h.Write([]byte(s))
+	for _, s := range ss {
+		h.Write([]byte(s))
+	}
 	key := h.Sum64()
 	releaseHash64(h)
 	return CacheKey(key)
@@ -46,8 +48,10 @@ func CacheKeyString(s string) CacheKey {
 type Cache interface {
 	Get(key CacheKey) interface{}
 	Set(key CacheKey, value interface{})
+	Del(key CacheKey)
 	Len() int
-	OnExpired(cb func(key CacheKey, value interface{}))
+	// OnRelease sets a callback that will be called on the key is released.
+	OnRelease(cb func(key CacheKey, value interface{}))
 }
 
 const (
@@ -61,7 +65,7 @@ var (
 	expireCacheNow = func() int64 {
 		return time.Now().UnixMilli()
 	}
-	defaultOnExpired = func(key CacheKey, value interface{}) {}
+	defaultOnRelease = func(key CacheKey, value interface{}) {}
 )
 
 type expireCacheValue struct {
@@ -75,7 +79,7 @@ type expireCache struct {
 	interval  int64
 	next      int64
 	mutex     sync.Mutex
-	onExpired func(key CacheKey, value interface{})
+	onRelease func(key CacheKey, value interface{})
 }
 
 var _ Cache = (*expireCache)(nil)
@@ -96,11 +100,11 @@ func NewExpireCacheInterval(expire, interval int64) Cache {
 		interval = defaultInterval
 	}
 	return &expireCache{
-		store:     make(map[CacheKey]*expireCacheValue),
+		store:     make(map[CacheKey]*expireCacheValue, 256),
 		expire:    expire,
 		interval:  interval,
 		next:      expireCacheNow() + interval,
-		onExpired: defaultOnExpired,
+		onRelease: defaultOnRelease,
 	}
 }
 
@@ -112,7 +116,7 @@ func (c *expireCache) Get(key CacheKey) interface{} {
 	}
 	now := expireCacheNow()
 	v.peek = now
-	c.notify(now)
+	c.expires(now)
 	return v.value
 }
 
@@ -123,46 +127,46 @@ func (c *expireCache) Set(key CacheKey, value interface{}) {
 		value: value,
 		peek:  now,
 	}
-	c.notify(now)
+	c.expires(now)
+}
+
+func (c *expireCache) Del(key CacheKey) {
+	if v, ok := c.store[key]; ok {
+		delete(c.store, key)
+		go c.onRelease(key, v.value)
+	}
 }
 
 func (c *expireCache) Len() int {
 	return len(c.store)
 }
 
-func (c *expireCache) OnExpired(cb func(key CacheKey, value interface{})) {
+func (c *expireCache) OnRelease(cb func(key CacheKey, value interface{})) {
 	if cb == nil {
-		c.onExpired = defaultOnExpired
+		c.onRelease = defaultOnRelease
 		return
 	}
-	c.onExpired = cb
-}
-
-func (c *expireCache) notify(now int64) {
-	// NOTE: check befre lock
-	if now < c.next {
-		return
-	}
-	go func() {
-		c.mutex.Lock()
-		// NOTE: check in lock
-		if now < c.next {
-			c.mutex.Unlock()
-			return
-		}
-		// NOTE: update c.next in lock
-		c.next = now + c.interval
-		c.mutex.Unlock()
-		// NOTE: call expires without lock
-		c.expires(now)
-	}()
+	c.onRelease = cb
 }
 
 func (c *expireCache) expires(now int64) {
-	for k, v := range c.store {
-		if now-v.peek > c.expire {
-			delete(c.store, k)
-			go c.onExpired(k, v.value)
-		}
+	if now < c.next {
+		return
 	}
+	c.mutex.Lock()
+	if now < c.next {
+		c.mutex.Unlock()
+		return
+	}
+	c.next = now + c.interval
+	c.mutex.Unlock()
+
+	go func() {
+		for k, v := range c.store {
+			if now-v.peek > c.expire {
+				delete(c.store, k)
+				go c.onRelease(k, v.value)
+			}
+		}
+	}()
 }
