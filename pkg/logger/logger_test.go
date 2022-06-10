@@ -34,19 +34,19 @@ func Test_NewLogger(t *testing.T) {
 		}, {
 			cfg: config.Log{Output: "stdout"},
 			want: func(cfg config.Log) Logger {
-				out, _ := SharedRotater("stdout", cfg.Rotation)
+				out, _ := SharedRotator("stdout", cfg.Rotation)
 				return &logger{
 					Logger:  log.New(out, "", 0),
-					rotater: out,
+					rotator: out,
 				}
 			},
 		}, {
 			cfg: config.Log{Output: "stderr"},
 			want: func(cfg config.Log) Logger {
-				out, _ := SharedRotater("stderr", cfg.Rotation)
+				out, _ := SharedRotator("stderr", cfg.Rotation)
 				return &logger{
 					Logger:  log.New(out, "", 0),
-					rotater: out,
+					rotator: out,
 				}
 			},
 		}, {
@@ -61,10 +61,10 @@ func Test_NewLogger(t *testing.T) {
 				},
 			},
 			want: func(cfg config.Log) Logger {
-				out, _ := SharedRotater(filepath.Join(tmpDir, "test.log"), cfg.Rotation)
+				out, _ := SharedRotator(filepath.Join(tmpDir, "test.log"), cfg.Rotation)
 				return &logger{
 					Logger:  log.New(out, "", 0),
-					rotater: out,
+					rotator: out,
 				}
 			},
 		}, {
@@ -139,7 +139,7 @@ func Test_Logger_Printf(t *testing.T) {
 	}
 
 	b := new(bytes.Buffer)
-	out := &NopRotater{Writer: b}
+	out := &NopRotator{Writer: b}
 
 	for i, test := range tests {
 		b.Reset()

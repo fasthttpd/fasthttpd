@@ -28,7 +28,7 @@ var (
 
 // AccessLog is an interface to write access log.
 type AccessLog interface {
-	logger.Rotater
+	logger.Rotator
 	io.Closer
 	// Collect collects informations before Log.
 	Collect(ctx *fasthttp.RequestCtx)
@@ -38,7 +38,7 @@ type AccessLog interface {
 
 // NewAccessLog returns a new AccessLog.
 func NewAccessLog(cfg config.Config) (AccessLog, error) {
-	out, err := logger.SharedRotater(cfg.AccessLog.Output, cfg.AccessLog.Rotation)
+	out, err := logger.SharedRotator(cfg.AccessLog.Output, cfg.AccessLog.Rotation)
 	if err != nil {
 		return nil, err
 	}
@@ -51,13 +51,13 @@ func NewAccessLog(cfg config.Config) (AccessLog, error) {
 }
 
 type accessLog struct {
-	out               logger.Rotater
+	out               logger.Rotator
 	appendFuncs       []appendFunc
 	collectRequestURI bool
 	addrToPortCache   util.Cache
 }
 
-func newAccessLog(out logger.Rotater, cfg config.Config) (*accessLog, error) {
+func newAccessLog(out logger.Rotator, cfg config.Config) (*accessLog, error) {
 	return (&accessLog{out: out}).init(cfg)
 }
 
@@ -67,18 +67,12 @@ var timeNow = func() time.Time { return time.Now() }
 
 // Rotate rotate log stream.
 func (l *accessLog) Rotate() error {
-	if l.out != nil {
-		return l.out.Rotate()
-	}
-	return nil
+	return l.out.Rotate()
 }
 
 // Write writes to log stream.
 func (l *accessLog) Write(p []byte) (int, error) {
-	if l.out != nil {
-		return l.out.Write(p)
-	}
-	return 0, nil
+	return l.out.Write(p)
 }
 
 // Close closes log stream.
@@ -86,11 +80,11 @@ func (l *accessLog) Close() error {
 	l.appendFuncs = nil
 	l.collectRequestURI = false
 	l.addrToPortCache = nil
-	if l.out != nil {
-		if err := l.out.Close(); err != nil {
+	if out := l.out; out != nil {
+		l.out = logger.NilRotator
+		if err := out.Close(); err != nil {
 			return err
 		}
-		l.out = nil
 	}
 	return nil
 }
