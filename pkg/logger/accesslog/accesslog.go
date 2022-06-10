@@ -205,29 +205,38 @@ func appendNCSADate(dst []byte, date time.Time) []byte {
 	m := (date.Month() - 1) * 3
 	_, zo := date.Zone()
 
-	dst = append(dst, '[')
-	dst = util.AppendZeroPaddingUint(dst, date.Day(), 2)
-	dst = append(dst, '/')
-	dst = append(dst, ncsaMonths[m:m+3]...)
-	dst = append(dst, '/')
-	dst = util.AppendZeroPaddingUint(dst, date.Year(), 4)
-	dst = append(dst, ':')
-	dst = util.AppendZeroPaddingUint(dst, date.Hour(), 2)
-	dst = append(dst, ':')
-	dst = util.AppendZeroPaddingUint(dst, date.Minute(), 2)
-	dst = append(dst, ':')
-	dst = util.AppendZeroPaddingUint(dst, date.Second(), 2)
-	dst = append(dst, ' ')
+	b := []byte{
+		'[',
+		'0', 0,
+		'/',
+		0, 0, 0,
+		'/',
+		'0', '0', '0', 0,
+		':',
+		'0', 0,
+		':',
+		'0', 0,
+		':',
+		'0', 0,
+		' ',
+		0, '0', 0,
+		'0', '0', ']',
+	}
+	util.CopyRightUint(b[1:3], date.Day())
+	copy(b[4:7], ncsaMonths[m:m+3])
+	util.CopyRightUint(b[8:12], date.Year())
+	util.CopyRightUint(b[13:15], date.Hour())
+	util.CopyRightUint(b[16:18], date.Minute())
+	util.CopyRightUint(b[19:21], date.Second())
 	if zo < 0 {
-		dst = append(dst, '-')
+		b[22] = '-'
 		zo = -zo
 	} else {
-		dst = append(dst, '+')
+		b[22] = '+'
 	}
-	dst = util.AppendZeroPaddingUint(dst, zo/(60*60), 2)
-	dst = append(dst, '0', '0', ']')
+	util.CopyRightUint(b[23:25], zo/(60*60))
 
-	return dst
+	return append(dst, b...)
 }
 
 // appendNCSARequest appends NCSA common format of request (method uri protocol)
