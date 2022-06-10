@@ -25,9 +25,9 @@ func Test_AppendZeroPaddingUint(t *testing.T) {
 			want: []byte("123"),
 		},
 	}
+	var got []byte
 	for i, test := range tests {
-		var got []byte
-		got = AppendZeroPaddingUint(got, test.n, test.p)
+		got = AppendZeroPaddingUint(got[:0], test.n, test.p)
 		if !bytes.Equal(got, test.want) {
 			t.Errorf("tests[%d] got %q; want %q", i, got, test.want)
 		}
@@ -44,8 +44,8 @@ func Test_AppendZeroPaddingUint_panics(t *testing.T) {
 			n:      -1,
 			errstr: "number must be positive",
 		}, {
-			p:      0,
-			errstr: "padding size must be at least 1",
+			p:      21,
+			errstr: "padding size must be at most 20",
 		},
 	}
 	fn := func(i, n, p int, errstr string) {
