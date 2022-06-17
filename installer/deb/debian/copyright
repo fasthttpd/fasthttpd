@@ -1,0 +1,8 @@
+ Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+ Upstream-Name: fasthttpd
+ Upstream-Contact: fasthttpd <fasthttpd@trycatch.jp>
+ Source: https://github.com/fasthttpd/fasthttpd/
+
+ Files: *
+ License: MIT
+ 

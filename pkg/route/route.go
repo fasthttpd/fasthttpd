@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-	"sync"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/util"
@@ -110,96 +109,8 @@ func (r *Route) rewrite(path []byte) []byte {
 	return r.rewriteUriBytes
 }
 
-// acquireRoutesResult returns an empty RoutesResult object from the pool.
-//
-// The returned RoutesResult may be returned to the pool with Release when no
-// longer needed. This allows reducing GC load.
-func acquireRoutesResult() *RoutesResult {
-	return routesResultPool.Get().(*RoutesResult)
-}
-
-var routesResultPool = &sync.Pool{
-	New: func() interface{} {
-		r := &RoutesResult{}
-		r.reset()
-		return r
-	},
-}
-
-// RouteResult represents a result of routing.
-type RoutesResult struct {
-	StatusCode        int
-	StatusMessage     []byte
-	RewriteURI        []byte
-	RedirectURI       []byte
-	AppendQueryString bool
-	Handler           string
-	Filters           []string
-}
-
-func (r *RoutesResult) RewriteURIWithQueryString(ctx *fasthttp.RequestCtx) []byte {
-	if r.AppendQueryString && len(r.RewriteURI) > 0 {
-		return util.AppendQueryString(r.RewriteURI, ctx.URI().QueryString())
-	}
-	return r.RewriteURI
-}
-
-func (r *RoutesResult) RedirectURIWithQueryString(ctx *fasthttp.RequestCtx) []byte {
-	if r.AppendQueryString && len(r.RedirectURI) > 0 {
-		return util.AppendQueryString(r.RedirectURI, ctx.URI().QueryString())
-	}
-	return r.RedirectURI
-}
-
-func (r *RoutesResult) reset() {
-	r.StatusCode = 0
-	r.StatusMessage = r.StatusMessage[:0]
-	r.RewriteURI = r.RewriteURI[:0]
-	r.RedirectURI = r.RedirectURI[:0]
-	r.AppendQueryString = false
-	r.Handler = ""
-	r.Filters = r.Filters[:0]
-}
-
-func (r *RoutesResult) copyTo(dst *RoutesResult) *RoutesResult {
-	dst.reset()
-	dst.StatusCode = r.StatusCode
-	dst.StatusMessage = append(dst.StatusMessage[:0], r.StatusMessage...)
-	dst.RewriteURI = append(dst.RewriteURI[:0], r.RewriteURI...)
-	dst.RedirectURI = append(dst.RedirectURI, r.RedirectURI...)
-	dst.AppendQueryString = r.AppendQueryString
-	dst.Handler = r.Handler
-	dst.Filters = append(dst.Filters[:0], r.Filters...)
-	return dst
-}
-
-func (a *RoutesResult) equal(b *RoutesResult) bool {
-	if len(a.Filters) != len(b.Filters) {
-		return false
-	}
-	for i, f := range a.Filters {
-		if f != b.Filters[i] {
-			return false
-		}
-	}
-	return a.StatusCode == b.StatusCode &&
-		bytes.Equal(a.StatusMessage, b.StatusMessage) &&
-		bytes.Equal(a.RewriteURI, b.RewriteURI) &&
-		bytes.Equal(a.RedirectURI, b.RedirectURI) &&
-		a.AppendQueryString == b.AppendQueryString &&
-		a.Handler == b.Handler
-}
-
-// Release returns the object acquired via AcquireRoutesResult to the pool.
-//
-// Do not access the released RoutesResult object, otherwise data races may occur.
-func (r *RoutesResult) Release() {
-	r.reset()
-	routesResultPool.Put(r)
-}
-
-func onRoutesResultReleased(_ util.CacheKey, value interface{}) {
-	if r, ok := value.(*RoutesResult); ok {
+func onResultReleased(_ util.CacheKey, value interface{}) {
+	if r, ok := value.(*Result); ok {
 		r.Release()
 	}
 }
@@ -236,14 +147,14 @@ func NewRoutes(cfg config.Config) (*Routes, error) {
 			int64(cfg.RoutesCache.Expire),
 			int64(cfg.RoutesCache.Interval),
 		)
-		rs.cache.OnRelease(onRoutesResultReleased)
+		rs.cache.OnRelease(onResultReleased)
 	}
 	return rs, nil
 }
 
-// Route find routes by the provided method and path and returns a new RoutesResult.
-func (rs *Routes) Route(method, path []byte) *RoutesResult {
-	result := acquireRoutesResult()
+// Route find routes by the provided method and path and returns a new Result.
+func (rs *Routes) Route(method, path []byte) *Result {
+	result := AcquireResult()
 	var uniqFilters map[string]bool
 	for _, r := range rs.routes {
 		if !r.Match(method, path) {
@@ -280,23 +191,23 @@ func (rs *Routes) Route(method, path []byte) *RoutesResult {
 }
 
 // CachedRoute provides Read-Through caching for rs.Route if the cache is enabled.
-func (rs *Routes) CachedRoute(method, path []byte) *RoutesResult {
+func (rs *Routes) CachedRoute(method, path []byte) *Result {
 	if rs.cache == nil {
 		return rs.Route(method, path)
 	}
 
 	key := util.CacheKeyBytes(method, []byte{' '}, path)
 	if v := rs.cache.Get(key); v != nil {
-		result := v.(*RoutesResult)
-		return result.copyTo(acquireRoutesResult())
+		result := v.(*Result)
+		return result.CopyTo(AcquireResult())
 	}
 
 	result := rs.Route(method, path)
 	rs.cache.Set(key, result)
-	return result.copyTo(acquireRoutesResult())
+	return result.CopyTo(AcquireResult())
 }
 
 // CachedRouteCtx provides Read-Through caching for rs.Route if the cache is enabled.
-func (rs *Routes) CachedRouteCtx(ctx *fasthttp.RequestCtx) *RoutesResult {
+func (rs *Routes) CachedRouteCtx(ctx *fasthttp.RequestCtx) *Result {
 	return rs.CachedRoute(ctx.Method(), ctx.Path())
 }
