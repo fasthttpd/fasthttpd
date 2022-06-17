@@ -22,6 +22,14 @@ VERSION=0.3.4 GOOS=Linux GOARCH=x86_64; \
   sudo mv fasthttpd /usr/sbin
 ```
 
+Debian (Ubuntu) amd64
+
+```sh
+VERSION=0.3.4 ARCH=amd64; \
+  curl -fsSL -O "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSOPN}_${ARCH}.deb"
+sudo apt install "./fasthttpd_${VERSOPN}_${ARCH}.deb"
+```
+
 ## Quick start
 
 Usage
@@ -229,5 +237,4 @@ BenchmarkCachedRoutes_Regexp 	121977412	        98.47 ns/op	       1 B/op	      
 
 ## TODO
 
-- Daemonize
 - Benchmark reports
