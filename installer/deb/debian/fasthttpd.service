@@ -1,0 +1,16 @@
+[Unit]
+Description=A high performance http server
+After=network.target
+
+[Service]
+Environment="FASTHTTPD_CONFIG=/etc/fasthttpd/config.yaml"
+ExecStart="/usr/sbin/fasthttpd"
+Restart=always
+Type=simple
+User=www-data
+Group=adm
+CapabilityBoundingSet=cap_dac_read_search cap_net_bind_service
+AmbientCapabilities=cap_dac_read_search cap_net_bind_service
+
+[Install]
+WantedBy=multi-user.target
