@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
+	"github.com/fasthttpd/fasthttpd/pkg/util"
 	"github.com/valyala/fasthttp"
 )
 
@@ -105,7 +106,7 @@ func Test_NewRoutes(t *testing.T) {
 			c: config.Config{
 				Routes: []config.Route{
 					{
-						Filters: []string{"test"},
+						Filters: util.StringSet{"test"},
 					},
 				},
 			},
@@ -171,7 +172,7 @@ func testRoutes(t *testing.T, rs *Routes) {
 			method: http.MethodGet,
 			path:   "/img/test.png",
 			want: &Result{
-				Filters: []string{"cache"},
+				Filters: util.StringSet{"cache"},
 				Handler: "static",
 			},
 		}, {
@@ -179,7 +180,7 @@ func testRoutes(t *testing.T, rs *Routes) {
 			path:   "/view/1",
 			want: &Result{
 				Handler:    "hello",
-				Filters:    []string{"auth"},
+				Filters:    util.StringSet{"auth"},
 				RewriteURI: []byte("/view?id=1"),
 			},
 		}, {
@@ -204,7 +205,7 @@ func testRoutes(t *testing.T, rs *Routes) {
 			path:   "/route/to/hello",
 			want: &Result{
 				Handler: "hello",
-				Filters: []string{"auth"},
+				Filters: util.StringSet{"auth"},
 			},
 		},
 	}
@@ -212,6 +213,7 @@ func testRoutes(t *testing.T, rs *Routes) {
 		ctx := &fasthttp.RequestCtx{}
 		ctx.Request.Header.SetMethod(test.method)
 		ctx.URI().SetPath(test.path)
+
 		got := rs.CachedRouteCtx(ctx)
 		if !got.Equal(test.want) {
 			t.Errorf("tests[%d] unexpected result %#v; want %#v", i, *got, *test.want)

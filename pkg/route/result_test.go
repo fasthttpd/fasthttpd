@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/fasthttpd/fasthttpd/pkg/util"
 	"github.com/valyala/fasthttp"
 )
 
@@ -94,10 +95,10 @@ func Test_Result_Equal(t *testing.T) {
 		RedirectURI:       []byte("Redirect-URI"),
 		AppendQueryString: true,
 		Handler:           "default",
-		Filters:           []string{"auth"},
+		Filters:           util.StringSet{"auth"},
 	}
 	diffFilterResult := fullResult.CopyTo(&Result{})
-	diffFilterResult.Filters = []string{"no-cache"}
+	diffFilterResult.Filters = util.StringSet{"no-cache"}
 	tests := []struct {
 		a    *Result
 		b    *Result
