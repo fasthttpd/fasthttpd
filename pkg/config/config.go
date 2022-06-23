@@ -4,18 +4,25 @@ import (
 	"bytes"
 	"io"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/jarxorg/tree"
 	"gopkg.in/yaml.v2"
 )
 
+// Default values.
 const (
 	DefaultListen     = ":8080"
 	DefaultServerName = "fasthttpd"
-	MatchPrefix       = "prefix"
-	MatchEqual        = "equal"
-	MatchRegexp       = "regexp"
+)
+
+// Supported Route.Match values.
+const (
+	MatchPrefix = "prefix"
+	MatchEqual  = "equal"
+	MatchRegexp = "regexp"
 )
 
 // Config represents a configuration root of fasthttpd.
@@ -34,21 +41,17 @@ type Config struct {
 	RoutesCache RoutesCache         `yaml:"routesCache"`
 }
 
+// SetDefaults sets default values.
 func (cfg Config) SetDefaults() Config {
-	if cfg.Listen == "" {
-		cfg.Listen = DefaultListen
-	}
-	if cfg.Server == nil {
-		cfg.Server = tree.Map{}
-	}
-	if !cfg.Server.Has("name") {
-		cfg.Server.Set("name", tree.ToValue(DefaultServerName)) //nolint:errcheck
-	}
+	cfg.Listen = DefaultListen
+	cfg.Server = tree.Map{"name": tree.ToValue(DefaultServerName)}
+	cfg.SSL = cfg.SSL.SetDefaults()
 	cfg.Log = cfg.Log.SetDefaults()
 	cfg.AccessLog = cfg.AccessLog.SetDefaults()
 	return cfg
 }
 
+// Normalize normalizes values.
 func (cfg Config) Normalize() (Config, error) {
 	serverTimeDurationNames := []string{
 		"readTimeout",
@@ -73,13 +76,60 @@ func (cfg Config) Normalize() (Config, error) {
 			}
 		}
 	}
+	var err error
+	if cfg.SSL, err = cfg.SSL.Normalize(); err != nil {
+		return cfg, err
+	}
 	return cfg, nil
 }
 
-// SSL represents a configuration of SSL.
+// SSL represents a configuration of SSL. If AutoCert is true, CertFile and
+// KeyFile are ignored.
 type SSL struct {
-	CertFile string `yaml:"certFile"`
-	KeyFile  string `yaml:"keyFile"`
+	CertFile string   `yaml:"certFile"`
+	KeyFile  string   `yaml:"keyFile"`
+	AutoCert AutoCert `yaml:"autoCert"`
+}
+
+// SetDefaults sets default values.
+func (ssl SSL) SetDefaults() SSL {
+	ssl.AutoCert = ssl.AutoCert.SetDefaults()
+	return ssl
+}
+
+// Normalize normalizes values.
+func (ssl SSL) Normalize() (SSL, error) {
+	var err error
+	if ssl.AutoCert, err = ssl.AutoCert.Normalize(); err != nil {
+		return ssl, err
+	}
+	return ssl, nil
+}
+
+// AutoCert represents a configuration of "golang.org/x/crypto/acme/autocert".
+type AutoCert struct {
+	Enable   bool   `yaml:"enable"`
+	CacheDir string `yaml:"cacheDir"`
+}
+
+// SetDefaults sets default values.
+func (c AutoCert) SetDefaults() AutoCert {
+	return c
+}
+
+// Normalize normalizes values.
+func (c AutoCert) Normalize() (AutoCert, error) {
+	if !c.Enable {
+		return c, nil
+	}
+	if c.CacheDir == "" {
+		dir, err := os.UserCacheDir()
+		if err != nil {
+			return c, err
+		}
+		c.CacheDir = filepath.Join(dir, "fasthttpd", "cert")
+	}
+	return c, nil
 }
 
 // Rotation represents a configuration of log rotation.
@@ -91,6 +141,7 @@ type Rotation struct {
 	LocalTime  bool `yaml:"localTime"`
 }
 
+// SetDefaults sets default values.
 func (r Rotation) SetDefaults() Rotation {
 	r.MaxSize = 100
 	r.MaxBackups = 14
@@ -108,6 +159,7 @@ type Log struct {
 	Rotation Rotation
 }
 
+// SetDefaults sets default values.
 func (l Log) SetDefaults() Log {
 	l.Flags = []string{"date", "time"}
 	l.Rotation = l.Rotation.SetDefaults()
@@ -121,6 +173,7 @@ type AccessLog struct {
 	Rotation Rotation
 }
 
+// SetDefaults sets default values.
 func (l AccessLog) SetDefaults() AccessLog {
 	l.Rotation = l.Rotation.SetDefaults()
 	return l
@@ -146,6 +199,7 @@ type RoutesCache struct {
 	Interval int  `yaml:"interval"`
 }
 
+// UnmarshalYAMLPath decodes path as multi Config YAML documents file.
 func UnmarshalYAMLPath(path string) ([]Config, error) {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
@@ -154,18 +208,19 @@ func UnmarshalYAMLPath(path string) ([]Config, error) {
 	return UnmarshalYAML(data)
 }
 
+// UnmarshalYAML decodes data as multi Config YAML documents.
 func UnmarshalYAML(data []byte) ([]Config, error) {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	var cfgs []Config
 	for {
 		cfg := Config{}.SetDefaults()
-		err := dec.Decode(&cfg)
-		if err != nil {
+		if err := dec.Decode(&cfg); err != nil {
 			if err == io.EOF {
 				break
 			}
 			return nil, err
 		}
+		var err error
 		cfg, err = cfg.Normalize()
 		if err != nil {
 			return nil, err
