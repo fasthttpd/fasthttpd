@@ -32,7 +32,7 @@ type Result struct {
 	RedirectURI       []byte
 	AppendQueryString bool
 	Handler           string
-	Filters           []string
+	Filters           util.StringSet
 }
 
 // RewriteURIWithQueryString returns r.RewriteURI with queryString.

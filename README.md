@@ -217,7 +217,7 @@ routes:
     handler: backend
 ```
 
-## RouteCache
+## RoutesCache
 
 The following is a benchmark report of route. 
 This report shows that caching is effective when routing makes heavy use of regular expressions.
@@ -237,4 +237,5 @@ BenchmarkCachedRoutes_Regexp 	121977412	        98.47 ns/op	       1 B/op	      
 
 ## TODO
 
+- Support HTTP/3
 - Benchmark reports

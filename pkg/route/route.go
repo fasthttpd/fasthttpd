@@ -155,19 +155,12 @@ func NewRoutes(cfg config.Config) (*Routes, error) {
 // Route find routes by the provided method and path and returns a new Result.
 func (rs *Routes) Route(method, path []byte) *Result {
 	result := AcquireResult()
-	var uniqFilters map[string]bool
 	for _, r := range rs.routes {
 		if !r.Match(method, path) {
 			continue
 		}
-		for _, f := range r.filters {
-			if _, ok := uniqFilters[f]; !ok {
-				result.Filters = append(result.Filters, f)
-				if uniqFilters == nil {
-					uniqFilters = map[string]bool{}
-				}
-				uniqFilters[f] = true
-			}
+		if len(r.filters) > 0 {
+			result.Filters = result.Filters.Append(r.filters...)
 		}
 		result.StatusCode = r.statusCode
 		result.StatusMessage = append(result.StatusMessage[:0], r.statusMessageBytes...)

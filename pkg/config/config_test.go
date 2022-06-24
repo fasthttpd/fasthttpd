@@ -3,6 +3,7 @@ package config
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -26,6 +27,7 @@ func Test_UnmarshalYAMLPath(t *testing.T) {
 				"readBufferSize":  tree.ToValue(4096),
 				"writeBufferSize": tree.ToValue(4096),
 			},
+			SSL: SSL{}.SetDefaults(),
 			Log: Log{
 				Output:   "logs/error.log",
 				Flags:    []string{"date", "time"},
@@ -129,6 +131,7 @@ func Test_UnmarshalYAMLPath(t *testing.T) {
 			SSL: SSL{
 				CertFile: "./ssl/localhost.crt",
 				KeyFile:  "./ssl/localhost.key",
+				AutoCert: AutoCert{}.SetDefaults(),
 			},
 			Server: tree.Map{
 				"name": tree.ToValue("fasthttpd"),
@@ -187,19 +190,19 @@ func Test_UnmarshalYAMLPath_Errors(t *testing.T) {
 }
 
 func Test_Config_Normalize(t *testing.T) {
+	userCacheDir, err := os.UserCacheDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	tests := []struct {
 		cfg    Config
 		want   Config
 		errstr string
 	}{
 		{
-			cfg: Config{},
-			want: Config{
-				Listen: ":8080",
-				Server: tree.Map{
-					"name": tree.ToValue("fasthttpd"),
-				},
-			}.SetDefaults(),
+			cfg:  Config{},
+			want: Config{},
 		}, {
 			cfg: Config{
 				Server: tree.Map{
@@ -207,12 +210,10 @@ func Test_Config_Normalize(t *testing.T) {
 				},
 			},
 			want: Config{
-				Listen: ":8080",
 				Server: tree.Map{
-					"name":        tree.ToValue("fasthttpd"),
 					"readTimeout": tree.NumberValue(60 * time.Second),
 				},
-			}.SetDefaults(),
+			},
 		}, {
 			cfg: Config{
 				Server: tree.Map{
@@ -220,10 +221,26 @@ func Test_Config_Normalize(t *testing.T) {
 				},
 			},
 			errstr: `time: invalid duration "invalid duration"`,
+		}, {
+			cfg: Config{
+				SSL: SSL{
+					AutoCert: AutoCert{
+						Enable: true,
+					},
+				},
+			},
+			want: Config{
+				SSL: SSL{
+					AutoCert: AutoCert{
+						Enable:   true,
+						CacheDir: filepath.Join(userCacheDir, "fasthttpd", "cert"),
+					},
+				},
+			},
 		},
 	}
 	for i, test := range tests {
-		got, err := test.cfg.SetDefaults().Normalize()
+		got, err := test.cfg.Normalize()
 		if test.errstr != "" {
 			if err == nil {
 				t.Fatalf("tests[%d] no error", i)
