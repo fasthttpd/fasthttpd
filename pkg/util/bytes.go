@@ -70,9 +70,9 @@ func CopyRightUint(dst []byte, n int) (offset int) {
 	return i
 }
 
-// Bytes2DEqual reports whether a and b are the same length and contain the
+// Bytes2dEqual reports whether a and b are the same length and contain the
 // same two dimensional (2d) bytes.
-func Bytes2DEqual(a, b [][]byte) bool {
+func Bytes2dEqual(a, b [][]byte) bool {
 	if len(a) != len(b) {
 		return false
 	}

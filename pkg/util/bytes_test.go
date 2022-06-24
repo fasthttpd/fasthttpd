@@ -153,7 +153,7 @@ func Test_CopyRightUint(t *testing.T) {
 	}
 }
 
-func Test_Bytes2DEqual(t *testing.T) {
+func Test_Bytes2dEqual(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -184,7 +184,7 @@ func Test_Bytes2DEqual(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		got := Bytes2DEqual(test.a, test.b)
+		got := Bytes2dEqual(test.a, test.b)
 		if got != test.want {
 			t.Errorf("tests[%d] got %v; want %v", i, got, test.want)
 		}
