@@ -72,8 +72,13 @@ func Test_multiTlsCert_GetCertificate(t *testing.T) {
 			hello: &tls.ClientHelloInfo{ServerName: "cert2.example.com"},
 			want:  cert2,
 		}, {
+			hello: &tls.ClientHelloInfo{ServerName: "cert2.example.com"},
+			want:  cert2,
+		}, {
 			hello:  &tls.ClientHelloInfo{ServerName: "cert3.example.com"},
 			errstr: "test error",
+		}, {
+			hello: &tls.ClientHelloInfo{ServerName: "cert3.example.com"},
 		},
 	}
 	for i, test := range tests {
