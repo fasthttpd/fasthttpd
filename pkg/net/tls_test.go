@@ -5,10 +5,11 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
-	"reflect"
 	"testing"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
+	"github.com/fasthttpd/fasthttpd/pkg/util"
+	"golang.org/x/crypto/acme"
 )
 
 func Test_MultiTLSConfig(t *testing.T) {
@@ -40,45 +41,46 @@ func Test_MultiTLSConfig(t *testing.T) {
 }
 
 func Test_multiTlsCert_GetCertificate(t *testing.T) {
-	cert1 := &tls.Certificate{}
-	cert2 := &tls.Certificate{}
+	cert1, err := tls.LoadX509KeyPair("../../examples/ssl/localhost.crt", "../../examples/ssl/localhost.key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cert2, err := tls.LoadX509KeyPair("../../examples/ssl/127.0.0.1.crt", "../../examples/ssl/127.0.0.1.key")
+	if err != nil {
+		t.Fatal(err)
+	}
 	fn := func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-		if hello.ServerName == "cert2.example.com" {
-			return cert2, nil
+		if hello.ServerName == "127.0.0.1" {
+			return &cert2, nil
 		}
 		return nil, errors.New("test error")
 	}
 	m := &multiTlsCert{
 		cfg: &tls.Config{
-			NameToCertificate: map[string]*tls.Certificate{"cert1.example.com": cert1},
+			NextProtos:   []string{"http/1.1", acme.ALPNProto},
+			Certificates: []tls.Certificate{cert1},
 		},
 		fns: []func(*tls.ClientHelloInfo) (*tls.Certificate, error){fn},
-	}
-	wantNamed := map[string]*tls.Certificate{
-		"cert1.example.com": cert1,
-		"cert2.example.com": cert2,
-		"cert3.example.com": nil,
 	}
 
 	tests := []struct {
 		hello  *tls.ClientHelloInfo
-		want   *tls.Certificate
+		want   tls.Certificate
 		errstr string
 	}{
 		{
-			hello: &tls.ClientHelloInfo{ServerName: "cert1.example.com"},
+			hello: &tls.ClientHelloInfo{
+				ServerName:        "localhost",
+				SignatureSchemes:  []tls.SignatureScheme{tls.PSSWithSHA256},
+				SupportedVersions: []uint16{tls.VersionTLS13},
+			},
+			want: cert1,
+		}, {
+			hello: &tls.ClientHelloInfo{ServerName: "127.0.0.1"},
+			want:  cert2,
+		}, {
+			hello: &tls.ClientHelloInfo{ServerName: "example.com"},
 			want:  cert1,
-		}, {
-			hello: &tls.ClientHelloInfo{ServerName: "cert2.example.com"},
-			want:  cert2,
-		}, {
-			hello: &tls.ClientHelloInfo{ServerName: "cert2.example.com"},
-			want:  cert2,
-		}, {
-			hello:  &tls.ClientHelloInfo{ServerName: "cert3.example.com"},
-			errstr: "test error",
-		}, {
-			hello: &tls.ClientHelloInfo{ServerName: "cert3.example.com"},
 		},
 	}
 	for i, test := range tests {
@@ -95,12 +97,14 @@ func Test_multiTlsCert_GetCertificate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("tests[%d] error %v", i, err)
 		}
-		if got != test.want {
-			t.Errorf("tests[%d] got %#v; want %#v", i, got, *test.want)
+		if got == nil {
+			if len(test.want.Certificate) > 0 {
+				t.Errorf("tests[%d] got %v; want %v", i, got, test.want)
+			}
+			continue
 		}
-	}
-
-	if !reflect.DeepEqual(m.cfg.NameToCertificate, wantNamed) {
-		t.Errorf("unexpected  NameToCertificate %#v; want %#v", m.cfg.NameToCertificate, wantNamed)
+		if !util.Bytes2dEqual(got.Certificate, test.want.Certificate) {
+			t.Errorf("tests[%d] got %v; want %v", i, got, test.want)
+		}
 	}
 }

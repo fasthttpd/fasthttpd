@@ -2,16 +2,17 @@ package net
 
 import (
 	"crypto/tls"
+	"errors"
 	"log"
 	"os"
-	"strings"
-	"sync"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/util"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 )
+
+var errNoCertificates = errors.New("tls: no certificates configured")
 
 // MultiTLSConfig generates multiple TLS config from fasthttpd configrations.
 func MultiTLSConfig(cfgs []config.Config) (*tls.Config, error) {
@@ -51,7 +52,6 @@ func MultiTLSConfig(cfgs []config.Config) (*tls.Config, error) {
 	cfg := &tls.Config{NextProtos: nextProtos}
 	if len(certs) > 0 {
 		cfg.Certificates = certs
-		cfg.BuildNameToCertificate()
 	}
 	if len(fns) == 0 {
 		return cfg, nil
@@ -66,71 +66,24 @@ func MultiTLSConfig(cfgs []config.Config) (*tls.Config, error) {
 type multiTlsCert struct {
 	cfg *tls.Config
 	fns []func(*tls.ClientHelloInfo) (*tls.Certificate, error)
-	mux sync.Mutex
 }
 
-func (m *multiTlsCert) getByName(name string) (*tls.Certificate, bool) {
-	// NOTE: The following code is based on "crypt/tls".Config.getCertificate.
-	if cert, ok := m.cfg.NameToCertificate[name]; ok {
-		return cert, ok
-	}
-	if len(name) > 0 {
-		labels := strings.Split(name, ".")
-		labels[0] = "*"
-		wildcardName := strings.Join(labels, ".")
-		if cert, ok := m.cfg.NameToCertificate[wildcardName]; ok {
-			return cert, ok
-		}
-	}
-	return nil, false
-}
-
-func (m *multiTlsCert) found(name string, cert *tls.Certificate) *tls.Certificate {
-	m.mux.Lock()
-	defer m.mux.Unlock()
-
-	if named, ok := m.getByName(name); ok {
-		return named
-	}
-	if m.cfg.NameToCertificate == nil {
-		m.cfg.NameToCertificate = make(map[string]*tls.Certificate)
-	}
-	log.Printf("store new cert %s", name)
-	m.cfg.NameToCertificate[name] = cert
-	return cert
-}
-
-func (m *multiTlsCert) notFound(name string) {
-	m.mux.Lock()
-	defer m.mux.Unlock()
-
-	if m.cfg.NameToCertificate == nil {
-		m.cfg.NameToCertificate = make(map[string]*tls.Certificate)
-	}
-	log.Printf("store nil cert %s", name)
-	m.cfg.NameToCertificate[name] = nil
-}
-
+// GetCertificate implements tls.Config.GetCertificate.
 func (m *multiTlsCert) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	name := strings.ToLower(clientHello.ServerName)
-	if named, ok := m.getByName(name); ok {
-		return named, nil
-	}
-
-	var errs []error
-	for _, fn := range m.fns {
-		cert, err := fn(clientHello)
-		if err != nil {
-			errs = append(errs, err)
-			continue
+	// NOTE: The following code is based on "crypt/tls".Config.getCertificate.
+	for _, cert := range m.cfg.Certificates {
+		if err := clientHello.SupportsCertificate(&cert); err == nil {
+			return &cert, nil
 		}
-		return m.found(name, cert), nil
 	}
-	m.notFound(name)
-
-	if len(errs) > 0 {
-		// TODO: returns first error only
-		return nil, errs[0]
+	for _, fn := range m.fns {
+		if cert, err := fn(clientHello); err == nil {
+			return cert, nil
+		}
 	}
-	return nil, nil
+	if len(m.cfg.Certificates) == 0 {
+		return nil, errNoCertificates
+	}
+	// If nothing matches, return the first certificate.
+	return &m.cfg.Certificates[0], nil
 }
