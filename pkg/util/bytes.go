@@ -1,5 +1,7 @@
 package util
 
+import "bytes"
+
 // AppendZeroPaddingUint appends n with zero padding that size of p to dst
 // and returns the extended dst.
 func AppendZeroPaddingUint(dst []byte, n, p int) []byte {
@@ -66,4 +68,18 @@ func CopyRightUint(dst []byte, n int) (offset int) {
 		dst[i] = '0' + byte(n)
 	}
 	return i
+}
+
+// Bytes2DEqual reports whether a and b are the same length and contain the
+// same two dimensional (2d) bytes.
+func Bytes2DEqual(a, b [][]byte) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !bytes.Equal(a[i], b[i]) {
+			return false
+		}
+	}
+	return true
 }
