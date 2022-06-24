@@ -8,7 +8,7 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-func Test_HeaderFilter(t *testing.T) {
+func TestHeaderFilter(t *testing.T) {
 	tests := []struct {
 		cfg  tree.Map
 		got  func() *fasthttp.RequestCtx

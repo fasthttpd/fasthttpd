@@ -9,7 +9,7 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-func Test_Result_RewriteURIWithQueryString(t *testing.T) {
+func TestResult_RewriteURIWithQueryString(t *testing.T) {
 	tests := []struct {
 		result     *Result
 		requestUri []byte
@@ -48,7 +48,7 @@ func Test_Result_RewriteURIWithQueryString(t *testing.T) {
 	}
 }
 
-func Test_Result_RedirectURIWithQueryString(t *testing.T) {
+func TestResult_RedirectURIWithQueryString(t *testing.T) {
 	tests := []struct {
 		result     *Result
 		requestUri []byte
@@ -87,7 +87,7 @@ func Test_Result_RedirectURIWithQueryString(t *testing.T) {
 	}
 }
 
-func Test_Result_Equal(t *testing.T) {
+func TestResult_Equal(t *testing.T) {
 	fullResult := &Result{
 		StatusCode:        http.StatusOK,
 		StatusMessage:     []byte(http.StatusText(http.StatusOK)),

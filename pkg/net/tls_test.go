@@ -12,7 +12,7 @@ import (
 	"golang.org/x/crypto/acme"
 )
 
-func Test_MultiTLSConfig(t *testing.T) {
+func TestMultiTLSConfig(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "*.tls")
 	if err != nil {
 		t.Fatal(err)

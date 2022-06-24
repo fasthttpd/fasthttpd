@@ -14,7 +14,7 @@ import (
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 )
 
-func Test_NewLogger(t *testing.T) {
+func TestNewLogger(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "*.logger_test")
 	if err != nil {
 		t.Fatal(err)
@@ -108,7 +108,7 @@ func Test_NewLogger(t *testing.T) {
 	}
 }
 
-func Test_Logger_Printf(t *testing.T) {
+func TestLogger_Printf(t *testing.T) {
 	tests := []struct {
 		cfg  config.Log
 		want string

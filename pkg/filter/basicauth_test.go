@@ -9,7 +9,7 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-func Test_NewBasicAuthFilter(t *testing.T) {
+func TestNewBasicAuthFilter(t *testing.T) {
 	tests := []struct {
 		cfg    tree.Map
 		want   *BasicAuthFilter
@@ -98,7 +98,7 @@ func Test_NewBasicAuthFilter(t *testing.T) {
 	}
 }
 
-func Test_BasicAuthFilter(t *testing.T) {
+func TestBasicAuthFilter(t *testing.T) {
 	tests := []struct {
 		auth       *BasicAuthFilter
 		ctx        func() *fasthttp.RequestCtx

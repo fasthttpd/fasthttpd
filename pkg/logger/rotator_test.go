@@ -10,7 +10,7 @@ import (
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 )
 
-func Test_SharedRotator(t *testing.T) {
+func TestSharedRotator(t *testing.T) {
 	stdout, err := SharedRotator("stdout", config.Rotation{})
 	if err != nil {
 		log.Fatal(err)
@@ -45,7 +45,7 @@ func Test_SharedRotator(t *testing.T) {
 	}
 }
 
-func Test_RotateShared(t *testing.T) {
+func TestRotateShared(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "*.logger_test")
 	if err != nil {
 		t.Fatal(err)

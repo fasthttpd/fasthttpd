@@ -10,7 +10,7 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-func Test_Match(t *testing.T) {
+func TestRoute_Match(t *testing.T) {
 	tests := []struct {
 		cfg    config.Route
 		method string
@@ -97,7 +97,7 @@ func Test_Match(t *testing.T) {
 	}
 }
 
-func Test_NewRoutes(t *testing.T) {
+func TestNewRoutes(t *testing.T) {
 	tests := []struct {
 		c      config.Config
 		errstr string
@@ -229,7 +229,7 @@ func testRoutes(t *testing.T, rs *Routes) {
 	}
 }
 
-func Test_Routes(t *testing.T) {
+func TestRoutes(t *testing.T) {
 	c, err := config.UnmarshalYAMLPath("../config/testdata/full.yaml")
 	if err != nil {
 		t.Fatal(err)
@@ -244,7 +244,7 @@ func Test_Routes(t *testing.T) {
 	testRoutes(t, rs)
 }
 
-func Test_RouteNotFound(t *testing.T) {
+func TestRoutes_NotFound(t *testing.T) {
 	rs, err := NewRoutes(config.Config{})
 	if err != nil {
 		t.Fatal(err)
@@ -259,7 +259,7 @@ func Test_RouteNotFound(t *testing.T) {
 	}
 }
 
-func Test_onResultExpired(t *testing.T) {
+func Test_onResultReleased(t *testing.T) {
 	cfg := config.Config{
 		Routes: []config.Route{
 			{

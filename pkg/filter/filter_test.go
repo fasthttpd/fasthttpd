@@ -7,7 +7,7 @@ import (
 	"github.com/jarxorg/tree"
 )
 
-func Test_NewFiltert(t *testing.T) {
+func TestNewFilter(t *testing.T) {
 	tests := []struct {
 		cfg    tree.Map
 		errstr string

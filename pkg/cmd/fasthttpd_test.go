@@ -11,7 +11,7 @@ import (
 	"github.com/valyala/fasthttp/fasthttputil"
 )
 
-func Test_FastHttpd_Typical(t *testing.T) {
+func TestFastHttpd(t *testing.T) {
 	t.Parallel()
 
 	ln := fasthttputil.NewInmemoryListener()
@@ -49,7 +49,7 @@ func Test_FastHttpd_Typical(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.StatusCode() != http.StatusOK {
-		t.Fatalf("got status code: %d. want %d", resp.StatusCode(), http.StatusOK)
+		t.Fatalf("unexpected status code %d; want %d", resp.StatusCode(), http.StatusOK)
 	}
 
 	info, err := os.Stat("fasthttpd.go")
@@ -57,6 +57,6 @@ func Test_FastHttpd_Typical(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.Header.ContentLength() != int(info.Size()) {
-		t.Errorf("got content length %d; want %d", resp.Header.ContentLength(), info.Size())
+		t.Errorf("unexpected content length %d; want %d", resp.Header.ContentLength(), info.Size())
 	}
 }

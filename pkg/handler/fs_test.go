@@ -12,7 +12,7 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-func Test_NewFS(t *testing.T) {
+func TestNewFS(t *testing.T) {
 	tests := []struct {
 		cfg    tree.Map
 		want   *fasthttp.FS
@@ -65,7 +65,7 @@ func Test_NewFS(t *testing.T) {
 	}
 }
 
-func Test_FS_Handler(t *testing.T) {
+func TestFS_Handler(t *testing.T) {
 	cfg := tree.Map{
 		"root":       tree.ToValue("testdata/public"),
 		"indexNames": tree.ToArrayValues("index.html"),

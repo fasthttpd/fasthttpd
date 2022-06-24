@@ -12,7 +12,7 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-func Test_ErrorPages(t *testing.T) {
+func TestErrorPages(t *testing.T) {
 	logBuf := new(bytes.Buffer)
 	logger, err := logger.NewLoggerWriter(config.Log{}, logBuf)
 	if err != nil {

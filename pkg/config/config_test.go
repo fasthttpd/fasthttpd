@@ -12,7 +12,7 @@ import (
 	"github.com/jarxorg/tree"
 )
 
-func Test_UnmarshalYAMLPath(t *testing.T) {
+func TestUnmarshalYAMLPath(t *testing.T) {
 	got, err := UnmarshalYAMLPath("testdata/full.yaml")
 	if err != nil {
 		t.Fatal(err)
@@ -155,7 +155,7 @@ func Test_UnmarshalYAMLPath(t *testing.T) {
 	}
 }
 
-func Test_UnmarshalYAMLPath_Errors(t *testing.T) {
+func TestUnmarshalYAMLPath_Errors(t *testing.T) {
 	invalidYaml, err := os.CreateTemp("", "*.yaml")
 	if err != nil {
 		t.Fatal(err)
@@ -189,7 +189,7 @@ func Test_UnmarshalYAMLPath_Errors(t *testing.T) {
 	}
 }
 
-func Test_Config_Normalize(t *testing.T) {
+func TestConfig_Normalize(t *testing.T) {
 	userCacheDir, err := os.UserCacheDir()
 	if err != nil {
 		t.Fatal(err)

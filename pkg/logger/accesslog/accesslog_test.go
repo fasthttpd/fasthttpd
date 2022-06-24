@@ -15,7 +15,7 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-func Test_NewAccessLog(t *testing.T) {
+func TestNewAccessLog(t *testing.T) {
 	tmp, err := os.CreateTemp("", "*.log")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -56,7 +56,7 @@ func Test_NewAccessLog(t *testing.T) {
 	}
 }
 
-func Test_appendNCSADate(t *testing.T) {
+func TestAccessLog_appendNCSADate(t *testing.T) {
 	tokyo, _ := time.LoadLocation("Asia/Tokyo")
 	chicago, _ := time.LoadLocation("America/Chicago")
 
@@ -87,7 +87,7 @@ func Test_appendNCSADate(t *testing.T) {
 	}
 }
 
-func Test_appendNCSARequest(t *testing.T) {
+func TestAccessLog_appendNCSARequest(t *testing.T) {
 	tests := []struct {
 		method   []byte
 		uri      []byte
@@ -115,7 +115,7 @@ func Test_appendNCSARequest(t *testing.T) {
 	}
 }
 
-func Test_AccessLog(t *testing.T) {
+func TestAccessLog(t *testing.T) {
 	remoteIP := net.IPv4(10, 1, 2, 3)
 	remoteAddr := &net.TCPAddr{IP: remoteIP, Port: 1234}
 

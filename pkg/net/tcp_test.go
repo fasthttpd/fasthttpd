@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func Test_GetNetwork(t *testing.T) {
+func TestGetNetwork(t *testing.T) {
 	tests := []struct {
 		listen string
 		want   string
@@ -28,7 +28,7 @@ func Test_GetNetwork(t *testing.T) {
 	}
 }
 
-func Test_TcpKeepaliveListener(t *testing.T) {
+func TestTcpKeepaliveListener(t *testing.T) {
 	ln, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)

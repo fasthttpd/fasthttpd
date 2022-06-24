@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func Test_AppendZeroPaddingUint(t *testing.T) {
+func TestAppendZeroPaddingUint(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -36,7 +36,7 @@ func Test_AppendZeroPaddingUint(t *testing.T) {
 	}
 }
 
-func Test_AppendZeroPaddingUint_panics(t *testing.T) {
+func TestAppendZeroPaddingUint_panics(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -69,7 +69,7 @@ func Test_AppendZeroPaddingUint_panics(t *testing.T) {
 	}
 }
 
-func Test_CopyPaddingRightUint(t *testing.T) {
+func TestCopyPaddingRightUint(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -115,7 +115,7 @@ func Test_CopyPaddingRightUint(t *testing.T) {
 	}
 }
 
-func Test_CopyRightUint(t *testing.T) {
+func TestCopyRightUint(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -153,7 +153,7 @@ func Test_CopyRightUint(t *testing.T) {
 	}
 }
 
-func Test_Bytes2dEqual(t *testing.T) {
+func TestBytes2dEqual(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

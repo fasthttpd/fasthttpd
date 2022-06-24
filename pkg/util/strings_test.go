@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func Test_StringList(t *testing.T) {
+func TestStringList(t *testing.T) {
 	got := &StringList{}
 	tests := []struct {
 		value      string
@@ -36,7 +36,7 @@ func Test_StringList(t *testing.T) {
 	}
 }
 
-func Test_StringSet(t *testing.T) {
+func TestStringSet(t *testing.T) {
 	tests := []struct {
 		values [][]string
 		want   StringSet

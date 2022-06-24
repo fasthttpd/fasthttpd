@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func Test_IsHttpOrHttps(t *testing.T) {
+func TestIsHttpOrHttps(t *testing.T) {
 	tests := []struct {
 		uri  []byte
 		want bool
@@ -30,7 +30,7 @@ func Test_IsHttpOrHttps(t *testing.T) {
 	}
 }
 
-func Test_IsHttpStatusRedirect(t *testing.T) {
+func TestIsHttpStatusRedirect(t *testing.T) {
 	tests := []struct {
 		status int
 		want   bool
@@ -66,7 +66,7 @@ func Test_IsHttpStatusRedirect(t *testing.T) {
 	}
 }
 
-func Test_SplitRequestURI(t *testing.T) {
+func TestSplitRequestURI(t *testing.T) {
 	tests := []struct {
 		uri  []byte
 		path []byte
@@ -92,7 +92,7 @@ func Test_SplitRequestURI(t *testing.T) {
 	}
 }
 
-func Test_AppendQueryString(t *testing.T) {
+func TestAppendQueryString(t *testing.T) {
 	tests := []struct {
 		dst  []byte
 		qstr []byte
