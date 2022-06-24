@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func Test_Strftime(t *testing.T) {
+func TestStrftime(t *testing.T) {
 	tokyo, err := time.LoadLocation("Asia/Tokyo")
 	if err != nil {
 		t.Fatal(err)

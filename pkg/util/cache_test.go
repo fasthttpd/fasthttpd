@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func Test_CacheKey(t *testing.T) {
+func TestCacheKey(t *testing.T) {
 	b := CacheKeyBytes([]byte("GET"), []byte{' '}, []byte("/path"))
 	s := CacheKeyString("GET", " ", "/path")
 	if b != s {

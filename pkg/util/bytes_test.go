@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func Test_AppendZeroPaddingUint(t *testing.T) {
+func TestAppendZeroPaddingUint(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -36,7 +36,7 @@ func Test_AppendZeroPaddingUint(t *testing.T) {
 	}
 }
 
-func Test_AppendZeroPaddingUint_panics(t *testing.T) {
+func TestAppendZeroPaddingUint_panics(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -69,7 +69,7 @@ func Test_AppendZeroPaddingUint_panics(t *testing.T) {
 	}
 }
 
-func Test_CopyPaddingRightUint(t *testing.T) {
+func TestCopyPaddingRightUint(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -115,7 +115,7 @@ func Test_CopyPaddingRightUint(t *testing.T) {
 	}
 }
 
-func Test_CopyRightUint(t *testing.T) {
+func TestCopyRightUint(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -149,6 +149,44 @@ func Test_CopyRightUint(t *testing.T) {
 		}
 		if !bytes.Equal(got, test.want) {
 			t.Errorf("tests[%d] got %q; want %q", i, got, test.want)
+		}
+	}
+}
+
+func TestBytes2dEqual(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		a    [][]byte
+		b    [][]byte
+		want bool
+	}{
+		{
+			a:    nil,
+			b:    nil,
+			want: true,
+		}, {
+			a:    nil,
+			b:    [][]byte{},
+			want: true,
+		}, {
+			a:    [][]byte{{'a', 'b'}},
+			b:    [][]byte{{'a', 'b'}},
+			want: true,
+		}, {
+			a:    [][]byte{{'a', 'b'}},
+			b:    [][]byte{{'a'}},
+			want: false,
+		}, {
+			a:    [][]byte{{'a', 'b'}},
+			b:    [][]byte{{'a', 'B'}},
+			want: false,
+		},
+	}
+	for i, test := range tests {
+		got := Bytes2dEqual(test.a, test.b)
+		if got != test.want {
+			t.Errorf("tests[%d] got %v; want %v", i, got, test.want)
 		}
 	}
 }

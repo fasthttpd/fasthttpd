@@ -5,10 +5,11 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/fasthttpd/fasthttpd/pkg/util"
 	"github.com/valyala/fasthttp"
 )
 
-func Test_Result_RewriteURIWithQueryString(t *testing.T) {
+func TestResult_RewriteURIWithQueryString(t *testing.T) {
 	tests := []struct {
 		result     *Result
 		requestUri []byte
@@ -47,7 +48,7 @@ func Test_Result_RewriteURIWithQueryString(t *testing.T) {
 	}
 }
 
-func Test_Result_RedirectURIWithQueryString(t *testing.T) {
+func TestResult_RedirectURIWithQueryString(t *testing.T) {
 	tests := []struct {
 		result     *Result
 		requestUri []byte
@@ -86,7 +87,7 @@ func Test_Result_RedirectURIWithQueryString(t *testing.T) {
 	}
 }
 
-func Test_Result_Equal(t *testing.T) {
+func TestResult_Equal(t *testing.T) {
 	fullResult := &Result{
 		StatusCode:        http.StatusOK,
 		StatusMessage:     []byte(http.StatusText(http.StatusOK)),
@@ -94,10 +95,10 @@ func Test_Result_Equal(t *testing.T) {
 		RedirectURI:       []byte("Redirect-URI"),
 		AppendQueryString: true,
 		Handler:           "default",
-		Filters:           []string{"auth"},
+		Filters:           util.StringSet{"auth"},
 	}
 	diffFilterResult := fullResult.CopyTo(&Result{})
-	diffFilterResult.Filters = []string{"no-cache"}
+	diffFilterResult.Filters = util.StringSet{"no-cache"}
 	tests := []struct {
 		a    *Result
 		b    *Result

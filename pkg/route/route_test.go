@@ -6,10 +6,11 @@ import (
 	"time"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
+	"github.com/fasthttpd/fasthttpd/pkg/util"
 	"github.com/valyala/fasthttp"
 )
 
-func Test_Match(t *testing.T) {
+func TestRoute_Match(t *testing.T) {
 	tests := []struct {
 		cfg    config.Route
 		method string
@@ -96,7 +97,7 @@ func Test_Match(t *testing.T) {
 	}
 }
 
-func Test_NewRoutes(t *testing.T) {
+func TestNewRoutes(t *testing.T) {
 	tests := []struct {
 		c      config.Config
 		errstr string
@@ -105,7 +106,7 @@ func Test_NewRoutes(t *testing.T) {
 			c: config.Config{
 				Routes: []config.Route{
 					{
-						Filters: []string{"test"},
+						Filters: util.StringSet{"test"},
 					},
 				},
 			},
@@ -171,7 +172,7 @@ func testRoutes(t *testing.T, rs *Routes) {
 			method: http.MethodGet,
 			path:   "/img/test.png",
 			want: &Result{
-				Filters: []string{"cache"},
+				Filters: util.StringSet{"cache"},
 				Handler: "static",
 			},
 		}, {
@@ -179,7 +180,7 @@ func testRoutes(t *testing.T, rs *Routes) {
 			path:   "/view/1",
 			want: &Result{
 				Handler:    "hello",
-				Filters:    []string{"auth"},
+				Filters:    util.StringSet{"auth"},
 				RewriteURI: []byte("/view?id=1"),
 			},
 		}, {
@@ -204,7 +205,7 @@ func testRoutes(t *testing.T, rs *Routes) {
 			path:   "/route/to/hello",
 			want: &Result{
 				Handler: "hello",
-				Filters: []string{"auth"},
+				Filters: util.StringSet{"auth"},
 			},
 		},
 	}
@@ -212,6 +213,7 @@ func testRoutes(t *testing.T, rs *Routes) {
 		ctx := &fasthttp.RequestCtx{}
 		ctx.Request.Header.SetMethod(test.method)
 		ctx.URI().SetPath(test.path)
+
 		got := rs.CachedRouteCtx(ctx)
 		if !got.Equal(test.want) {
 			t.Errorf("tests[%d] unexpected result %#v; want %#v", i, *got, *test.want)
@@ -227,7 +229,7 @@ func testRoutes(t *testing.T, rs *Routes) {
 	}
 }
 
-func Test_Routes(t *testing.T) {
+func TestRoutes(t *testing.T) {
 	c, err := config.UnmarshalYAMLPath("../config/testdata/full.yaml")
 	if err != nil {
 		t.Fatal(err)
@@ -242,7 +244,7 @@ func Test_Routes(t *testing.T) {
 	testRoutes(t, rs)
 }
 
-func Test_RouteNotFound(t *testing.T) {
+func TestRoutes_NotFound(t *testing.T) {
 	rs, err := NewRoutes(config.Config{})
 	if err != nil {
 		t.Fatal(err)
@@ -257,7 +259,7 @@ func Test_RouteNotFound(t *testing.T) {
 	}
 }
 
-func Test_onResultExpired(t *testing.T) {
+func Test_onResultReleased(t *testing.T) {
 	cfg := config.Config{
 		Routes: []config.Route{
 			{

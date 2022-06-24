@@ -7,14 +7,8 @@ install/fasthttpd::
 	install -d $(DEB_DESTDIR)/lib/systemd/system
 	install -d $(DEB_DESTDIR)/usr/sbin
 	install -d $(DEB_DESTDIR)/usr/share/fasthttpd/html
-	install -d -g adm $(DEB_DESTDIR)/var/log/fasthttpd
-
+	install -d $(DEB_DESTDIR)/var/log/fasthttpd
 	install -pm 755 bin/fasthttpd $(DEB_DESTDIR)/usr/sbin
 	install -pm 755 src/etc/fasthttpd/config.yaml $(DEB_DESTDIR)/etc/fasthttpd
 	install -pm 755 src/usr/share/fasthttpd/html/index.html $(DEB_DESTDIR)/usr/share/fasthttpd/html
 	install -pm 755 src/usr/share/fasthttpd/html/favicon.ico $(DEB_DESTDIR)/usr/share/fasthttpd/html
-
-override_dh_auto_install:
-	dh_auto_install
-	dh_systemd_enable || true
-	dh_systemd_start || true
