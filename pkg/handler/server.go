@@ -75,7 +75,6 @@ func (v *virtualHandler) handler(hostBytes []byte) *hostHandler {
 	if i := bytes.Index(hostBytes, []byte{':'}); i != -1 {
 		host = hostBytes[:i]
 	}
-	v.logger.Printf("## virtualHandler.handler called %s", host)
 	if len(v.handlers) > 1 {
 		for _, h := range v.handlers {
 			if bytes.Equal(host, h.hostBytes) {

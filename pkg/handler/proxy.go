@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http/httputil"
 	"net/url"
 
@@ -10,16 +11,14 @@ import (
 	"github.com/valyala/fasthttp/fasthttpadaptor"
 )
 
-type ProxyHandler struct {
-	URL string
-}
-
+// NewProxyHandler creates a new a proxy handler that proxies to backend url.
+// The specified cfg must have 'url' entry.
 func NewProxyHandler(cfg tree.Map, l logger.Logger) (fasthttp.RequestHandler, error) {
-	h := &ProxyHandler{}
-	if err := tree.UnmarshalViaJSON(cfg, h); err != nil {
-		return nil, err
+	urlStr := cfg.Get("url").Value().String()
+	if urlStr == "" {
+		return nil, errors.New("failed to create proxy: require 'url' entry")
 	}
-	u, err := url.Parse(h.URL)
+	u, err := url.Parse(urlStr)
 	if err != nil {
 		return nil, err
 	}

@@ -38,6 +38,9 @@ func TestNewFS(t *testing.T) {
 				},
 			},
 		}, {
+			cfg:    tree.Map{},
+			errstr: "failed to create FS: require 'root' entry",
+		}, {
 			cfg: tree.Map{
 				"pathNotFound": tree.ToValue("test"),
 			},

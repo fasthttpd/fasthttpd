@@ -8,18 +8,21 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+// NewHandlerFunc is a function that creates a new fasthttp.RequestHandler.
 type NewHandlerFunc func(cfg tree.Map, l logger.Logger) (fasthttp.RequestHandler, error)
 
 var typedNewHandlerFunc = map[string]NewHandlerFunc{}
 
-func RegisterNewHandlerFunc(t string, fn NewHandlerFunc) {
-	typedNewHandlerFunc[t] = fn
+// RegisterNewHandlerFunc registers a NewHandlerFunc with the specified type name.
+func RegisterNewHandlerFunc(typeName string, fn NewHandlerFunc) {
+	typedNewHandlerFunc[typeName] = fn
 }
 
+// NewHandler creates a new fasthttp.RequestHandler.
 func NewHandler(cfg tree.Map, l logger.Logger) (fasthttp.RequestHandler, error) {
-	t := cfg.Get("type").Value().String()
-	if fn, ok := typedNewHandlerFunc[t]; ok {
+	typeName := cfg.Get("type").Value().String()
+	if fn, ok := typedNewHandlerFunc[typeName]; ok {
 		return fn(cfg, l)
 	}
-	return nil, fmt.Errorf("unknown handler type: %s", t)
+	return nil, fmt.Errorf("unknown handler type: %s", typeName)
 }

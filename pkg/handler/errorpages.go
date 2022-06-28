@@ -13,15 +13,21 @@ var (
 	errorPagesStatusUntil  = 600
 )
 
+// ErrorPages represents a handler that provides custom error pages.
 type ErrorPages struct {
-	root       string
-	cfg        map[string]string
-	fs         fasthttp.RequestHandler
-	errorPaths [][]byte
+	root         string
+	statusToPath map[string]string
+	fs           fasthttp.RequestHandler
+	errorPaths   [][]byte
 }
 
-func NewErrorPages(root string, cfg map[string]string) *ErrorPages {
-	if len(root) == 0 || len(cfg) == 0 {
+var _ fasthttp.RequestHandler = (*ErrorPages)(nil).Handle
+
+// NewErrorPages creates a new ErrorPages.
+// The statusToPath maps from a http status text to a path of error page.
+// A http status text can be contain 'x' as wildcard. (eg. '404', '40x')
+func NewErrorPages(root string, statusToPath map[string]string) *ErrorPages {
+	if len(root) == 0 || len(statusToPath) == 0 {
 		return &ErrorPages{}
 	}
 	fs := &fasthttp.FS{
@@ -29,10 +35,10 @@ func NewErrorPages(root string, cfg map[string]string) *ErrorPages {
 		Compress: true,
 	}
 	return &ErrorPages{
-		root:       root,
-		cfg:        cfg,
-		fs:         fs.NewRequestHandler(),
-		errorPaths: make([][]byte, errorPagesStatusUntil-errorPagesStatusOffset),
+		root:         root,
+		statusToPath: statusToPath,
+		fs:           fs.NewRequestHandler(),
+		errorPaths:   make([][]byte, errorPagesStatusUntil-errorPagesStatusOffset),
 	}
 }
 
@@ -42,7 +48,7 @@ func (p *ErrorPages) Handle(ctx *fasthttp.RequestCtx) {
 		return
 	}
 	if p.fs == nil {
-		sendDefaultError(ctx)
+		SendDefaultError(ctx)
 		return
 	}
 	if path := p.errorPaths[status-errorPagesStatusOffset]; path != nil {
@@ -58,13 +64,13 @@ func (p *ErrorPages) handleStatus(ctx *fasthttp.RequestCtx, sb []byte, l int) {
 	if l < 0 {
 		// NOTE: store no erorr page.
 		p.errorPaths[status-errorPagesStatusOffset] = []byte{}
-		sendDefaultError(ctx)
+		SendDefaultError(ctx)
 		return
 	}
 	if l < len(sb) {
 		sb[l] = 'x'
 	}
-	if page := p.cfg[string(sb)]; page != "" {
+	if page := p.statusToPath[string(sb)]; page != "" {
 		path := []byte(page)
 		p.errorPaths[status-errorPagesStatusOffset] = path
 		p.sendError(ctx, path)
@@ -75,7 +81,7 @@ func (p *ErrorPages) handleStatus(ctx *fasthttp.RequestCtx, sb []byte, l int) {
 
 func (p *ErrorPages) sendError(ctx *fasthttp.RequestCtx, path []byte) {
 	if len(path) == 0 {
-		sendDefaultError(ctx)
+		SendDefaultError(ctx)
 		return
 	}
 
@@ -95,7 +101,7 @@ func (p *ErrorPages) sendError(ctx *fasthttp.RequestCtx, path []byte) {
 		ctx.Logger().Printf("invalid ErrorPages.fs status %d on %q", statusFS, path)
 
 		ctx.Response.SetBody([]byte{})
-		sendDefaultError(ctx)
+		SendDefaultError(ctx)
 	}
 }
 
@@ -110,7 +116,10 @@ var (
 	}
 )
 
-func sendDefaultError(ctx *fasthttp.RequestCtx) {
+// SendDefaultError sends default error page using ctx.Response.StatusCode().
+// It works as fasthttp.RequestHandler.
+// If the provided ctx has response body, it does nothing.
+func SendDefaultError(ctx *fasthttp.RequestCtx) {
 	if len(ctx.Response.Body()) > 0 {
 		return
 	}
@@ -121,7 +130,7 @@ func sendDefaultError(ctx *fasthttp.RequestCtx) {
 		if len(h) == 0 {
 			b.B = fasthttp.AppendUint(b.B, status)
 			b.B = append(b.B, ' ')
-			b.B = append(b.B, []byte(http.StatusText(status))...)
+			b.B = append(b.B, http.StatusText(status)...)
 			continue
 		}
 		b.B = append(b.B, h...)
@@ -130,3 +139,5 @@ func sendDefaultError(ctx *fasthttp.RequestCtx) {
 	ctx.Response.SetBody(b.B)
 	bytebufferpool.Put(b)
 }
+
+var _ fasthttp.RequestHandler = SendDefaultError
