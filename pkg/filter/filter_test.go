@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/jarxorg/tree"
+	"github.com/valyala/fasthttp"
 )
 
 func TestNewFilter(t *testing.T) {
@@ -48,6 +49,40 @@ func TestNewFilter(t *testing.T) {
 		}
 		if err != nil {
 			t.Fatalf("tests[%d] error %v", i, err)
+		}
+	}
+}
+
+func TestFilterDelegator(t *testing.T) {
+	tests := []struct {
+		f        Filter
+		wantReq  bool
+		wantResp bool
+	}{
+		{
+			f:        &FilterDelegator{},
+			wantReq:  true,
+			wantResp: true,
+		}, {
+			f: &FilterDelegator{
+				RequestFunc: func(ctx *fasthttp.RequestCtx) bool {
+					return false
+				},
+				ResponseFunc: func(ctx *fasthttp.RequestCtx) bool {
+					return false
+				},
+			},
+		},
+	}
+	for i, test := range tests {
+		ctx := &fasthttp.RequestCtx{}
+		gotReq := test.f.Request(ctx)
+		if gotReq != test.wantReq {
+			t.Errorf("tests[%d] got req %v; want %v", i, gotReq, test.wantReq)
+		}
+		gotResp := test.f.Response(ctx)
+		if gotResp != test.wantResp {
+			t.Errorf("tests[%d] got req %v; want %v", i, gotResp, test.wantResp)
 		}
 	}
 }
