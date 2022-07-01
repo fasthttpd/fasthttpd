@@ -10,10 +10,11 @@ RUN --mount=target=. GOOS=linux CGO_ENABLED=0 \
 FROM scratch
 
 COPY --from=0 /fasthttpd /usr/sbin/fasthttpd
-COPY examples/config.minimal.yaml /etc/fasthttpd/config.yaml
-COPY examples/public /etc/fasthttpd/public
+COPY examples/config.docker.yaml /etc/fasthttpd/config.yaml
+COPY examples/public /usr/share/fasthttpd/html
 
 ENV FASTHTTPD_CONFIG=/etc/fasthttpd/config.yaml
-EXPOSE 8080
+
+EXPOSE 80
 
 ENTRYPOINT [ "/usr/sbin/fasthttpd" ]
