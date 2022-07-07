@@ -16,7 +16,7 @@ go install github.com/fasthttpd/fasthttpd/cmd/fasthttpd@latest
 Download binary from [release](https://github.com/fasthttpd/fasthttpd/releases).
 
 ```sh
-VERSION=0.3.8 GOOS=Linux GOARCH=x86_64; \
+VERSION=0.3.9 GOOS=Linux GOARCH=x86_64; \
   curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | \
   tar xz fasthttpd && \
   sudo mv fasthttpd /usr/sbin
@@ -27,7 +27,7 @@ VERSION=0.3.8 GOOS=Linux GOARCH=x86_64; \
 Download deb or rpm from [release](https://github.com/fasthttpd/fasthttpd/releases), and then execute `apt install` or `yum install`. 
 
 ```sh
-VERSION=0.3.6 ARCH=amd64; \
+VERSION=0.3.9 ARCH=amd64; \
   curl -fsSL -O "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${ARCH}.deb"
 sudo apt install "./fasthttpd_${VERSION}_${ARCH}.deb"
 ```
@@ -35,6 +35,16 @@ sudo apt install "./fasthttpd_${VERSION}_${ARCH}.deb"
 - Default configuration path is /etc/fasthttpd/config.yaml
 - Default log directory is /var/log/fasthttpd
 - FastHttpd is automatically started by systemd
+
+### Using docker
+
+See [https://hub.docker.com/r/fasthttpd/fasthttpd](https://hub.docker.com/r/fasthttpd/fasthttpd)
+
+```
+docker run --rm -p 8080:80 fasthttpd/fasthttpd
+```
+
+Then you can hit http://localhost:8080 in your browser.
 
 ## Quick start
 
