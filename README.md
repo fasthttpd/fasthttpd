@@ -5,7 +5,18 @@
 
 FastHttpd is a HTTP server using [valyala/fasthttp](https://github.com/valyala/fasthttp).
 
-## Install
+## Features
+
+- Serve static files
+- Simple routing
+- Access logging
+- Reverse proxy (single host)
+- Customize headers
+- Support TLS
+- Virtual hosts
+- YAML configuration
+
+## Installation
 
 Go install
 
@@ -231,6 +242,22 @@ handlers:
 routes:
   - path: /
     handler: backend
+```
+
+## Override configuration using edit option
+
+FastHttpd can override some of the values in config.yaml with the -e option via [jarxorg/tree](https://github.com/jarxorg/tree).
+
+Customize content root
+
+```sh
+fasthttpd -f config.yaml -e root=/custom-root
+```
+
+Show access log and disable other log
+
+```sh
+fasthttpd -f config.yaml -e log.output="" -e accessLog.output=stdout
 ```
 
 ## RoutesCache
