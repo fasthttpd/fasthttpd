@@ -1,6 +1,7 @@
 [Unit]
 Description=fasthttpd is a high performance http server
 After=network.target
+Wants=network.target
 
 [Service]
 Environment="FASTHTTPD_CONFIG=/etc/fasthttpd/config.yaml"

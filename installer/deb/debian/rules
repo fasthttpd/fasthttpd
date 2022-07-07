@@ -3,12 +3,11 @@
 include /usr/share/cdbs/1/rules/debhelper.mk
 
 install/fasthttpd::
-	install -d $(DEB_DESTDIR)/etc/fasthttpd
-	install -d $(DEB_DESTDIR)/lib/systemd/system
-	install -d $(DEB_DESTDIR)/usr/sbin
-	install -d $(DEB_DESTDIR)/usr/share/fasthttpd/html
-	install -d $(DEB_DESTDIR)/var/log/fasthttpd
-	install -pm 755 bin/fasthttpd $(DEB_DESTDIR)/usr/sbin
-	install -pm 755 src/etc/fasthttpd/config.yaml $(DEB_DESTDIR)/etc/fasthttpd
-	install -pm 755 src/usr/share/fasthttpd/html/index.html $(DEB_DESTDIR)/usr/share/fasthttpd/html
-	install -pm 755 src/usr/share/fasthttpd/html/favicon.ico $(DEB_DESTDIR)/usr/share/fasthttpd/html
+	install -p -d $(DEB_DESTDIR)/etc/fasthttpd
+	install -p -d $(DEB_DESTDIR)/lib/systemd/system
+	install -p -d $(DEB_DESTDIR)/usr/sbin
+	install -p -d $(DEB_DESTDIR)/usr/share/fasthttpd/html
+	install -p -d $(DEB_DESTDIR)/var/log/fasthttpd
+	install -p -m 0755 bin/fasthttpd $(DEB_DESTDIR)/usr/sbin
+	install -p -m 0755 src/etc/fasthttpd/config.yaml $(DEB_DESTDIR)/etc/fasthttpd
+	install -p -m 0755 src/usr/share/fasthttpd/html/* $(DEB_DESTDIR)/usr/share/fasthttpd/html

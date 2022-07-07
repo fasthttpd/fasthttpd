@@ -21,8 +21,8 @@ if [ -z "${GOARCH}" ]; then
     exit 1
 fi
 
-apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get -y install --no-install-recommends \
+apt update -y
+DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends \
     build-essential fakeroot devscripts cdbs debhelper curl
 
 DEST="fasthttpd-${VERSION}"
