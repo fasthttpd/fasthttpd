@@ -23,26 +23,18 @@ fi
 
 apt update -y
 DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends \
-    build-essential fakeroot devscripts cdbs debhelper curl
+    rpm curl ca-certificates
 
-DEST="fasthttpd-${VERSION}"
-mkdir -p \
-  "${DEST}/bin" \
-  "${DEST}/src/etc/fasthttpd" \
-  "${DEST}/src/usr/share/fasthttpd/html"
-cp -rf debian "${DEST}"
+BUILD_DIR="$(pwd)/build"
+mkdir -p "${BUILD_DIR}/SOURCES" "${BUILD_DIR}/SPECS"
 
 curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | \
-    tar xz -C "${DEST}/bin" fasthttpd
-cp -f ../../examples/config.default.yaml "${DEST}/src/etc/fasthttpd/config.yaml"
-cp -rf ../../examples/public/* "${DEST}/src/usr/share/fasthttpd/html"
+    tar xz -C "${BUILD_DIR}/SOURCES" fasthttpd
+cp -f ./fasthttpd.service "${BUILD_DIR}/SOURCES"
+cp -f ../../examples/config.default.yaml "${BUILD_DIR}/SOURCES/config.yaml"
+cp -rf ../../examples/public/* "${BUILD_DIR}/SOURCES"
 
-(
-    cd "${DEST}/debian"
+sed -e "s/<VERSION>/${VERSION}/g" \
+    ./fasthttpd.spec.tpl >"${BUILD_DIR}/SPECS/fasthttpd.spec"
 
-    sed -e "s/<VERSION>/${VERSION}/g" \
-        -e "s/<DATE>/$(LANG=en-US date '+%a, %d %b %Y %H:%M:%S %z')/g" \
-        changelog.tpl >changelog
-    sed -e "s/<ARCH>/${ARCH}/g" control.tpl >control
-    debuild -uc -us -b
-)
+rpmbuild --define "_topdir ${BUILD_DIR}" -bb "${BUILD_DIR}/SPECS/fasthttpd.spec"
