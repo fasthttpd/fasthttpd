@@ -1,0 +1,17 @@
+[Unit]
+Description=fasthttpd is a high performance http server
+After=network.target
+Wants=network.target
+
+[Service]
+Environment="FASTHTTPD_CONFIG=/etc/fasthttpd/config.yaml"
+ExecStart="/usr/sbin/fasthttpd"
+Restart=always
+Type=simple
+User=fasthttpd
+Group=fasthttpd
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
