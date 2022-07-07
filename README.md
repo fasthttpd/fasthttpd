@@ -13,7 +13,7 @@ Go install
 go install github.com/fasthttpd/fasthttpd/cmd/fasthttpd@latest
 ```
 
-Download binary (Linux x86_64)
+Download binary from [release](https://github.com/fasthttpd/fasthttpd/releases).
 
 ```sh
 VERSION=0.3.8 GOOS=Linux GOARCH=x86_64; \
@@ -22,13 +22,19 @@ VERSION=0.3.8 GOOS=Linux GOARCH=x86_64; \
   sudo mv fasthttpd /usr/sbin
 ```
 
-Apt install (Debian or Ubuntu amd64)
+### Using yum or apt
+
+Download deb or rpm from [release](https://github.com/fasthttpd/fasthttpd/releases), and then execute `apt install` or `yum install`. 
 
 ```sh
 VERSION=0.3.6 ARCH=amd64; \
   curl -fsSL -O "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${ARCH}.deb"
 sudo apt install "./fasthttpd_${VERSION}_${ARCH}.deb"
 ```
+
+- Default configuration path is /etc/fasthttpd/config.yaml
+- Default log directory is /var/log/fasthttpd
+- FastHttpd is automatically started by systemd
 
 ## Quick start
 
