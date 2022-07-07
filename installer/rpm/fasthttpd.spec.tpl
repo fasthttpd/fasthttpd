@@ -1,6 +1,6 @@
 # NOTE: _unitdir is not defined in rpm of ubuntu
 %define unitdir /usr/lib/systemd/system
-%define contentdir /var/fasthttpd
+%define contentdir /usr/share/fasthttpd
 
 Name: fasthttpd
 Version: <VERSION>
@@ -37,10 +37,11 @@ fi
 %install
 mkdir -p \
     %{buildroot}/%{_sbindir} \
+    %{buildroot}/%{_sysconfdir} \
     %{buildroot}/%{unitdir}
 
-install -p -d %{buildroot}/etc/fasthttpd
-install -p -d %{buildroot}/var/fasthttpd/html
+install -p -d %{buildroot}/%{_sysconfdir}/fasthttpd
+install -p -d %{buildroot}/%{contentdir}/html
 install -p -d %{buildroot}/var/log/fasthttpd
 
 install -p -m 0755 %{SOURCE0} %{buildroot}/%{_sbindir}

@@ -31,7 +31,7 @@ mkdir -p "${BUILD_DIR}/SOURCES" "${BUILD_DIR}/SPECS"
 curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | \
     tar xz -C "${BUILD_DIR}/SOURCES" fasthttpd
 cp -f ./fasthttpd.service "${BUILD_DIR}/SOURCES"
-cp -f ../../examples/config.default.yaml "${BUILD_DIR}/SOURCES"
+cp -f ../../examples/config.default.yaml "${BUILD_DIR}/SOURCES/config.yaml"
 cp -rf ../../examples/public/* "${BUILD_DIR}/SOURCES"
 
 sed -e "s/<VERSION>/${VERSION}/g" \

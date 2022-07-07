@@ -149,13 +149,13 @@ jobs:
         run: |
           sudo ./installer/rpm/build.sh ${{ steps.tag.outputs.tag }}
       -
-        name: Upload amd64 rpm
+        name: Upload x86_64 rpm
         uses: actions/upload-release-asset@v1
         if: success()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.release.outputs.upload_url }}
-          asset_path: ${{ github.workspace }}/installer/rpm/build/RPMS/amd64/fasthttpd-${{ steps.tag.outputs.tag }}-1.amd64.deb
-          asset_name: fasthttpd-${{ steps.tag.outputs.tag }}-1.amd64.deb
+          asset_path: ${{ github.workspace }}/installer/rpm/build/RPMS/x86_64/fasthttpd-${{ steps.tag.outputs.tag }}-1.x86_64.rpm
+          asset_name: fasthttpd-${{ steps.tag.outputs.tag }}-1.x86_64.rpm
           asset_content_type: application/x-rpm
