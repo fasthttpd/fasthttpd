@@ -18,11 +18,13 @@ FastHttpd is a HTTP server using [valyala/fasthttp](https://github.com/valyala/f
 
 ## Installation
 
-Go install
+### Go install
 
 ```sh
 go install github.com/fasthttpd/fasthttpd/cmd/fasthttpd@latest
 ```
+
+### Download binary
 
 Download binary from [release](https://github.com/fasthttpd/fasthttpd/releases).
 
@@ -31,6 +33,13 @@ VERSION=0.3.9 GOOS=Linux GOARCH=x86_64; \
   curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | \
   tar xz fasthttpd && \
   sudo mv fasthttpd /usr/sbin
+```
+
+### Homebrew
+
+```sh
+brew tap fasthttpd/fasthttpd
+brew install fasthttpd
 ```
 
 ### Using yum or apt
@@ -47,7 +56,7 @@ sudo apt install "./fasthttpd_${VERSION}_${ARCH}.deb"
 - Default log directory is /var/log/fasthttpd
 - FastHttpd is automatically started by systemd
 
-### Using docker
+### Docker
 
 See [https://hub.docker.com/r/fasthttpd/fasthttpd](https://hub.docker.com/r/fasthttpd/fasthttpd)
 
