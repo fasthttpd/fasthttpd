@@ -67,7 +67,7 @@ handlers:
     body: |
       Hello FastHttpd
 
-# Define routes
+# The routes are processed in sequence and interrupted when the status or the handler is specified.
 routes:
 
   # Allows GET, POST, HEAD only.

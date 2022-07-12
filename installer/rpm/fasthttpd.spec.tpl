@@ -18,7 +18,7 @@ Source100: index.html
 Source101: favicon.ico
 
 %description
-FastHttpd is a HTTP server using valyala/fasthttp.
+FastHttpd is a lightweight http server using valyala/fasthttp.
 
 %pre
 /usr/sbin/useradd -c "FastHttpd" \

@@ -280,7 +280,6 @@ func (d *FastHttpd) Main(args []string) error {
 		d.flagSet.Usage()
 		return nil
 	}
-
 	return d.run()
 }
 

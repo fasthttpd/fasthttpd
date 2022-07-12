@@ -5,4 +5,4 @@ Standards-Version: 0.1
 
 Package: fasthttpd
 Architecture: <ARCH>
-Description: FastHttpd is a HTTP server using valyala/fasthttp.
+Description: FastHttpd is a lightweight http server using valyala/fasthttp.
