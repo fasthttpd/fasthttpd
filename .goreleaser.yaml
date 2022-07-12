@@ -35,6 +35,6 @@ brews:
     token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
   folder: Formula
   homepage: https://github.com/fasthttpd/fasthttpd
-  description: FastHttpd is a HTTP server using valyala/fasthttp
+  description: FastHttpd is a lightweight http server using valyala/fasthttp
   test: |
     system "#{bin}/fasthttpd -v"

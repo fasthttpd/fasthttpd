@@ -30,7 +30,7 @@ const EnvFasthttpdConfig = "FASTHTTPD_CONFIG"
 const (
 	cmd          = "fasthttpd"
 	version      = "0.3.10"
-	desc         = "FastHttpd is a HTTP server using valyala/fasthttp."
+	desc         = "FastHttpd is a lightweight http server using valyala/fasthttp."
 	usage        = cmd + " [flags]"
 	examplesText = `Examples:
   % fasthttpd -f ./examples/config.minimal.yaml

@@ -3,7 +3,7 @@
 [![PkgGoDev](https://pkg.go.dev/badge/github.com/fasthttpd/fasthttpd)](https://pkg.go.dev/github.com/fasthttpd/fasthttpd)
 [![Report Card](https://goreportcard.com/badge/github.com/fasthttpd/fasthttpd)](https://goreportcard.com/report/github.com/fasthttpd/fasthttpd)
 
-FastHttpd is a HTTP server using [valyala/fasthttp](https://github.com/valyala/fasthttp).
+FastHttpd is a lightweight http server using [valyala/fasthttp](https://github.com/valyala/fasthttp).
 
 ## Features
 
@@ -182,7 +182,7 @@ handlers:
     body: |
       Hello FastHttpd
 
-# Define routes
+# The routes are processed in sequence and interrupted when the status or the handler is specified.
 routes:
 
   # Allows GET, POST, HEAD only.
