@@ -447,7 +447,7 @@ var (
 	}
 )
 
-// Refer to https://httpd.apache.org/docs/2.4/ja/mod/mod_log_config.html
+// Refer to https://httpd.apache.org/docs/2.4/en/mod/mod_log_config.html
 var appendFuncs = map[string]appendFunc{
 	"%": newAppendBytes([]byte{'%'}),
 	"a": appendLa,

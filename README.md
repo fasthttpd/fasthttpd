@@ -35,6 +35,9 @@ VERSION=0.3.10 GOOS=Linux GOARCH=x86_64; \
   sudo mv fasthttpd /usr/sbin
 ```
 
+- GOOS supports `Linux` `Darwin` `Windows`
+- GOARCH supports `x86_64` `arm64` `i386`
+
 ### Homebrew
 
 ```sh
@@ -95,15 +98,19 @@ Examples
 
 ## Configuration
 
-The following is a configuration that is minimal.
+The following is a minimal configuration built into fasthttpd.
 
 ```yaml
+host: localhost
+listen: ':8080'
 root: ./public
+log:
+  output: stderr
 
 handlers:
-  static:
+  'static':
     type: fs
-    indexNames: ['index.html']
+    indexNames: [index.html]
 
 routes:
   - path: /
