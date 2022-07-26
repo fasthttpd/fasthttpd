@@ -98,6 +98,8 @@ Examples
 
 ## Configuration
 
+For more information, refer to [fasthttpd.org/configuration](https://fasthttpd.org/configuration).
+
 The following is a minimal configuration built into fasthttpd.
 
 ```yaml
