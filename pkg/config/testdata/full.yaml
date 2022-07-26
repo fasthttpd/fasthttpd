@@ -57,9 +57,6 @@ handlers:
     generateIndexPages: false
     compress: true
 
-  'expvar':
-    type: expvar
-
   'hello':
     type: content
     headers:
@@ -79,11 +76,6 @@ routes:
   - path: /
     match: equal
     handler: static
-
-  # Route to expvar handler.
-  - path: /expvar
-    match: equal
-    handler: expvar
 
   # Redirect to external url with status code 302.
   - path: /redirect-external
