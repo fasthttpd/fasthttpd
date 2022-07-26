@@ -69,9 +69,6 @@ func TestUnmarshalYAMLPath(t *testing.T) {
 					"compress":           tree.ToValue(true),
 					"generateIndexPages": tree.ToValue(false),
 				},
-				"expvar": {
-					"type": tree.ToValue("expvar"),
-				},
 				"hello": {
 					"type": tree.ToValue("content"),
 					"headers": tree.Map{
@@ -89,10 +86,6 @@ func TestUnmarshalYAMLPath(t *testing.T) {
 					Path:    "/",
 					Match:   MatchEqual,
 					Handler: "static",
-				}, {
-					Path:    "/expvar",
-					Match:   MatchEqual,
-					Handler: "expvar",
 				}, {
 					Path:    "/redirect-external",
 					Match:   MatchEqual,
