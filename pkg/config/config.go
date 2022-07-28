@@ -86,50 +86,29 @@ func (cfg Config) Normalize() (Config, error) {
 // SSL represents a configuration of SSL. If AutoCert is true, CertFile and
 // KeyFile are ignored.
 type SSL struct {
-	CertFile string   `yaml:"certFile"`
-	KeyFile  string   `yaml:"keyFile"`
-	AutoCert AutoCert `yaml:"autoCert"`
+	CertFile         string `yaml:"certFile"`
+	KeyFile          string `yaml:"keyFile"`
+	AutoCert         bool   `yaml:"autoCert"`
+	AutoCertCacheDir string `yaml:"autoCertCacheDir"`
 }
 
 // SetDefaults sets default values.
 func (ssl SSL) SetDefaults() SSL {
-	ssl.AutoCert = ssl.AutoCert.SetDefaults()
 	return ssl
 }
 
 // Normalize normalizes values.
 func (ssl SSL) Normalize() (SSL, error) {
-	var err error
-	if ssl.AutoCert, err = ssl.AutoCert.Normalize(); err != nil {
-		return ssl, err
+	if ssl.AutoCert {
+		if ssl.AutoCertCacheDir == "" {
+			dir, err := os.UserCacheDir()
+			if err != nil {
+				return ssl, err
+			}
+			ssl.AutoCertCacheDir = filepath.Join(dir, "fasthttpd", "cert")
+		}
 	}
 	return ssl, nil
-}
-
-// AutoCert represents a configuration of "golang.org/x/crypto/acme/autocert".
-type AutoCert struct {
-	Enable   bool   `yaml:"enable"`
-	CacheDir string `yaml:"cacheDir"`
-}
-
-// SetDefaults sets default values.
-func (c AutoCert) SetDefaults() AutoCert {
-	return c
-}
-
-// Normalize normalizes values.
-func (c AutoCert) Normalize() (AutoCert, error) {
-	if !c.Enable {
-		return c, nil
-	}
-	if c.CacheDir == "" {
-		dir, err := os.UserCacheDir()
-		if err != nil {
-			return c, err
-		}
-		c.CacheDir = filepath.Join(dir, "fasthttpd", "cert")
-	}
-	return c, nil
 }
 
 // Rotation represents a configuration of log rotation.

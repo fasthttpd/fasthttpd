@@ -124,7 +124,6 @@ func TestUnmarshalYAMLPath(t *testing.T) {
 			SSL: SSL{
 				CertFile: "./ssl/localhost.crt",
 				KeyFile:  "./ssl/localhost.key",
-				AutoCert: AutoCert{}.SetDefaults(),
 			},
 			Server: tree.Map{
 				"name": tree.ToValue("fasthttpd"),
@@ -217,17 +216,13 @@ func TestConfig_Normalize(t *testing.T) {
 		}, {
 			cfg: Config{
 				SSL: SSL{
-					AutoCert: AutoCert{
-						Enable: true,
-					},
+					AutoCert: true,
 				},
 			},
 			want: Config{
 				SSL: SSL{
-					AutoCert: AutoCert{
-						Enable:   true,
-						CacheDir: filepath.Join(userCacheDir, "fasthttpd", "cert"),
-					},
+					AutoCert:         true,
+					AutoCertCacheDir: filepath.Join(userCacheDir, "fasthttpd", "cert"),
 				},
 			},
 		},
