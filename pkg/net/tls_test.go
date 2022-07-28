@@ -22,10 +22,8 @@ func TestMultiTLSConfig(t *testing.T) {
 	cfgs := []config.Config{
 		{
 			SSL: config.SSL{
-				AutoCert: config.AutoCert{
-					Enable:   true,
-					CacheDir: tmpDir,
-				},
+				AutoCert:         true,
+				AutoCertCacheDir: tmpDir,
 			},
 		}, {
 			SSL: config.SSL{
