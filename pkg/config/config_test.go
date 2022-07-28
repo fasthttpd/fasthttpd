@@ -186,7 +186,7 @@ func TestUnmarshalYAMLPath_Include(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(currentDir)
+	defer os.Chdir(currentDir) //nolint:errcheck
 
 	if err := os.Chdir("testdata"); err != nil {
 		t.Fatal(err)
@@ -223,7 +223,7 @@ func TestUnmarshalYAMLPath_IncludeCircular(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(currentDir)
+	defer os.Chdir(currentDir) //nolint:errcheck
 
 	if err := os.Chdir("testdata"); err != nil {
 		t.Fatal(err)
