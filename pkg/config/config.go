@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -26,6 +27,7 @@ const (
 )
 
 // Config represents a configuration root of fasthttpd.
+// If Include is not empty, other keys are ignored.
 type Config struct {
 	Host        string              `yaml:"host"`
 	Listen      string              `yaml:"listen"`
@@ -39,6 +41,7 @@ type Config struct {
 	Handlers    map[string]tree.Map `yaml:"handlers"`
 	Routes      []Route             `yaml:"routes"`
 	RoutesCache RoutesCache         `yaml:"routesCache"`
+	Include     string              `yaml:"include"`
 }
 
 // SetDefaults sets default values.
@@ -180,15 +183,28 @@ type RoutesCache struct {
 
 // UnmarshalYAMLPath decodes path as multi Config YAML documents file.
 func UnmarshalYAMLPath(path string) ([]Config, error) {
+	return unmarshalYAMLPath(path, nil)
+}
+
+func unmarshalYAMLPath(path string, includes []string) ([]Config, error) {
+	for _, inc := range includes {
+		if inc == path {
+			return nil, fmt.Errorf("circular dependency %v", includes)
+		}
+	}
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	return UnmarshalYAML(data)
+	return unmarshalYAML(data, append(includes, path))
 }
 
 // UnmarshalYAML decodes data as multi Config YAML documents.
 func UnmarshalYAML(data []byte) ([]Config, error) {
+	return unmarshalYAML(data, nil)
+}
+
+func unmarshalYAML(data []byte, includes []string) ([]Config, error) {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	var cfgs []Config
 	for {
@@ -198,6 +214,20 @@ func UnmarshalYAML(data []byte) ([]Config, error) {
 				break
 			}
 			return nil, err
+		}
+		if cfg.Include != "" {
+			incs, err := filepath.Glob(cfg.Include)
+			if err != nil {
+				return nil, err
+			}
+			for _, inc := range incs {
+				incCfgs, err := unmarshalYAMLPath(inc, includes)
+				if err != nil {
+					return nil, err
+				}
+				cfgs = append(cfgs, incCfgs...)
+			}
+			continue
 		}
 		var err error
 		cfg, err = cfg.Normalize()
