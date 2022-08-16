@@ -69,9 +69,6 @@ func TestUnmarshalYAMLPath(t *testing.T) {
 					"compress":           tree.ToValue(true),
 					"generateIndexPages": tree.ToValue(false),
 				},
-				"expvar": {
-					"type": tree.ToValue("expvar"),
-				},
 				"hello": {
 					"type": tree.ToValue("content"),
 					"headers": tree.Map{
@@ -89,10 +86,6 @@ func TestUnmarshalYAMLPath(t *testing.T) {
 					Path:    "/",
 					Match:   MatchEqual,
 					Handler: "static",
-				}, {
-					Path:    "/expvar",
-					Match:   MatchEqual,
-					Handler: "expvar",
 				}, {
 					Path:    "/redirect-external",
 					Match:   MatchEqual,
@@ -131,7 +124,6 @@ func TestUnmarshalYAMLPath(t *testing.T) {
 			SSL: SSL{
 				CertFile: "./ssl/localhost.crt",
 				KeyFile:  "./ssl/localhost.key",
-				AutoCert: AutoCert{}.SetDefaults(),
 			},
 			Server: tree.Map{
 				"name": tree.ToValue("fasthttpd"),
@@ -189,6 +181,63 @@ func TestUnmarshalYAMLPath_Errors(t *testing.T) {
 	}
 }
 
+func TestUnmarshalYAMLPath_Include(t *testing.T) {
+	currentDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(currentDir) //nolint:errcheck
+
+	if err := os.Chdir("testdata"); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := UnmarshalYAMLPath("include.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Config{
+		{
+			Host:      "include1.local",
+			Listen:    ":8080",
+			Server:    tree.Map{"name": tree.ToValue("fasthttpd")},
+			SSL:       SSL{}.SetDefaults(),
+			Log:       Log{}.SetDefaults(),
+			AccessLog: AccessLog{}.SetDefaults(),
+		}, {
+			Host:      "include2.local",
+			Listen:    ":8080",
+			Server:    tree.Map{"name": tree.ToValue("fasthttpd")},
+			SSL:       SSL{}.SetDefaults(),
+			Log:       Log{}.SetDefaults(),
+			AccessLog: AccessLog{}.SetDefaults(),
+		},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %#v\nwant %#v", got, want)
+	}
+}
+
+func TestUnmarshalYAMLPath_IncludeCircular(t *testing.T) {
+	currentDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(currentDir) //nolint:errcheck
+
+	if err := os.Chdir("testdata"); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = UnmarshalYAMLPath("include-circular.yaml")
+	if err == nil {
+		t.Fatalf("no error")
+	}
+	if err.Error() != `circular dependency [include-circular.yaml]` {
+		t.Fatalf("unexpected error %v", err)
+	}
+}
+
 func TestConfig_Normalize(t *testing.T) {
 	userCacheDir, err := os.UserCacheDir()
 	if err != nil {
@@ -224,17 +273,13 @@ func TestConfig_Normalize(t *testing.T) {
 		}, {
 			cfg: Config{
 				SSL: SSL{
-					AutoCert: AutoCert{
-						Enable: true,
-					},
+					AutoCert: true,
 				},
 			},
 			want: Config{
 				SSL: SSL{
-					AutoCert: AutoCert{
-						Enable:   true,
-						CacheDir: filepath.Join(userCacheDir, "fasthttpd", "cert"),
-					},
+					AutoCert:         true,
+					AutoCertCacheDir: filepath.Join(userCacheDir, "fasthttpd", "cert"),
 				},
 			},
 		},

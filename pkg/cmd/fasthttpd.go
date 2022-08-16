@@ -88,11 +88,14 @@ func (d *FastHttpd) loadConfigs() ([]config.Config, error) {
 	if d.configFile == "" {
 		return []config.Config{newMinimalConfig()}, nil
 	}
-	cfgs, err := config.UnmarshalYAMLPath(d.configFile)
-	if err != nil {
-		return nil, err
+	dir, file := filepath.Split(d.configFile)
+	if dir != "" {
+		if err := os.Chdir(dir); err != nil {
+			return nil, err
+		}
 	}
-	if err := os.Chdir(filepath.Dir(d.configFile)); err != nil {
+	cfgs, err := config.UnmarshalYAMLPath(file)
+	if err != nil {
 		return nil, err
 	}
 	return cfgs, nil
@@ -280,7 +283,6 @@ func (d *FastHttpd) Main(args []string) error {
 		d.flagSet.Usage()
 		return nil
 	}
-
 	return d.run()
 }
 

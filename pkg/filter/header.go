@@ -15,19 +15,19 @@ func NewHeaderFilter(cfg tree.Map) (Filter, error) {
 
 // HeaderFilter implements the Filter that filters headers of request and response.
 type HeaderFilter struct {
-	request  *headerHandler
-	response *headerHandler
+	request  *headerFilter
+	response *headerFilter
 }
 
 // Request filters ctx.Request.Header.
 func (f *HeaderFilter) Request(ctx *fasthttp.RequestCtx) bool {
-	f.request.handle(&ctx.Request.Header)
+	f.request.filter(&ctx.Request.Header)
 	return true
 }
 
 // Response filters ctx.Response.Header.
 func (f *HeaderFilter) Response(ctx *fasthttp.RequestCtx) bool {
-	f.response.handle(&ctx.Response.Header)
+	f.response.filter(&ctx.Response.Header)
 	return true
 }
 
@@ -38,8 +38,8 @@ type fasthttpHeader interface {
 	DelBytes(k []byte)
 }
 
-func newHeaderHandler(cfg tree.Map) *headerHandler {
-	h := &headerHandler{}
+func newHeaderHandler(cfg tree.Map) *headerFilter {
+	h := &headerFilter{}
 	for _, v := range cfg.Get("del").Array() {
 		h.delKeys = append(h.delKeys, []byte(v.Value().String()))
 	}
@@ -54,8 +54,8 @@ func newHeaderHandler(cfg tree.Map) *headerHandler {
 	return h
 }
 
-// headerHandler stores keys and values to customize the header.
-type headerHandler struct {
+// headerFilter stores keys and values to customize the header.
+type headerFilter struct {
 	setKeys   [][]byte
 	setValues [][]byte
 	addKeys   [][]byte
@@ -63,7 +63,7 @@ type headerHandler struct {
 	delKeys   [][]byte
 }
 
-func (h *headerHandler) handle(fh fasthttpHeader) {
+func (h *headerFilter) filter(fh fasthttpHeader) {
 	for i, k := range h.setKeys {
 		fh.SetBytesKV(k, h.setValues[i])
 	}

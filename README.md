@@ -29,11 +29,14 @@ go install github.com/fasthttpd/fasthttpd/cmd/fasthttpd@latest
 Download binary from [release](https://github.com/fasthttpd/fasthttpd/releases).
 
 ```sh
-VERSION=0.3.10 GOOS=Linux GOARCH=x86_64; \
+VERSION=0.4.0 GOOS=Linux GOARCH=x86_64; \
   curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | \
   tar xz fasthttpd && \
   sudo mv fasthttpd /usr/sbin
 ```
+
+- GOOS supports `Linux` `Darwin` `Windows`
+- GOARCH supports `x86_64` `arm64` `i386`
 
 ### Homebrew
 
@@ -47,7 +50,7 @@ brew install fasthttpd
 Download deb or rpm from [release](https://github.com/fasthttpd/fasthttpd/releases), and then execute `apt install` or `yum install`. 
 
 ```sh
-VERSION=0.3.10 ARCH=amd64; \
+VERSION=0.4.0 ARCH=amd64; \
   curl -fsSL -O "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${ARCH}.deb"
 sudo apt install "./fasthttpd_${VERSION}_${ARCH}.deb"
 ```
@@ -95,15 +98,21 @@ Examples
 
 ## Configuration
 
-The following is a configuration that is minimal.
+For more information, refer to [fasthttpd.org/configuration](https://fasthttpd.org/configuration).
+
+The following is a minimal configuration built into fasthttpd.
 
 ```yaml
+host: localhost
+listen: ':8080'
 root: ./public
+log:
+  output: stderr
 
 handlers:
-  static:
+  'static':
     type: fs
-    indexNames: ['index.html']
+    indexNames: [index.html]
 
 routes:
   - path: /
@@ -172,9 +181,6 @@ handlers:
     generateIndexPages: false
     compress: true
 
-  'expvar':
-    type: expvar
-
   'hello':
     type: content
     headers:
@@ -194,11 +200,6 @@ routes:
   - path: /
     match: equal
     handler: static
-
-  # Route to expvar handler.
-  - path: /expvar
-    match: equal
-    handler: expvar
 
   # Redirect to external url with status code 302.
   - path: /redirect-external
@@ -291,3 +292,7 @@ BenchmarkCachedRoutes_Regexp 	121977412	        98.47 ns/op	       1 B/op	      
 
 - Support HTTP/3
 - Benchmark reports
+
+## Third-party library licenses
+
+- [zehuamama/balancer](https://github.com/zehuamama/balancer)

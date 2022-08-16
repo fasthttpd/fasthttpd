@@ -21,15 +21,15 @@ func MultiTLSConfig(cfgs []config.Config) (*tls.Config, error) {
 	var fns []func(*tls.ClientHelloInfo) (*tls.Certificate, error)
 
 	for _, cfg := range cfgs {
-		if cfg.SSL.AutoCert.Enable {
-			log.Printf("enable autoCert, cacheDir: %q", cfg.SSL.AutoCert.CacheDir)
-			if err := os.MkdirAll(cfg.SSL.AutoCert.CacheDir, 0700); err != nil {
+		if cfg.SSL.AutoCert {
+			log.Printf("Enable autoCert, cacheDir: %q", cfg.SSL.AutoCertCacheDir)
+			if err := os.MkdirAll(cfg.SSL.AutoCertCacheDir, 0700); err != nil {
 				return nil, err
 			}
 			m := &autocert.Manager{
 				Prompt:     autocert.AcceptTOS,
 				HostPolicy: autocert.HostWhitelist(cfg.Host),
-				Cache:      autocert.DirCache(cfg.SSL.AutoCert.CacheDir),
+				Cache:      autocert.DirCache(cfg.SSL.AutoCertCacheDir),
 			}
 			fns = append(fns, m.GetCertificate)
 			nextProtos = nextProtos.Append("http/1.1", acme.ALPNProto)

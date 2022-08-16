@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -26,6 +27,7 @@ const (
 )
 
 // Config represents a configuration root of fasthttpd.
+// If Include is not empty, other keys are ignored.
 type Config struct {
 	Host        string              `yaml:"host"`
 	Listen      string              `yaml:"listen"`
@@ -39,6 +41,7 @@ type Config struct {
 	Handlers    map[string]tree.Map `yaml:"handlers"`
 	Routes      []Route             `yaml:"routes"`
 	RoutesCache RoutesCache         `yaml:"routesCache"`
+	Include     string              `yaml:"include"`
 }
 
 // SetDefaults sets default values.
@@ -86,50 +89,29 @@ func (cfg Config) Normalize() (Config, error) {
 // SSL represents a configuration of SSL. If AutoCert is true, CertFile and
 // KeyFile are ignored.
 type SSL struct {
-	CertFile string   `yaml:"certFile"`
-	KeyFile  string   `yaml:"keyFile"`
-	AutoCert AutoCert `yaml:"autoCert"`
+	CertFile         string `yaml:"certFile"`
+	KeyFile          string `yaml:"keyFile"`
+	AutoCert         bool   `yaml:"autoCert"`
+	AutoCertCacheDir string `yaml:"autoCertCacheDir"`
 }
 
 // SetDefaults sets default values.
 func (ssl SSL) SetDefaults() SSL {
-	ssl.AutoCert = ssl.AutoCert.SetDefaults()
 	return ssl
 }
 
 // Normalize normalizes values.
 func (ssl SSL) Normalize() (SSL, error) {
-	var err error
-	if ssl.AutoCert, err = ssl.AutoCert.Normalize(); err != nil {
-		return ssl, err
+	if ssl.AutoCert {
+		if ssl.AutoCertCacheDir == "" {
+			dir, err := os.UserCacheDir()
+			if err != nil {
+				return ssl, err
+			}
+			ssl.AutoCertCacheDir = filepath.Join(dir, "fasthttpd", "cert")
+		}
 	}
 	return ssl, nil
-}
-
-// AutoCert represents a configuration of "golang.org/x/crypto/acme/autocert".
-type AutoCert struct {
-	Enable   bool   `yaml:"enable"`
-	CacheDir string `yaml:"cacheDir"`
-}
-
-// SetDefaults sets default values.
-func (c AutoCert) SetDefaults() AutoCert {
-	return c
-}
-
-// Normalize normalizes values.
-func (c AutoCert) Normalize() (AutoCert, error) {
-	if !c.Enable {
-		return c, nil
-	}
-	if c.CacheDir == "" {
-		dir, err := os.UserCacheDir()
-		if err != nil {
-			return c, err
-		}
-		c.CacheDir = filepath.Join(dir, "fasthttpd", "cert")
-	}
-	return c, nil
 }
 
 // Rotation represents a configuration of log rotation.
@@ -201,15 +183,28 @@ type RoutesCache struct {
 
 // UnmarshalYAMLPath decodes path as multi Config YAML documents file.
 func UnmarshalYAMLPath(path string) ([]Config, error) {
+	return unmarshalYAMLPath(path, nil)
+}
+
+func unmarshalYAMLPath(path string, includes []string) ([]Config, error) {
+	for _, inc := range includes {
+		if inc == path {
+			return nil, fmt.Errorf("circular dependency %v", includes)
+		}
+	}
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	return UnmarshalYAML(data)
+	return unmarshalYAML(data, append(includes, path))
 }
 
 // UnmarshalYAML decodes data as multi Config YAML documents.
 func UnmarshalYAML(data []byte) ([]Config, error) {
+	return unmarshalYAML(data, nil)
+}
+
+func unmarshalYAML(data []byte, includes []string) ([]Config, error) {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	var cfgs []Config
 	for {
@@ -219,6 +214,20 @@ func UnmarshalYAML(data []byte) ([]Config, error) {
 				break
 			}
 			return nil, err
+		}
+		if cfg.Include != "" {
+			incs, err := filepath.Glob(cfg.Include)
+			if err != nil {
+				return nil, err
+			}
+			for _, inc := range incs {
+				incCfgs, err := unmarshalYAMLPath(inc, includes)
+				if err != nil {
+					return nil, err
+				}
+				cfgs = append(cfgs, incCfgs...)
+			}
+			continue
 		}
 		var err error
 		cfg, err = cfg.Normalize()
