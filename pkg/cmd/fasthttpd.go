@@ -88,10 +88,13 @@ func (d *FastHttpd) loadConfigs() ([]config.Config, error) {
 	if d.configFile == "" {
 		return []config.Config{newMinimalConfig()}, nil
 	}
-	if err := os.Chdir(filepath.Dir(d.configFile)); err != nil {
-		return nil, err
+	dir, file := filepath.Split(d.configFile)
+	if dir != "" {
+		if err := os.Chdir(dir); err != nil {
+			return nil, err
+		}
 	}
-	cfgs, err := config.UnmarshalYAMLPath(d.configFile)
+	cfgs, err := config.UnmarshalYAMLPath(file)
 	if err != nil {
 		return nil, err
 	}
