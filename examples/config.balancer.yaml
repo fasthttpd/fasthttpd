@@ -1,0 +1,19 @@
+host: localhost
+listen: ':8080'
+
+log:
+  output: stderr
+
+handlers:
+  'backend':
+    type: balancer
+    algorithm: round-robin
+    healthCheckInterval: 5
+    urls:
+      - http://localhost:9000/
+      - http://localhost:9001/
+      - http://localhost:9002/
+
+routes:
+  - path: /
+    handler: backend

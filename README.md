@@ -292,3 +292,7 @@ BenchmarkCachedRoutes_Regexp 	121977412	        98.47 ns/op	       1 B/op	      
 
 - Support HTTP/3
 - Benchmark reports
+
+## Third-party library licenses
+
+- [zehuamama/balancer](https://github.com/zehuamama/balancer)
