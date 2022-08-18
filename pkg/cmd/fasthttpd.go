@@ -27,9 +27,11 @@ import (
 // indicates the default configuration file path.
 const EnvFasthttpdConfig = "FASTHTTPD_CONFIG"
 
+// version will update by github actions.
+const version = "0.4.1"
+
 const (
 	cmd          = "fasthttpd"
-	version      = "0.3.10"
 	desc         = "FastHttpd is a lightweight http server using valyala/fasthttp."
 	usage        = cmd + " [flags]"
 	examplesText = `Examples:
