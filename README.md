@@ -10,7 +10,7 @@ FastHttpd is a lightweight http server using [valyala/fasthttp](https://github.c
 - Serve static files
 - Simple routing
 - Access logging
-- Reverse proxy (single host)
+- Reverse proxy
 - Customize headers
 - Support TLS
 - Virtual hosts
