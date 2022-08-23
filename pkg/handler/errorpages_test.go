@@ -20,10 +20,11 @@ func TestErrorPages(t *testing.T) {
 	}
 	ctx := &fasthttp.RequestCtx{}
 
-	errorPages := NewErrorPages("testdata/public", map[string]string{
-		"400": "/err/400.html",
-		"404": "/err/404.html",
-		"5xx": "/err/5xx.html",
+	errorPages := NewErrorPages("", map[string]string{
+		"root": "testdata/public",
+		"400":  "/err/400.html",
+		"404":  "/err/404.html",
+		"5xx":  "/err/5xx.html",
 	})
 
 	tests := []struct {
