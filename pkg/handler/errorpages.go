@@ -15,7 +15,6 @@ var (
 
 // ErrorPages represents a handler that provides custom error pages.
 type ErrorPages struct {
-	root         string
 	statusToPath map[string]string
 	fs           fasthttp.RequestHandler
 	errorPaths   [][]byte
@@ -26,7 +25,11 @@ var _ fasthttp.RequestHandler = (*ErrorPages)(nil).Handle
 // NewErrorPages creates a new ErrorPages.
 // The statusToPath maps from a http status text to a path of error page.
 // A http status text can be contain 'x' as wildcard. (eg. '404', '40x')
+// If 'root' is specified in statusToPath, it overrides the default root.
 func NewErrorPages(root string, statusToPath map[string]string) *ErrorPages {
+	if overrideRoot, ok := statusToPath["root"]; ok {
+		root = overrideRoot
+	}
 	if len(root) == 0 || len(statusToPath) == 0 {
 		return &ErrorPages{}
 	}
@@ -35,7 +38,6 @@ func NewErrorPages(root string, statusToPath map[string]string) *ErrorPages {
 		Compress: true,
 	}
 	return &ErrorPages{
-		root:         root,
 		statusToPath: statusToPath,
 		fs:           fs.NewRequestHandler(),
 		errorPaths:   make([][]byte, errorPagesStatusUntil-errorPagesStatusOffset),
