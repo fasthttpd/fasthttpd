@@ -295,4 +295,7 @@ BenchmarkCachedRoutes_Regexp 	121977412	        98.47 ns/op	       1 B/op	      
 
 ## Third-party library licenses
 
+- [valyala/fasthttp](https://github.com/valyala/fasthttp)
+- [natefinch/lumberjack](https://github.com/natefinch/lumberjack)
 - [zehuamama/balancer](https://github.com/zehuamama/balancer)
+- [jarxorg/tree](https://github.com/jarxorg/tree)
