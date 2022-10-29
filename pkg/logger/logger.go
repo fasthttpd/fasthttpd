@@ -136,11 +136,13 @@ func (l *LoggerDelegator) Rotate() error {
 	}
 	return nil
 }
+
 func (l *LoggerDelegator) Write(p []byte) (int, error) {
 	if l.WriteFunc != nil {
 		return l.WriteFunc(p)
 	}
 	return 0, nil
+
 }
 func (l *LoggerDelegator) Close() error {
 	if l.CloseFunc != nil {
@@ -148,6 +150,7 @@ func (l *LoggerDelegator) Close() error {
 	}
 	return nil
 }
+
 func (l *LoggerDelegator) LogLogger() *log.Logger {
 	if l.LogLoggerFunc != nil {
 		return l.LogLoggerFunc()
