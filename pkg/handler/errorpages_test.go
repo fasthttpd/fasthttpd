@@ -115,7 +115,7 @@ func TestErrorPages(t *testing.T) {
 	}
 
 	wantErrorPaths := make([][]byte, 200)
-	wantErrorPaths[400-errorPagesStatusOffset] = []byte{}
+	wantErrorPaths[400-errorPagesStatusOffset] = []byte{'-'}
 	wantErrorPaths[403-errorPagesStatusOffset] = []byte{}
 	wantErrorPaths[404-errorPagesStatusOffset] = []byte("/err/404.html")
 	wantErrorPaths[500-errorPagesStatusOffset] = []byte("/err/5xx.html")

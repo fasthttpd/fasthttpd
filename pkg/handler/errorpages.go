@@ -30,7 +30,7 @@ func NewErrorPages(root string, statusToPath map[string]string) *ErrorPages {
 	if overrideRoot, ok := statusToPath["root"]; ok {
 		root = overrideRoot
 	}
-	if len(root) == 0 || len(statusToPath) == 0 {
+	if len(statusToPath) == 0 {
 		return &ErrorPages{}
 	}
 	fs := &fasthttp.FS{
@@ -86,6 +86,11 @@ func (p *ErrorPages) sendError(ctx *fasthttp.RequestCtx, path []byte) {
 		SendDefaultError(ctx)
 		return
 	}
+	if len(path) == 1 && path[0] == '-' {
+		ctx.Response.SetBody(nil)
+		SendDefaultError(ctx)
+		return
+	}
 
 	status := ctx.Response.StatusCode()
 	uri := string(ctx.Request.RequestURI())
@@ -99,10 +104,10 @@ func (p *ErrorPages) sendError(ctx *fasthttp.RequestCtx, path []byte) {
 
 	if statusFS != http.StatusOK {
 		// NOTE: store no erorr page.
-		p.errorPaths[status-errorPagesStatusOffset] = []byte{}
+		p.errorPaths[status-errorPagesStatusOffset] = []byte{'-'}
 		ctx.Logger().Printf("invalid ErrorPages.fs status %d on %q", statusFS, path)
 
-		ctx.Response.SetBody([]byte{})
+		ctx.Response.SetBody(nil)
 		SendDefaultError(ctx)
 	}
 }
