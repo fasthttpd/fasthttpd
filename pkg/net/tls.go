@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/util"
@@ -12,7 +13,10 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
-var errNoCertificates = errors.New("tls: no certificates configured")
+var (
+	errNoCertificates       = errors.New("tls: no certificates configured")
+	errNotSupportedWildcard = errors.New("tls: wildcard is not supported")
+)
 
 // MultiTLSConfig generates multiple TLS config from fasthttpd configrations.
 func MultiTLSConfig(cfgs []config.Config) (*tls.Config, error) {
@@ -20,19 +24,15 @@ func MultiTLSConfig(cfgs []config.Config) (*tls.Config, error) {
 	var nextProtos util.StringSet
 	var fns []func(*tls.ClientHelloInfo) (*tls.Certificate, error)
 
+	autoCertCacheDirToHosts := map[string][]string{}
 	for _, cfg := range cfgs {
 		if cfg.SSL.AutoCert {
-			log.Printf("Enable autoCert, cacheDir: %q", cfg.SSL.AutoCertCacheDir)
-			if err := os.MkdirAll(cfg.SSL.AutoCertCacheDir, 0700); err != nil {
-				return nil, err
+			if strings.Contains(cfg.Host, "*") {
+				return nil, errNotSupportedWildcard
 			}
-			m := &autocert.Manager{
-				Prompt:     autocert.AcceptTOS,
-				HostPolicy: autocert.HostWhitelist(cfg.Host),
-				Cache:      autocert.DirCache(cfg.SSL.AutoCertCacheDir),
-			}
-			fns = append(fns, m.GetCertificate)
-			nextProtos = nextProtos.Append("http/1.1", acme.ALPNProto)
+			hosts := autoCertCacheDirToHosts[cfg.SSL.AutoCertCacheDir]
+			hosts = append(hosts, cfg.Host)
+			autoCertCacheDirToHosts[cfg.SSL.AutoCertCacheDir] = hosts
 			continue
 		}
 		if cfg.SSL.CertFile != "" && cfg.SSL.KeyFile != "" {
@@ -44,6 +44,19 @@ func MultiTLSConfig(cfgs []config.Config) (*tls.Config, error) {
 			nextProtos = nextProtos.Append("http/1.1")
 			continue
 		}
+	}
+	for cacheDir, hosts := range autoCertCacheDirToHosts {
+		log.Printf("Enable autoCert, cacheDir: %q", cacheDir)
+		if err := os.MkdirAll(cacheDir, 0700); err != nil {
+			return nil, err
+		}
+		m := &autocert.Manager{
+			Prompt:     autocert.AcceptTOS,
+			HostPolicy: autocert.HostWhitelist(hosts...),
+			Cache:      autocert.DirCache(cacheDir),
+		}
+		fns = append(fns, m.GetCertificate)
+		nextProtos = nextProtos.Append("http/1.1", acme.ALPNProto)
 	}
 	if len(certs) == 0 && len(fns) == 0 {
 		return nil, nil
