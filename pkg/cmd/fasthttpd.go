@@ -28,7 +28,7 @@ import (
 const EnvFasthttpdConfig = "FASTHTTPD_CONFIG"
 
 // version will update by github actions.
-const version = "0.4.1"
+const version = "0.4.2"
 
 const (
 	cmd          = "fasthttpd"
