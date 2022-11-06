@@ -180,6 +180,7 @@ handlers:
     indexNames: [index.html]
     generateIndexPages: false
     compress: true
+    compressRoot: /tmp/fasthttpd
 
   'hello':
     type: content
