@@ -150,13 +150,15 @@ func (l Log) SetDefaults() Log {
 
 // AccessLog represents a configuration of access log.
 type AccessLog struct {
-	Output   string `yaml:"output"`
-	Format   string `yaml:"format"`
-	Rotation Rotation
+	Output    string `yaml:"output"`
+	Format    string `yaml:"format"`
+	QueueSize int    `yaml:"queueSize"`
+	Rotation  Rotation
 }
 
 // SetDefaults sets default values.
 func (l AccessLog) SetDefaults() AccessLog {
+	l.QueueSize = 128
 	l.Rotation = l.Rotation.SetDefaults()
 	return l
 }

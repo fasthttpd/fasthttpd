@@ -36,6 +36,9 @@ type AccessLog interface {
 
 // NewAccessLog returns a new AccessLog.
 func NewAccessLog(cfg config.Config) (AccessLog, error) {
+	if cfg.AccessLog.Output == "" {
+		return NilAccessLog, nil
+	}
 	out, err := logger.SharedRotator(cfg.AccessLog.Output, cfg.AccessLog.Rotation)
 	if err != nil {
 		return nil, err
@@ -53,14 +56,22 @@ type accessLog struct {
 	appendFuncs       []appendFunc
 	collectRequestURI bool
 	addrToPortCache   util.Cache
+	bytesPool         bytebufferpool.Pool
+	bytesQueue        chan *bytebufferpool.ByteBuffer
+	stopQueue         chan bool
+	closed            bool
 }
 
 func newAccessLog(out logger.Rotator, cfg config.Config) (*accessLog, error) {
-	return (&accessLog{out: out}).init(cfg)
+	al := &accessLog{
+		out:        out,
+		bytesQueue: make(chan *bytebufferpool.ByteBuffer, cfg.AccessLog.QueueSize),
+		stopQueue:  make(chan bool),
+	}
+	return al.init(cfg)
 }
 
 var formatPattern = regexp.MustCompile(`(%(>|{(.+?)})?([a-zA-Z%])|([^%]+))`)
-
 var timeNow = func() time.Time { return time.Now() }
 
 // Rotate rotate log stream.
@@ -75,6 +86,13 @@ func (l *accessLog) Write(p []byte) (int, error) {
 
 // Close closes log stream.
 func (l *accessLog) Close() error {
+	if l.closed {
+		return nil
+	}
+
+	l.closed = true
+	l.stopQueue <- true
+
 	l.appendFuncs = nil
 	l.collectRequestURI = false
 	l.addrToPortCache = nil
@@ -147,6 +165,8 @@ func (l *accessLog) init(cfg config.Config) (*accessLog, error) {
 	}
 	l.appendFuncs = fns
 
+	go l.dequeueLog()
+
 	return l, nil
 }
 
@@ -157,15 +177,29 @@ func (l *accessLog) Collect(ctx *fasthttp.RequestCtx) {
 	}
 }
 
+func (l *accessLog) dequeueLog() {
+	for {
+		select {
+		case <-l.stopQueue:
+			return
+		case b := <-l.bytesQueue:
+			l.out.Write(b.B) //nolint:errcheck
+			bytebufferpool.Put(b)
+		}
+	}
+}
+
 func (l *accessLog) Log(ctx *fasthttp.RequestCtx) {
-	b := bytebufferpool.Get()
+	if l.closed {
+		return
+	}
+
+	b := l.bytesPool.Get()
 	for _, fn := range l.appendFuncs {
 		b.B = fn(b.B, ctx)
 	}
 	b.B = append(b.B, '\n')
-
-	l.out.Write(b.B) //nolint:errcheck
-	bytebufferpool.Put(b)
+	l.bytesQueue <- b
 }
 
 func (l *accessLog) portFromAddr(addr string) []byte {
