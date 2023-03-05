@@ -34,9 +34,10 @@ func TestUnmarshalYAMLPath(t *testing.T) {
 				Rotation: Rotation{}.SetDefaults(),
 			},
 			AccessLog: AccessLog{
-				Output:   "logs/access.log",
-				Format:   `%h %l %u %t "%r" %>s %b`,
-				Rotation: Rotation{}.SetDefaults(),
+				Output:    "logs/access.log",
+				Format:    `%h %l %u %t "%r" %>s %b`,
+				QueueSize: 128,
+				Rotation:  Rotation{}.SetDefaults(),
 			},
 			ErrorPages: map[string]string{
 				"404": "/err/404.html",
