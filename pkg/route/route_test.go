@@ -190,8 +190,8 @@ func testRoute(t *testing.T, rs *Routes) {
 			path:   "/redirect-external",
 			want: &Result{
 				RedirectURI:   []byte("http://example.com/"),
-				StatusCode:    302,
-				StatusMessage: []byte(http.StatusText(302)),
+				StatusCode:    http.StatusFound,
+				StatusMessage: []byte(http.StatusText(http.StatusFound)),
 			},
 		}, {
 			method: http.MethodGet,
@@ -199,8 +199,8 @@ func testRoute(t *testing.T, rs *Routes) {
 			want: &Result{
 				RedirectURI:       []byte("/internal?foo=bar"),
 				AppendQueryString: true,
-				StatusCode:        302,
-				StatusMessage:     []byte(http.StatusText(302)),
+				StatusCode:        http.StatusFound,
+				StatusMessage:     []byte(http.StatusText(http.StatusFound)),
 			},
 		}, {
 			method: http.MethodGet,

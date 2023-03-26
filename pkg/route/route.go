@@ -203,7 +203,7 @@ func (rs *Routes) Route(method, path []byte, off int) *Result {
 func (rs *Routes) acquireIntBuf() []byte {
 	x := rs.intBuf.Get()
 	if x != nil {
-		return x.([]byte)
+		return *(x.(*[]byte))
 	}
 	return make([]byte, 4)
 }
@@ -212,7 +212,7 @@ func (rs *Routes) releaseIntBuf(b []byte) {
 	for i := range b {
 		b[i] = 0
 	}
-	rs.intBuf.Put(b)
+	rs.intBuf.Put(&b)
 }
 
 // CachedRoute provides Read-Through caching for rs.Route if the cache is enabled.
