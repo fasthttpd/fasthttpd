@@ -45,36 +45,36 @@ func TestNewServerHandler(t *testing.T) {
 	}
 }
 
-func newTypicalHostHandlerTest(t *testing.T) *hostHandler {
-	f := &filter.FilterDelegator{
-		RequestFunc: func(ctx *fasthttp.RequestCtx) bool {
-			if bytes.Equal(ctx.Request.Header.Peek("X-Auth-Fail"), []byte("true")) {
-				ctx.Response.SetStatusCode(http.StatusUnauthorized)
-				return false
-			}
-			return true
-		},
-		ResponseFunc: func(ctx *fasthttp.RequestCtx) bool {
-			if bytes.Equal(ctx.Request.Header.Peek("X-Cache"), []byte("true")) {
-				ctx.Response.Header.Set("Cache-Control", "private, max-age=3600")
-				return false
-			}
-			return true
-		},
-	}
+func newHostHandlerTest(t *testing.T) *hostHandler {
 	rs, err := route.NewRoutes(config.Config{
 		Filters: map[string]tree.Map{
-			"test-filter": {},
+			"auth":  {},
+			"cache": {},
 		},
 		Handlers: map[string]tree.Map{
-			"test-handler": {},
+			"static":  {},
+			"backend": {},
 		},
 		Routes: []config.Route{
 			{
+				Path:           `\.(js|css|jpg|png)$`,
+				Match:          config.MatchRegexp,
+				Handler:        "static",
+				Filters:        []string{"cache"},
+				NextIfNotFound: true,
+			}, {
+				Path:    `/view/([0-9]+)$`,
+				Match:   config.MatchRegexp,
+				Rewrite: "/view?id=$1",
+			}, {
+				Path:   `/admin`,
+				Match:  config.MatchPrefix,
+				Status: http.StatusForbidden,
+			}, {
 				Path:    "/",
-				Match:   config.MatchEqual,
-				Handler: "test-handler",
-				Filters: []string{"test-filter"},
+				Match:   config.MatchPrefix,
+				Handler: "backend",
+				Filters: []string{"auth"},
 			},
 		},
 	})
@@ -85,11 +85,34 @@ func newTypicalHostHandlerTest(t *testing.T) *hostHandler {
 		logger:    logger.NilLogger,
 		accessLog: accesslog.NilAccessLog,
 		filters: map[string]filter.Filter{
-			"test-filter": f,
+			"auth": &filter.FilterDelegator{
+				RequestFunc: func(ctx *fasthttp.RequestCtx) bool {
+					if bytes.Equal(ctx.Request.Header.Peek("X-Auth-Fail"), []byte("true")) {
+						ctx.Response.SetStatusCode(http.StatusUnauthorized)
+						return false
+					}
+					return true
+				},
+			},
+			"cache": &filter.FilterDelegator{
+				ResponseFunc: func(ctx *fasthttp.RequestCtx) bool {
+					ctx.Response.Header.Set("Cache-Control", "private, max-age=3600")
+					return false
+				},
+			},
 		},
 		handlers: map[string]fasthttp.RequestHandler{
-			"test-handler": func(ctx *fasthttp.RequestCtx) {
-				ctx.Response.SetBodyString("Typical body")
+			"static": func(ctx *fasthttp.RequestCtx) {
+				if bytes.Equal(ctx.Request.Header.Peek("X-NotFound-Static"), []byte("true")) {
+					ctx.Response.SetStatusCode(http.StatusNotFound)
+					return
+				}
+				ctx.Response.Header.Set("Content-Type", "image/png")
+				ctx.Response.SetBodyString("Body static")
+			},
+			"backend": func(ctx *fasthttp.RequestCtx) {
+				ctx.Response.Header.Set("Content-Type", "text/html; charset=utf-8")
+				ctx.Response.SetBodyString("Body")
 			},
 		},
 		routes:     rs,
@@ -133,128 +156,98 @@ func assertResponse(resp *fasthttp.Response, status int, body string, headers []
 }
 
 func Test_hostHandler_Handle(t *testing.T) {
-	h := newTypicalHostHandlerTest(t)
-	ctx := &fasthttp.RequestCtx{}
-	ctx.Request.SetRequestURI("/")
-	h.Handle(ctx)
-
-	err := assertResponse(&ctx.Response, http.StatusOK, "Typical body", [][]string{
-		{"Content-Type", "text/plain; charset=utf-8"},
-	})
-	if err != nil {
-		t.Error(err)
-	}
-}
-
-func Test_hostHandler_handleRouteResult(t *testing.T) {
-	h := newTypicalHostHandlerTest(t)
+	h := newHostHandlerTest(t)
 	defer h.Close()
 
 	tests := []struct {
+		note        string
 		ctx         func() *fasthttp.RequestCtx
-		result      *route.Result
 		wantReqUri  string
 		wantStatus  int
 		wantBody    string
 		wantHeaders [][]string
 	}{
 		{
+			note: "typical backend",
 			ctx: func() *fasthttp.RequestCtx {
 				ctx := &fasthttp.RequestCtx{}
 				ctx.Request.SetRequestURI("/")
 				return ctx
 			},
-			result: &route.Result{
-				StatusCode: http.StatusNotFound,
-			},
-			wantStatus: http.StatusNotFound,
-			wantBody:   "404 Not Found",
-			wantHeaders: [][]string{
-				{"Content-Type", "text/html; charset=utf-8"},
-			},
-		}, {
-			ctx: func() *fasthttp.RequestCtx {
-				ctx := &fasthttp.RequestCtx{}
-				ctx.Request.SetRequestURI("/")
-				return ctx
-			},
-			result:     &route.Result{},
-			wantStatus: http.StatusNotFound,
-			wantBody:   "404 Not Found",
-			wantHeaders: [][]string{
-				{"Content-Type", "text/html; charset=utf-8"},
-			},
-		}, {
-			ctx: func() *fasthttp.RequestCtx {
-				ctx := &fasthttp.RequestCtx{}
-				ctx.Request.SetRequestURI("/")
-				return ctx
-			},
-			result: &route.Result{
-				RewriteURI: []byte("/rewrited"),
-				Handler:    "test-handler",
-			},
-			wantReqUri: "/rewrited",
 			wantStatus: http.StatusOK,
-			wantBody:   "Typical body",
+			wantBody:   "Body",
 			wantHeaders: [][]string{
-				{"Content-Type", "text/plain; charset=utf-8"},
+				{"Content-Type", "text/html; charset=utf-8"},
 			},
 		}, {
+			note: "typical rewrite",
 			ctx: func() *fasthttp.RequestCtx {
 				ctx := &fasthttp.RequestCtx{}
-				ctx.Request.SetRequestURI("/")
+				ctx.Request.SetRequestURI("/view/1")
 				return ctx
 			},
-			result: &route.Result{
-				RedirectURI: []byte("http://example.com/"),
-				Handler:     "test-handler",
-				StatusCode:  http.StatusFound,
-			},
-			wantReqUri: "/",
-			wantStatus: http.StatusFound,
+			wantReqUri: "/view?id=1",
+			wantStatus: http.StatusOK,
+			wantBody:   "Body",
 			wantHeaders: [][]string{
-				{"Content-Type", "text/plain; charset=utf-8"},
-				{"Location", "http://example.com/"},
+				{"Content-Type", "text/html; charset=utf-8"},
 			},
 		}, {
+			note: "typical static",
+			ctx: func() *fasthttp.RequestCtx {
+				ctx := &fasthttp.RequestCtx{}
+				ctx.Request.SetRequestURI("/img/test.png")
+				return ctx
+			},
+			wantStatus: http.StatusOK,
+			wantBody:   "Body static",
+			wantHeaders: [][]string{
+				{"Content-Type", "image/png"},
+				{"Cache-Control", "private, max-age=3600"},
+			},
+		}, {
+			note: "next if not found",
+			ctx: func() *fasthttp.RequestCtx {
+				ctx := &fasthttp.RequestCtx{}
+				ctx.Request.SetRequestURI("/img/test.png")
+				ctx.Request.Header.Set("X-NotFound-Static", "true")
+				return ctx
+			},
+			wantStatus: http.StatusOK,
+			wantBody:   "Body",
+			wantHeaders: [][]string{
+				{"Content-Type", "text/html; charset=utf-8"},
+			},
+		}, {
+			note: "typical status",
+			ctx: func() *fasthttp.RequestCtx {
+				ctx := &fasthttp.RequestCtx{}
+				ctx.Request.SetRequestURI("/admin")
+				return ctx
+			},
+			wantStatus: http.StatusForbidden,
+			wantBody:   "403 Forbidden",
+			wantHeaders: [][]string{
+				{"Content-Type", "text/html; charset=utf-8"},
+			},
+		}, {
+			note: "failed to auth",
 			ctx: func() *fasthttp.RequestCtx {
 				ctx := &fasthttp.RequestCtx{}
 				ctx.Request.SetRequestURI("/")
 				ctx.Request.Header.Set("X-Auth-Fail", "true")
 				return ctx
 			},
-			result: &route.Result{
-				Handler: "test-handler",
-				Filters: []string{"test-filter"},
-			},
 			wantStatus: http.StatusUnauthorized,
 			wantBody:   "401 Unauthorized",
 			wantHeaders: [][]string{
 				{"Content-Type", "text/html; charset=utf-8"},
 			},
-		}, {
-			ctx: func() *fasthttp.RequestCtx {
-				ctx := &fasthttp.RequestCtx{}
-				ctx.Request.SetRequestURI("/")
-				ctx.Request.Header.Set("X-Cache", "true")
-				return ctx
-			},
-			result: &route.Result{
-				Handler: "test-handler",
-				Filters: []string{"test-filter"},
-			},
-			wantStatus: http.StatusOK,
-			wantBody:   "Typical body",
-			wantHeaders: [][]string{
-				{"Content-Type", "text/plain; charset=utf-8"},
-				{"Cache-Control", "private, max-age=3600"},
-			},
 		},
 	}
 	for i, test := range tests {
 		ctx := test.ctx()
-		h.handleRouteResult(ctx, test.result)
+		h.Handle(ctx)
 
 		if test.wantReqUri != "" {
 			if reqUri := string(ctx.RequestURI()); reqUri != test.wantReqUri {
