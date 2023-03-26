@@ -180,8 +180,13 @@ handlers:
     indexNames: [index.html]
     generateIndexPages: false
     compress: true
-    compressRoot: /tmp/fasthttpd
+    compressRoot: ./compressed
 
+  'static-overwrite':
+    type: fs
+    indexNames: [index.html]
+    root: ./public-overwrite
+  
   'hello':
     type: content
     headers:
@@ -215,6 +220,14 @@ routes:
     rewrite: /internal?foo=bar
     rewriteAppendQueryString: true
     status: 302
+  
+  # Route to static-overwrite resources using regexp.
+  - path: .*\.(js|css|jpg|png|gif|ico)$
+    match: regexp
+    filters: [cache]
+    methods: [GET, HEAD]
+    handler: static-overwrite
+    nextIfNotFound: true
   
   # Route to static resources using regexp.
   - path: .*\.(js|css|jpg|png|gif|ico)$
