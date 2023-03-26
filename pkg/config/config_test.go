@@ -68,7 +68,13 @@ func TestUnmarshalYAMLPath(t *testing.T) {
 					"type":               tree.ToValue("fs"),
 					"indexNames":         tree.ToArrayValues("index.html"),
 					"compress":           tree.ToValue(true),
+					"compressRoot":       tree.ToValue("./compressed"),
 					"generateIndexPages": tree.ToValue(false),
+				},
+				"static-overwrite": {
+					"type":       tree.ToValue("fs"),
+					"indexNames": tree.ToArrayValues("index.html"),
+					"root":       tree.ToValue("./public-overwrite"),
 				},
 				"hello": {
 					"type": tree.ToValue("content"),
@@ -98,6 +104,13 @@ func TestUnmarshalYAMLPath(t *testing.T) {
 					Rewrite:                  "/internal?foo=bar",
 					RewriteAppendQueryString: true,
 					Status:                   302,
+				}, {
+					Methods:        []string{"GET", "HEAD"},
+					Filters:        []string{"cache"},
+					Path:           `.*\.(js|css|jpg|png|gif|ico)$`,
+					Match:          MatchRegexp,
+					Handler:        "static-overwrite",
+					NextIfNotFound: true,
 				}, {
 					Methods: []string{"GET", "HEAD"},
 					Filters: []string{"cache"},
