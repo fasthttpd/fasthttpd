@@ -38,7 +38,7 @@ var (
 )
 
 func benchmarkRoute(b *testing.B, method, path []byte, handler string) {
-	got := benchmarkRoutes.Route(method, path)
+	got := benchmarkRoutes.Route(method, path, 0)
 	if got.Handler != handler {
 		b.Errorf("unexpected route result %#v", got)
 	}
@@ -46,7 +46,7 @@ func benchmarkRoute(b *testing.B, method, path []byte, handler string) {
 }
 
 func benchmarkCachedRoute(b *testing.B, method, path []byte, handler string) {
-	got := benchmarkRoutes.CachedRoute(method, path)
+	got := benchmarkRoutes.CachedRoute(method, path, 0)
 	if got.Handler != handler {
 		b.Errorf("unexpected route result %#v", got)
 	}

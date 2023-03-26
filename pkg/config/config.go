@@ -174,6 +174,7 @@ type Route struct {
 	Handler                  string   `yaml:"handler"`
 	Status                   int      `yaml:"status"`
 	StatusMessage            string   `yaml:"statusMessage"`
+	NextIfNotFound           bool     `yaml:"nextIfNotFound"`
 }
 
 // RoutesCache represents a configuration of route cache.

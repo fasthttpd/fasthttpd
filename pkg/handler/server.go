@@ -197,11 +197,22 @@ func (h *hostHandler) Logger() logger.Logger {
 // Handle handles the provided request.
 func (h *hostHandler) Handle(ctx *fasthttp.RequestCtx) {
 	h.accessLog.Collect(ctx)
+	off := 0
+	for {
+		result := h.routes.CachedRouteCtx(ctx, off)
+		h.handleRouteResult(ctx, result)
+		off = result.RouteIndex
+		result.Release()
 
-	result := h.routes.CachedRouteCtx(ctx)
-	h.handleRouteResult(ctx, result)
-	result.Release()
-
+		if result.StatusCode != http.StatusNotFound &&
+			ctx.Response.StatusCode() == http.StatusNotFound &&
+			h.routes.IsNextIfNotFound(off) {
+			ctx.Response.Reset()
+			off++
+			continue
+		}
+		break
+	}
 	h.accessLog.Log(ctx)
 }
 
