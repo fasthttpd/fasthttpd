@@ -7,6 +7,7 @@ import (
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/util"
+	"github.com/jarxorg/tree"
 	"github.com/valyala/fasthttp"
 )
 
@@ -149,10 +150,11 @@ func TestNewRoutes(t *testing.T) {
 	}
 }
 
-func testRoutes(t *testing.T, rs *Routes) {
+func testRoute(t *testing.T, rs *Routes) {
 	tests := []struct {
 		method string
 		path   string
+		off    int
 		want   *Result
 	}{
 		{
@@ -214,12 +216,12 @@ func testRoutes(t *testing.T, rs *Routes) {
 		ctx.Request.Header.SetMethod(test.method)
 		ctx.URI().SetPath(test.path)
 
-		got := rs.CachedRouteCtx(ctx)
+		got := rs.CachedRouteCtx(ctx, test.off)
 		if !got.Equal(test.want) {
 			t.Errorf("tests[%d] unexpected result %#v; want %#v", i, *got, *test.want)
 		}
 		if rs.cache != nil {
-			got2 := rs.CachedRouteCtx(ctx)
+			got2 := rs.CachedRouteCtx(ctx, test.off)
 			if !got2.Equal(test.want) {
 				t.Errorf("tests[%d] unexpected 2nd result %#v; want %#v", i, *got2, *test.want)
 			}
@@ -229,7 +231,7 @@ func testRoutes(t *testing.T, rs *Routes) {
 	}
 }
 
-func TestRoutes(t *testing.T) {
+func TestRoute(t *testing.T) {
 	c, err := config.UnmarshalYAMLPath("../config/testdata/full.yaml")
 	if err != nil {
 		t.Fatal(err)
@@ -238,24 +240,58 @@ func TestRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	testRoutes(t, rs)
+	testRoute(t, rs)
 
 	rs.cache = nil
-	testRoutes(t, rs)
+	testRoute(t, rs)
 }
 
-func TestRoutes_NotFound(t *testing.T) {
-	rs, err := NewRoutes(config.Config{})
-	if err != nil {
-		t.Fatal(err)
+func TestRoute_NotFound(t *testing.T) {
+	tests := []struct {
+		cfg    config.Config
+		method string
+		path   string
+		off    int
+		want   *Result
+	}{
+		{
+			cfg:    config.Config{},
+			method: http.MethodGet,
+			path:   "/",
+			off:    0,
+			want: &Result{
+				StatusCode: http.StatusNotFound,
+			},
+		}, {
+			cfg: config.Config{
+				Handlers: map[string]tree.Map{
+					"static": {},
+				},
+				Routes: []config.Route{
+					{
+						Path:    "/static",
+						Handler: "static",
+					},
+				},
+			},
+			method: http.MethodGet,
+			path:   "/",
+			off:    0,
+			want: &Result{
+				StatusCode: http.StatusNotFound,
+			},
+		},
 	}
-
-	got := rs.Route([]byte(http.MethodGet), []byte("/"))
-	defer got.Release()
-
-	want := &Result{StatusCode: http.StatusNotFound}
-	if !got.Equal(want) {
-		t.Errorf("got %#v; want %#v", got, want)
+	for i, test := range tests {
+		rs, err := NewRoutes(test.cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := rs.Route([]byte(test.method), []byte(test.path), test.off)
+		if !got.Equal(test.want) {
+			t.Errorf("tests[%d] got %#v; want %#v", i, got, test.want)
+		}
+		got.Release()
 	}
 }
 
@@ -279,16 +315,16 @@ func Test_onResultReleased(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_ = rs.CachedRoute([]byte(http.MethodGet), []byte("/1"))
-	_ = rs.CachedRoute([]byte(http.MethodGet), []byte("/2"))
-	_ = rs.CachedRoute([]byte(http.MethodGet), []byte("/3"))
+	_ = rs.CachedRoute([]byte(http.MethodGet), []byte("/1"), 0)
+	_ = rs.CachedRoute([]byte(http.MethodGet), []byte("/2"), 0)
+	_ = rs.CachedRoute([]byte(http.MethodGet), []byte("/3"), 0)
 	if size := rs.cache.Len(); size != 3 {
 		t.Errorf("unexpected cache size %d; want 3", size)
 	}
 
 	time.Sleep(2 * time.Millisecond)
 	// NOTE: maybe call rs.cache.notify.
-	_ = rs.CachedRoute([]byte(http.MethodGet), []byte("/4"))
+	_ = rs.CachedRoute([]byte(http.MethodGet), []byte("/4"), 0)
 
 	// NOTE: wait rs.cache.expires.
 	time.Sleep(2 * time.Millisecond)
@@ -296,5 +332,49 @@ func Test_onResultReleased(t *testing.T) {
 	// NOTE: old cached items are deleted.
 	if size := rs.cache.Len(); size != 1 {
 		t.Errorf("unexpected cache size %d; want 1", size)
+	}
+}
+
+func TestRoute_IsNextIfNotFound(t *testing.T) {
+	tests := []struct {
+		rs   *Routes
+		ri   int
+		want bool
+	}{
+		{
+			rs: &Routes{
+				routes: []*Route{
+					{
+						nextIfNotFound: true,
+					}, {
+						nextIfNotFound: false,
+					},
+				},
+			},
+			ri:   0,
+			want: true,
+		}, {
+			rs: &Routes{
+				routes: []*Route{
+					{
+						nextIfNotFound: true,
+					}, {
+						nextIfNotFound: false,
+					},
+				},
+			},
+			ri:   1,
+			want: false,
+		}, {
+			rs:   &Routes{},
+			ri:   0,
+			want: false,
+		},
+	}
+	for i, test := range tests {
+		got := test.rs.IsNextIfNotFound(test.ri)
+		if got != test.want {
+			t.Errorf("tests[%d] got %#v; want %#v", i, got, test.want)
+		}
 	}
 }

@@ -8,20 +8,18 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-var routesResultPool = &sync.Pool{
-	New: func() interface{} {
-		r := &Result{}
-		r.Reset()
-		return r
-	},
-}
+var resultPool sync.Pool
 
 // AcquireResult returns an empty Result object from the pool.
 //
 // The returned Result may be returned to the pool with Release when no
 // longer needed. This allows reducing GC load.
 func AcquireResult() *Result {
-	return routesResultPool.Get().(*Result)
+	x := resultPool.Get()
+	if x != nil {
+		return x.(*Result)
+	}
+	return &Result{}
 }
 
 // Result represents a result of routing.
@@ -33,6 +31,7 @@ type Result struct {
 	AppendQueryString bool
 	Handler           string
 	Filters           util.StringSet
+	RouteIndex        int
 }
 
 // RewriteURIWithQueryString returns r.RewriteURI with queryString.
@@ -60,6 +59,7 @@ func (r *Result) Reset() {
 	r.AppendQueryString = false
 	r.Handler = ""
 	r.Filters = r.Filters[:0]
+	r.RouteIndex = 0
 }
 
 // CopyTo copies all the result to dst.
@@ -72,6 +72,7 @@ func (r *Result) CopyTo(dst *Result) *Result {
 	dst.AppendQueryString = r.AppendQueryString
 	dst.Handler = r.Handler
 	dst.Filters = append(dst.Filters[:0], r.Filters...)
+	dst.RouteIndex = r.RouteIndex
 	return dst
 }
 
@@ -98,5 +99,5 @@ func (a *Result) Equal(b *Result) bool {
 // Do not access the released Result object, otherwise data races may occur.
 func (r *Result) Release() {
 	r.Reset()
-	routesResultPool.Put(r)
+	resultPool.Put(r)
 }

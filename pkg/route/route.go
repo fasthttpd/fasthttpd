@@ -2,10 +2,12 @@ package route
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/util"
@@ -23,6 +25,7 @@ type Route struct {
 	statusMessageBytes       []byte
 	matchPath                func(path []byte) bool
 	matchPattern             *regexp.Regexp
+	nextIfNotFound           bool
 }
 
 // NewRoute creates a new Route by the provided rcfg.
@@ -33,6 +36,7 @@ func NewRoute(rcfg config.Route) (*Route, error) {
 		rewriteAppendQueryString: rcfg.RewriteAppendQueryString,
 		handler:                  rcfg.Handler,
 		statusCode:               rcfg.Status,
+		nextIfNotFound:           rcfg.NextIfNotFound,
 	}
 	if rcfg.StatusMessage != "" {
 		r.statusMessageBytes = []byte(rcfg.StatusMessage)
@@ -119,6 +123,7 @@ func onResultReleased(_ util.CacheKey, value interface{}) {
 type Routes struct {
 	routes []*Route
 	cache  util.Cache
+	intBuf sync.Pool
 }
 
 // NewRoutes creates a new Routes the provided cfg.Routes.
@@ -152,16 +157,28 @@ func NewRoutes(cfg config.Config) (*Routes, error) {
 	return rs, nil
 }
 
+func (rs *Routes) IsNextIfNotFound(i int) bool {
+	if i >= len(rs.routes) {
+		return false
+	}
+	return rs.routes[i].nextIfNotFound
+}
+
 // Route find routes by the provided method and path and returns a new Result.
-func (rs *Routes) Route(method, path []byte) *Result {
+func (rs *Routes) Route(method, path []byte, off int) *Result {
 	result := AcquireResult()
-	for _, r := range rs.routes {
+	if off >= len(rs.routes) {
+		result.StatusCode = fasthttp.StatusNotFound
+		return result
+	}
+	for i, r := range rs.routes[off:] {
 		if !r.Match(method, path) {
 			continue
 		}
 		if len(r.filters) > 0 {
 			result.Filters = result.Filters.Append(r.filters...)
 		}
+		result.RouteIndex = i
 		result.StatusCode = r.statusCode
 		result.StatusMessage = append(result.StatusMessage[:0], r.statusMessageBytes...)
 		result.Handler = r.handler
@@ -183,24 +200,42 @@ func (rs *Routes) Route(method, path []byte) *Result {
 	return result
 }
 
+func (rs *Routes) acquireIntBuf() []byte {
+	x := rs.intBuf.Get()
+	if x != nil {
+		return x.([]byte)
+	}
+	return make([]byte, 4)
+}
+
+func (rs *Routes) releaseIntBuf(b []byte) {
+	for i := range b {
+		b[i] = 0
+	}
+	rs.intBuf.Put(b)
+}
+
 // CachedRoute provides Read-Through caching for rs.Route if the cache is enabled.
-func (rs *Routes) CachedRoute(method, path []byte) *Result {
+func (rs *Routes) CachedRoute(method, path []byte, off int) *Result {
 	if rs.cache == nil {
-		return rs.Route(method, path)
+		return rs.Route(method, path, off)
 	}
 
-	key := util.CacheKeyBytes(method, []byte{' '}, path)
+	b := rs.acquireIntBuf()
+	binary.LittleEndian.PutUint32(b, uint32(off))
+	key := util.CacheKeyBytes(b, method, []byte{0}, path)
+	rs.releaseIntBuf(b)
+
 	if v := rs.cache.Get(key); v != nil {
 		result := v.(*Result)
 		return result.CopyTo(AcquireResult())
 	}
-
-	result := rs.Route(method, path)
+	result := rs.Route(method, path, off)
 	rs.cache.Set(key, result)
 	return result.CopyTo(AcquireResult())
 }
 
 // CachedRouteCtx provides Read-Through caching for rs.Route if the cache is enabled.
-func (rs *Routes) CachedRouteCtx(ctx *fasthttp.RequestCtx) *Result {
-	return rs.CachedRoute(ctx.Method(), ctx.Path())
+func (rs *Routes) CachedRouteCtx(ctx *fasthttp.RequestCtx, off int) *Result {
+	return rs.CachedRoute(ctx.Method(), ctx.Path(), off)
 }
