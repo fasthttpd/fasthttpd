@@ -202,9 +202,10 @@ func (h *hostHandler) Handle(ctx *fasthttp.RequestCtx) {
 		result := h.routes.CachedRouteCtx(ctx, off)
 		h.handleRouteResult(ctx, result)
 		off = result.RouteIndex
+		resultStatusCode := result.StatusCode
 		result.Release()
 
-		if result.StatusCode != http.StatusNotFound &&
+		if resultStatusCode != http.StatusNotFound &&
 			ctx.Response.StatusCode() == http.StatusNotFound &&
 			h.routes.IsNextIfNotFound(off) {
 			ctx.Response.Reset()
