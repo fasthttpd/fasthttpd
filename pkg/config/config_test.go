@@ -81,7 +81,21 @@ func TestUnmarshalYAMLPath(t *testing.T) {
 					"headers": tree.Map{
 						"Content-Type": tree.ToValue("text/plain; charset=utf-8"),
 					},
-					"body": tree.ToValue("Hello FastHttpd\n"),
+					"body": tree.ToValue("Hello FastHttpd"),
+					"conditions": tree.Array{
+						tree.Map{
+							"path": tree.ToValue("/hello/world"),
+							"body": tree.ToValue("Hello world"),
+						},
+						tree.Map{
+							"queryStringContains": tree.ToValue("time=morning"),
+							"body":                tree.ToValue("Good morning FastHttpd"),
+						},
+						tree.Map{
+							"percentage": tree.ToValue(10),
+							"body":       tree.ToValue("10% hit FastHttpd"),
+						},
+					},
 				},
 			},
 			Routes: []Route{
