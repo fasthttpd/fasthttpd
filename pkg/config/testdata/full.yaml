@@ -67,8 +67,14 @@ handlers:
     type: content
     headers:
       'Content-Type': 'text/plain; charset=utf-8'
-    body: |
-      Hello FastHttpd
+    body: Hello FastHttpd
+    conditions:
+      - path: '/hello/world'
+        body: Hello world
+      - queryStringContains: 'time=morning'
+        body: Good morning FastHttpd
+      - percentage: 10
+        body: 10% hit FastHttpd
 
 # The routes are processed in sequence and interrupted when the status or the handler is specified.
 routes:
