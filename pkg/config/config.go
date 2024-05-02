@@ -82,6 +82,13 @@ func (cfg Config) Normalize() (Config, error) {
 	if cfg.SSL, err = cfg.SSL.Normalize(); err != nil {
 		return cfg, err
 	}
+	for _, route := range cfg.Routes {
+		if route.Handler != "" {
+			if _, ok := cfg.Handlers[route.Handler]; !ok {
+				return cfg, fmt.Errorf("unknown handler %q", route.Handler)
+			}
+		}
+	}
 	return cfg, nil
 }
 

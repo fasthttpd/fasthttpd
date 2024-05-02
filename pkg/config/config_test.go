@@ -309,6 +309,18 @@ func TestConfig_Normalize(t *testing.T) {
 					AutoCertCacheDir: filepath.Join(userCacheDir, "fasthttpd", "cert"),
 				},
 			},
+		}, {
+			cfg: Config{
+				Handlers: map[string]tree.Map{},
+				Routes: []Route{
+					{
+						Handler: "",
+					}, {
+						Handler: "UNKNOWN",
+					},
+				},
+			},
+			errstr: `unknown handler "UNKNOWN"`,
 		},
 	}
 	for i, test := range tests {
