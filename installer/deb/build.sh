@@ -6,14 +6,13 @@ cd "$(dirname "$0")"
 VERSION="$1"
 
 MACHINE="$(uname -m)"
-GOOS="Linux"
+GOOS="linux"
 GOARCH=""
 ARCH="${MACHINE}"
 case "${MACHINE}" in
     "aarch64"   ) GOARCH="arm64" ; ARCH="arm64" ;;
-    "amd64"     ) GOARCH="x86_64"               ;;
-    "x86_64"    ) GOARCH="x86_64"; ARCH="amd64" ;;
-    "i386"      ) GOARCH="i386"                 ;;
+    "x86_64"    ) GOARCH="amd64" ; ARCH="amd64" ;;
+    "i386"      ) GOARCH="386"                  ;;
 esac
 
 if [ -z "${GOARCH}" ]; then
