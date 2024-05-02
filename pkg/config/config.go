@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -195,7 +194,7 @@ func unmarshalYAMLPath(path string, includes []string) ([]Config, error) {
 			return nil, fmt.Errorf("circular dependency %v", includes)
 		}
 	}
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}

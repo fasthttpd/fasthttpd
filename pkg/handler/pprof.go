@@ -18,13 +18,13 @@ var pprofPrefix = []byte("/debug/pprof/")
 // Pprof represents a handler that provides runtime profiling data via "net/http/pprof".
 // The following is a configuration that is minimal. routes.path is must "/debug/pprof/".
 //
-//   listen: ':8080'
-//   handlers:
-//     'pprof':
-//       type: pprof
-//   routes:
-//     - path: /debug/pprof/
-//       handler: pprof
+//	listen: ':8080'
+//	handlers:
+//	  'pprof':
+//	    type: pprof
+//	routes:
+//	  - path: /debug/pprof/
+//	    handler: pprof
 //
 // Then you can see http://localhost:8080/debug/pprof/ in your browser.
 type Pprof struct {

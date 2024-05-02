@@ -3,8 +3,8 @@ package filter
 import (
 	"bytes"
 	"encoding/base64"
-	"io/ioutil"
 	"net/http"
+	"os"
 
 	"github.com/jarxorg/tree"
 	"github.com/valyala/fasthttp"
@@ -45,7 +45,7 @@ func NewBasicAuthFilter(cfg tree.Map) (Filter, error) {
 
 func (f *BasicAuthFilter) init() error {
 	if f.UsersFile != "" {
-		bin, err := ioutil.ReadFile(f.UsersFile)
+		bin, err := os.ReadFile(f.UsersFile)
 		if err != nil {
 			return err
 		}

@@ -3,7 +3,6 @@ package net
 import (
 	"crypto/tls"
 	"errors"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -13,7 +12,7 @@ import (
 )
 
 func TestMultiTLSConfig(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "*.tls")
+	tmpDir, err := os.MkdirTemp("", "*.tls")
 	if err != nil {
 		t.Fatal(err)
 	}
