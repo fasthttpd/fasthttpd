@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -46,7 +45,7 @@ func TestSharedRotator(t *testing.T) {
 }
 
 func TestRotateShared(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "*.logger_test")
+	tmpDir, err := os.MkdirTemp("", "*.logger_test")
 	if err != nil {
 		t.Fatal(err)
 	}

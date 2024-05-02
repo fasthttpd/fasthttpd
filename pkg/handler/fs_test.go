@@ -2,7 +2,7 @@ package handler
 
 import (
 	"bytes"
-	"io/ioutil"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -82,7 +82,7 @@ func TestFS_Handler(t *testing.T) {
 	ctx.Request.SetRequestURI("/")
 	handler(ctx)
 
-	expected, err := ioutil.ReadFile("testdata/public/index.html")
+	expected, err := os.ReadFile("testdata/public/index.html")
 	if err != nil {
 		t.Fatal(err)
 	}

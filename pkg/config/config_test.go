@@ -1,7 +1,6 @@
 package config
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -182,7 +181,7 @@ func TestUnmarshalYAMLPath_Errors(t *testing.T) {
 	}
 	defer os.Remove(invalidYaml.Name())
 
-	if err := ioutil.WriteFile(invalidYaml.Name(), []byte(":invalid yaml"), os.ModePerm); err != nil {
+	if err := os.WriteFile(invalidYaml.Name(), []byte(":invalid yaml"), os.ModePerm); err != nil {
 		t.Fatal(err)
 	}
 
