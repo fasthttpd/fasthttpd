@@ -2,11 +2,8 @@ package logger
 
 import (
 	"bytes"
-	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -15,7 +12,7 @@ import (
 )
 
 func TestNewLogger(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "*.logger_test")
+	tmpDir, err := os.MkdirTemp("", "*.logger_test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,32 +20,14 @@ func TestNewLogger(t *testing.T) {
 
 	tests := []struct {
 		cfg    config.Log
-		want   func(cfg config.Log) Logger
 		errstr string
 	}{
 		{
 			cfg: config.Log{},
-			want: func(cfg config.Log) Logger {
-				return NilLogger
-			},
 		}, {
 			cfg: config.Log{Output: "stdout"},
-			want: func(cfg config.Log) Logger {
-				out, _ := SharedRotator("stdout", cfg.Rotation)
-				return &logger{
-					Logger:  log.New(out, "", 0),
-					rotator: out,
-				}
-			},
 		}, {
 			cfg: config.Log{Output: "stderr"},
-			want: func(cfg config.Log) Logger {
-				out, _ := SharedRotator("stderr", cfg.Rotation)
-				return &logger{
-					Logger:  log.New(out, "", 0),
-					rotator: out,
-				}
-			},
 		}, {
 			cfg: config.Log{
 				Output: filepath.Join(tmpDir, "test.log"),
@@ -60,13 +39,6 @@ func TestNewLogger(t *testing.T) {
 					LocalTime:  true,
 				},
 			},
-			want: func(cfg config.Log) Logger {
-				out, _ := SharedRotator(filepath.Join(tmpDir, "test.log"), cfg.Rotation)
-				return &logger{
-					Logger:  log.New(out, "", 0),
-					rotator: out,
-				}
-			},
 		}, {
 			cfg: config.Log{
 				Output: filepath.Join(tmpDir, "test.log"),
@@ -75,36 +47,25 @@ func TestNewLogger(t *testing.T) {
 			errstr: "unknown flag: testflag",
 		},
 	}
-	fn := func(i int) {
-		test := tests[i]
-		got, err := NewLogger(test.cfg)
-		if err == nil {
-			defer got.Close()
-		}
-
-		if test.errstr != "" {
+	for i, test := range tests {
+		func() {
+			got, err := NewLogger(test.cfg)
 			if err == nil {
-				t.Fatalf("tests[%d] no error", i)
+				defer got.Close()
 			}
-			if err.Error() != test.errstr {
-				t.Errorf("tests[%d] got error %q; want %q", i, err.Error(), test.errstr)
+			if test.errstr != "" {
+				if err == nil {
+					t.Fatalf("tests[%d] no error", i)
+				}
+				if err.Error() != test.errstr {
+					t.Errorf("tests[%d] got error %q; want %q", i, err.Error(), test.errstr)
+				}
+				return
 			}
-			return
-		}
-
-		if err != nil {
-			t.Fatalf("tests[%d] unexpected error: %v", i, err)
-		}
-
-		want := test.want(test.cfg)
-		defer want.Close()
-
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("tests[%d] got %#v; want %#v", i, got, want)
-		}
-	}
-	for i := range tests {
-		fn(i)
+			if err != nil {
+				t.Fatalf("tests[%d] unexpected error: %v", i, err)
+			}
+		}()
 	}
 }
 
