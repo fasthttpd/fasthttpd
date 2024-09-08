@@ -1,6 +1,6 @@
 module github.com/fasthttpd/fasthttpd
 
-go 1.21
+go 1.22
 
 require (
 	github.com/jarxorg/io2 v0.7.1
