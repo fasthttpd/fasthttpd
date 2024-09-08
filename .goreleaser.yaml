@@ -1,3 +1,4 @@
+version: 2
 before:
   hooks:
     - go mod tidy
@@ -22,11 +23,11 @@ changelog:
       - '^test:'
 brews:
 - name: fasthttpd
-  tap:
+  repository:
     owner: fasthttpd
     name: homebrew-fasthttpd
     token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-  folder: Formula
+  directory: Formula
   homepage: https://github.com/fasthttpd/fasthttpd
   description: FastHttpd is a lightweight http server using valyala/fasthttp
   test: |
