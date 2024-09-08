@@ -2,14 +2,14 @@ package util
 
 import (
 	"hash"
-	"hash/fnv"
+	"hash/crc64"
 	"sync"
 	"time"
 )
 
 var hash64Pool = sync.Pool{
 	New: func() interface{} {
-		return fnv.New64()
+		return crc64.New(crc64.MakeTable(crc64.ISO))
 	},
 }
 
