@@ -2,10 +2,10 @@ package handler
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/filter"
@@ -107,14 +107,14 @@ func (v *virtualHandler) HandleError(ctx *fasthttp.RequestCtx, err error) {
 
 // Close calls Close each handlers.
 func (v *virtualHandler) Close() error {
-	var errs []string
+	var errs []error
 	for _, h := range v.handlers {
 		if err := h.Close(); err != nil {
-			errs = append(errs, err.Error())
+			errs = append(errs, err)
 		}
 	}
 	if len(errs) > 0 {
-		return fmt.Errorf("failed to multi close: %s", strings.Join(errs, "; "))
+		return fmt.Errorf("failed to multi close: %v", errors.Join(errs...))
 	}
 	return nil
 }
@@ -262,14 +262,14 @@ func (h *hostHandler) HandleError(ctx *fasthttp.RequestCtx, err error) {
 
 // Close closes the server.
 func (h *hostHandler) Close() error {
-	var errs []string
+	var errs []error
 	if h.accessLog != nil {
 		if err := h.accessLog.Close(); err != nil {
-			errs = append(errs, err.Error())
+			errs = append(errs, err)
 		}
 	}
 	if len(errs) > 0 {
-		return fmt.Errorf("failed to close main handler: %s", strings.Join(errs, "; "))
+		return fmt.Errorf("failed to close main handler: %v", errors.Join(errs...))
 	}
 	return nil
 }
