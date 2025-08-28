@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -224,14 +225,14 @@ func (d *FastHttpd) run() error {
 		}()
 	}
 
-	var errs []string
+	var errs []error
 	for range listenedCfgs {
 		if err := <-errChs; err != nil {
-			errs = append(errs, err.Error())
+			errs = append(errs, err)
 		}
 	}
 	if len(errs) > 0 {
-		return fmt.Errorf("failed to serve: %s", strings.Join(errs, "; "))
+		return fmt.Errorf("failed to serve: %v", errors.Join(errs...))
 	}
 	return nil
 }
@@ -261,16 +262,16 @@ func (d *FastHttpd) Shutdown() error {
 		d.stopHup = nil
 		stopHup()
 	}
-	var errs []string
+	var errs []error
 	for _, server := range d.servers {
 		if err := server.Shutdown(); err != nil {
-			errs = append(errs, err.Error())
+			errs = append(errs, err)
 		}
 	}
 	if len(errs) == 0 {
 		return nil
 	}
-	return fmt.Errorf(strings.Join(errs, "; "))
+	return errors.Join(errs...)
 }
 
 func (d *FastHttpd) Main(args []string) error {

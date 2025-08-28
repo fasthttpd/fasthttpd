@@ -1,10 +1,10 @@
 package logger
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"sync"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
@@ -103,14 +103,14 @@ func RotateShared() error {
 	sharedMutex.Lock()
 	defer sharedMutex.Unlock()
 
-	var errs []string
+	var errs []error
 	for _, o := range sharedRotators {
 		if err := o.Rotate(); err != nil {
-			errs = append(errs, err.Error())
+			errs = append(errs, err)
 		}
 	}
 	if len(errs) > 0 {
-		return fmt.Errorf("failed to rotate: %s", strings.Join(errs, "; "))
+		return fmt.Errorf("failed to rotate: %v", errors.Join(errs...))
 	}
 	return nil
 }
