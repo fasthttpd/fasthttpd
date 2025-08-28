@@ -1,5 +1,4 @@
-# syntax=docker/dockerfile:1.0-experimental
-FROM golang:1.18.2-alpine3.15
+FROM golang:1.24.4-alpine
 
 ENV GO111MODULE=on
 ENV GOPATH=""
