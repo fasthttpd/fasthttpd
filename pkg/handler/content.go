@@ -75,11 +75,12 @@ func (h *Content) Handle(ctx *fasthttp.RequestCtx) {
 			args := ctx.Request.URI().QueryArgs()
 			condArgs := fasthttp.AcquireArgs()
 			condArgs.Parse(condCfg.Get("queryStringContains").Value().String())
-			condArgs.VisitAll(func(key, value []byte) {
-				if matches && !bytes.Equal(args.PeekBytes(key), value) {
+			for key, value := range condArgs.All() {
+				if !bytes.Equal(args.PeekBytes(key), value) {
 					matches = false
+					break
 				}
-			})
+			}
 			fasthttp.ReleaseArgs(condArgs)
 			if matches {
 				h.output(ctx, condCfg.Map())
