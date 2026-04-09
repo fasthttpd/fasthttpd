@@ -110,38 +110,55 @@ func NewExpireCacheInterval(expire, interval int64) Cache {
 
 // Get returns the value mapped to the specified key and extends its expiration.
 func (c *expireCache) Get(key CacheKey) interface{} {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
 	v := c.store[key]
 	if v == nil {
 		return nil
 	}
 	now := expireCacheNow()
 	v.peek = now
-	c.expires(now)
+	c.scheduleEvictLocked(now)
 	return v.value
 }
 
 // Set stores the value with key.
 func (c *expireCache) Set(key CacheKey, value interface{}) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
 	now := expireCacheNow()
 	c.store[key] = &expireCacheValue{
 		value: value,
 		peek:  now,
 	}
-	c.expires(now)
+	c.scheduleEvictLocked(now)
 }
 
 func (c *expireCache) Del(key CacheKey) {
-	if v, ok := c.store[key]; ok {
-		delete(c.store, key)
-		go c.onRelease(key, v.value)
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	v, ok := c.store[key]
+	if !ok {
+		return
 	}
+	delete(c.store, key)
+	go c.onRelease(key, v.value)
 }
 
 func (c *expireCache) Len() int {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
 	return len(c.store)
 }
 
 func (c *expireCache) OnRelease(cb func(key CacheKey, value interface{})) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
 	if cb == nil {
 		c.onRelease = defaultOnRelease
 		return
@@ -149,24 +166,38 @@ func (c *expireCache) OnRelease(cb func(key CacheKey, value interface{})) {
 	c.onRelease = cb
 }
 
-func (c *expireCache) expires(now int64) {
+// scheduleEvictLocked decides whether the interval has elapsed and, if so,
+// arms the next interval and launches a background eviction goroutine.
+// The caller must hold c.mutex.
+func (c *expireCache) scheduleEvictLocked(now int64) {
 	if now < c.next {
-		return
-	}
-	c.mutex.Lock()
-	if now < c.next {
-		c.mutex.Unlock()
 		return
 	}
 	c.next = now + c.interval
+	go c.evict(now)
+}
+
+// evict walks c.store under the lock, removes entries whose peek is older
+// than c.expire, and fires onRelease callbacks outside the lock so that a
+// slow callback cannot block other cache operations.
+func (c *expireCache) evict(now int64) {
+	type released struct {
+		k CacheKey
+		v interface{}
+	}
+
+	c.mutex.Lock()
+	var toRelease []released
+	for k, v := range c.store {
+		if now-v.peek > c.expire {
+			delete(c.store, k)
+			toRelease = append(toRelease, released{k, v.value})
+		}
+	}
+	onRelease := c.onRelease
 	c.mutex.Unlock()
 
-	go func() {
-		for k, v := range c.store {
-			if now-v.peek > c.expire {
-				delete(c.store, k)
-				go c.onRelease(k, v.value)
-			}
-		}
-	}()
+	for _, r := range toRelease {
+		go onRelease(r.k, r.v)
+	}
 }

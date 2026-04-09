@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
-	"github.com/jarxorg/tree"
+	"github.com/mojatter/tree"
 )
 
 var (

@@ -12,7 +12,7 @@ import (
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/fasthttpd/fasthttpd/pkg/logger/accesslog"
 	"github.com/fasthttpd/fasthttpd/pkg/route"
-	"github.com/jarxorg/tree"
+	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
 )
 
@@ -129,10 +129,11 @@ func assertResponse(resp *fasthttp.Response, status int, body string, headers []
 	if !bytes.Contains(gotBody, []byte(body)) {
 		return fmt.Errorf("unexpected body %q; want contains %s", gotBody, body)
 	}
-	resp.Header.VisitAll(func(key, value []byte) {
+outer:
+	for key, value := range resp.Header.All() {
 		strKey := string(key)
 		if strKey == "Date" {
-			return
+			continue
 		}
 		for j, kv := range headers {
 			k, v := kv[0], kv[1]
@@ -141,11 +142,11 @@ func assertResponse(resp *fasthttp.Response, status int, body string, headers []
 					err = fmt.Errorf("unexpected header %s: %s; want %s", k, value, v)
 				}
 				headers = append(headers[:j], headers[j+1:]...)
-				return
+				continue outer
 			}
 		}
 		err = fmt.Errorf("unnecessary header %s: %s", key, value)
-	})
+	}
 	if err != nil {
 		return
 	}

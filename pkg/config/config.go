@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/jarxorg/tree"
-	"gopkg.in/yaml.v2"
+	"github.com/mojatter/tree"
+	"go.yaml.in/yaml/v3"
 )
 
 // Default values.

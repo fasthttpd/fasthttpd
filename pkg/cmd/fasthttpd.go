@@ -20,7 +20,7 @@ import (
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	fasthttpdnet "github.com/fasthttpd/fasthttpd/pkg/net"
 	"github.com/fasthttpd/fasthttpd/pkg/util"
-	"github.com/jarxorg/tree"
+	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
 )
 
@@ -28,8 +28,9 @@ import (
 // indicates the default configuration file path.
 const EnvFasthttpdConfig = "FASTHTTPD_CONFIG"
 
-// version will update by github actions.
-const version = "0.5.4"
+// version is injected at build time via -ldflags "-X ...version=...".
+// Defaults to "dev" for `go install` / `go run` style builds.
+var version = "dev"
 
 const (
 	cmd          = "fasthttpd"
@@ -205,7 +206,7 @@ func (d *FastHttpd) run() error {
 		if err != nil {
 			return err
 		}
-		defer h.Close()
+		defer func() { _ = h.Close() }()
 
 		server, err := d.newServer(h)
 		if err != nil {

@@ -12,7 +12,7 @@ import (
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
-	"github.com/jarxorg/io2"
+	"github.com/mojatter/io2"
 	"github.com/valyala/fasthttp"
 )
 
