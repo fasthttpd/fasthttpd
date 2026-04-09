@@ -276,7 +276,7 @@ routes:
 
 ## Override configuration using edit option
 
-FastHttpd can override some of the values in config.yaml with the -e option via [jarxorg/tree](https://github.com/jarxorg/tree).
+FastHttpd can override some of the values in config.yaml with the -e option via [mojatter/tree](https://github.com/mojatter/tree).
 
 Customize content root
 
@@ -318,4 +318,4 @@ BenchmarkCachedRoutes_Regexp 	121977412	        98.47 ns/op	       1 B/op	      
 - [valyala/fasthttp](https://github.com/valyala/fasthttp)
 - [natefinch/lumberjack](https://github.com/natefinch/lumberjack)
 - [zehuamama/balancer](https://github.com/zehuamama/balancer)
-- [jarxorg/tree](https://github.com/jarxorg/tree)
+- [mojatter/tree](https://github.com/mojatter/tree)

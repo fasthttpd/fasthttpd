@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
-	"github.com/jarxorg/tree"
+	"github.com/mojatter/tree"
 )
 
 func TestNewProxyHandler(t *testing.T) {

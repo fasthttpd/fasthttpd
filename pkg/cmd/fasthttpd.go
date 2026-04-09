@@ -20,7 +20,7 @@ import (
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	fasthttpdnet "github.com/fasthttpd/fasthttpd/pkg/net"
 	"github.com/fasthttpd/fasthttpd/pkg/util"
-	"github.com/jarxorg/tree"
+	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
 )
 

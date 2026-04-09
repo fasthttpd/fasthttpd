@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
-	"github.com/jarxorg/tree"
+	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
 )
 

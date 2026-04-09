@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/jarxorg/tree"
+	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v3"
 )
 
 const (

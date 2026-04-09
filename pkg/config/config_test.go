@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jarxorg/tree"
+	"github.com/mojatter/tree"
 )
 
 func TestUnmarshalYAMLPath(t *testing.T) {

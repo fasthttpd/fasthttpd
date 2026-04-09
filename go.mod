@@ -1,18 +1,16 @@
 module github.com/fasthttpd/fasthttpd
 
-go 1.24.0
-
-toolchain go1.24.4
+go 1.24.4
 
 require (
-	github.com/jarxorg/io2 v0.7.1
-	github.com/jarxorg/tree v0.8.0
+	github.com/mojatter/io2 v0.9.0
+	github.com/mojatter/tree v0.10.0
 	github.com/valyala/bytebufferpool v1.0.0
 	github.com/valyala/fasthttp v1.63.0
 	github.com/zehuamama/balancer v0.2.0
+	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/crypto v0.39.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
-	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
@@ -26,4 +24,5 @@ require (
 	golang.org/x/net v0.41.0 // indirect
 	golang.org/x/text v0.26.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
