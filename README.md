@@ -5,6 +5,8 @@
 
 FastHttpd is a lightweight http server using [valyala/fasthttp](https://github.com/valyala/fasthttp).
 
+> FastHttpd and fasthttp are versioned independently. FastHttpd **v0.6.0** is built against fasthttp **v1.70.0**.
+
 ## Features
 
 - Serve static files
