@@ -1,47 +1,107 @@
 package util
 
 import (
-	"hash"
-	"hash/crc64"
+	"encoding/binary"
+	"hash/maphash"
 	"sync"
 	"time"
 )
 
-var hash64Pool = sync.Pool{
-	New: func() interface{} {
-		return crc64.New(crc64.MakeTable(crc64.ISO))
+// CacheKey is a 64-bit hashed cache key.
+type CacheKey uint64
+
+// cacheKeySeed is a single process-wide seed shared by every builder and
+// shortcut helper so that equal inputs always produce equal CacheKeys.
+// It is randomized at package init, which gives fasthttpd hash-flooding
+// resistance against adversarial HTTP paths while still letting Set and
+// Get within the same process agree on the same key.
+var cacheKeySeed = maphash.MakeSeed()
+
+// CacheKeyBuilder accumulates length-prefixed fields and produces a
+// CacheKey that is safe against composition ambiguity — that is, the
+// fields ("ab", "c") and ("a", "bc") produce different keys.
+//
+// Acquire from the pool with AcquireCacheKeyBuilder, call Write /
+// WriteString as many times as needed, call Sum to finalize, then
+// release it with ReleaseCacheKeyBuilder. Builders are not safe for
+// concurrent use.
+type CacheKeyBuilder struct {
+	h      maphash.Hash
+	// lenBuf is a 4-byte scratch reused by Write/WriteString to emit
+	// the length prefix before each field. Keeping it on the struct
+	// (which itself lives in a sync.Pool) means the prefix write stays
+	// allocation-free across calls.
+	lenBuf [4]byte
+}
+
+var cacheKeyBuilderPool = sync.Pool{
+	New: func() any {
+		b := &CacheKeyBuilder{}
+		b.h.SetSeed(cacheKeySeed)
+		return b
 	},
 }
 
-func acquireHash64() hash.Hash64 {
-	return hash64Pool.Get().(hash.Hash64)
+// AcquireCacheKeyBuilder fetches a reusable builder from the pool. The
+// returned builder has an empty hash state but keeps the shared seed,
+// so successive Acquire/Release cycles produce consistent keys.
+func AcquireCacheKeyBuilder() *CacheKeyBuilder {
+	b := cacheKeyBuilderPool.Get().(*CacheKeyBuilder)
+	b.h.Reset()
+	return b
 }
 
-func releaseHash64(h hash.Hash64) {
-	h.Reset()
-	hash64Pool.Put(h)
+// ReleaseCacheKeyBuilder returns a builder to the pool. After calling
+// this, the caller must not touch b again.
+func ReleaseCacheKeyBuilder(b *CacheKeyBuilder) {
+	cacheKeyBuilderPool.Put(b)
 }
 
-type CacheKey uint64
-
-func CacheKeyBytes(bs ...[]byte) CacheKey {
-	h := acquireHash64()
-	for _, b := range bs {
-		h.Write(b)
-	}
-	key := h.Sum64()
-	releaseHash64(h)
-	return CacheKey(key)
+// Write appends a length-prefixed byte-slice field to the key.
+func (b *CacheKeyBuilder) Write(p []byte) {
+	binary.LittleEndian.PutUint32(b.lenBuf[:], uint32(len(p)))
+	b.h.Write(b.lenBuf[:])
+	b.h.Write(p)
 }
 
-func CacheKeyString(ss ...string) CacheKey {
-	h := acquireHash64()
-	for _, s := range ss {
-		h.Write([]byte(s))
-	}
-	key := h.Sum64()
-	releaseHash64(h)
-	return CacheKey(key)
+// WriteString appends a length-prefixed string field to the key.
+// Uses maphash's native WriteString so no copy of s is needed.
+func (b *CacheKeyBuilder) WriteString(s string) {
+	binary.LittleEndian.PutUint32(b.lenBuf[:], uint32(len(s)))
+	b.h.Write(b.lenBuf[:])
+	b.h.WriteString(s)
+}
+
+// Sum finalizes and returns the cache key. The builder can continue to
+// be reused for further Write calls after Sum if desired, but typically
+// the caller releases it immediately after Sum.
+func (b *CacheKeyBuilder) Sum() CacheKey {
+	return CacheKey(b.h.Sum64())
+}
+
+// CacheKeyOf is a shortcut for a single-field byte-slice key. It is
+// equivalent to acquiring a builder, calling Write(p), Sum, and
+// releasing, but avoids the pool round-trip for the common single
+// field case.
+func CacheKeyOf(p []byte) CacheKey {
+	var h maphash.Hash
+	h.SetSeed(cacheKeySeed)
+	var lenBuf [4]byte
+	binary.LittleEndian.PutUint32(lenBuf[:], uint32(len(p)))
+	h.Write(lenBuf[:])
+	h.Write(p)
+	return CacheKey(h.Sum64())
+}
+
+// CacheKeyOfString is the string counterpart of CacheKeyOf.
+func CacheKeyOfString(s string) CacheKey {
+	var h maphash.Hash
+	h.SetSeed(cacheKeySeed)
+	var lenBuf [4]byte
+	binary.LittleEndian.PutUint32(lenBuf[:], uint32(len(s)))
+	h.Write(lenBuf[:])
+	h.WriteString(s)
+	return CacheKey(h.Sum64())
 }
 
 // Cache is an interface that defines accessor of the cache.

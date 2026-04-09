@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-	"sync"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/util"
@@ -123,7 +122,6 @@ func onResultReleased(_ util.CacheKey, value interface{}) {
 type Routes struct {
 	routes []*Route
 	cache  util.Cache
-	intBuf sync.Pool
 }
 
 // NewRoutes creates a new Routes the provided cfg.Routes.
@@ -200,31 +198,29 @@ func (rs *Routes) Route(method, path []byte, off int) *Result {
 	return result
 }
 
-func (rs *Routes) acquireIntBuf() []byte {
-	x := rs.intBuf.Get()
-	if x != nil {
-		return *(x.(*[]byte))
-	}
-	return make([]byte, 4)
-}
-
-func (rs *Routes) releaseIntBuf(b []byte) {
-	for i := range b {
-		b[i] = 0
-	}
-	rs.intBuf.Put(&b)
-}
-
 // CachedRoute provides Read-Through caching for rs.Route if the cache is enabled.
 func (rs *Routes) CachedRoute(method, path []byte, off int) *Result {
 	if rs.cache == nil {
 		return rs.Route(method, path, off)
 	}
 
-	b := rs.acquireIntBuf()
-	binary.LittleEndian.PutUint32(b, uint32(off))
-	key := util.CacheKeyBytes(b, method, []byte{0}, path)
-	rs.releaseIntBuf(b)
+	// Encode off into a 4-byte little-endian scratch on the stack.
+	// off is the route-table start index and must be part of the key
+	// because the same (method, path) can resolve to a different route
+	// depending on where the search starts. A fixed-size [4]byte avoids
+	// the heap allocation that strconv.Itoa would incur.
+	// The key builder length-prefixes each field so (off, method, path)
+	// never collide with a different split of the same concatenated
+	// bytes.
+	var offBuf [4]byte
+	binary.LittleEndian.PutUint32(offBuf[:], uint32(off))
+
+	kb := util.AcquireCacheKeyBuilder()
+	kb.Write(offBuf[:])
+	kb.Write(method)
+	kb.Write(path)
+	key := kb.Sum()
+	util.ReleaseCacheKeyBuilder(kb)
 
 	if v := rs.cache.Get(key); v != nil {
 		result := v.(*Result)
