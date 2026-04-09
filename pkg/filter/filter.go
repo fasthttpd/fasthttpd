@@ -3,7 +3,7 @@ package filter
 import (
 	"fmt"
 
-	"github.com/jarxorg/tree"
+	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
 )
 
