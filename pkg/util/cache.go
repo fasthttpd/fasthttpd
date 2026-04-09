@@ -27,6 +27,10 @@ var cacheKeySeed = maphash.MakeSeed()
 // concurrent use.
 type CacheKeyBuilder struct {
 	h      maphash.Hash
+	// lenBuf is a 4-byte scratch reused by Write/WriteString to emit
+	// the length prefix before each field. Keeping it on the struct
+	// (which itself lives in a sync.Pool) means the prefix write stays
+	// allocation-free across calls.
 	lenBuf [4]byte
 }
 

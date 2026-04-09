@@ -204,8 +204,12 @@ func (rs *Routes) CachedRoute(method, path []byte, off int) *Result {
 		return rs.Route(method, path, off)
 	}
 
-	// Stack-allocated scratch for the offset. The key builder writes
-	// length-prefixed fields so the three components (off, method, path)
+	// Encode off into a 4-byte little-endian scratch on the stack.
+	// off is the route-table start index and must be part of the key
+	// because the same (method, path) can resolve to a different route
+	// depending on where the search starts. A fixed-size [4]byte avoids
+	// the heap allocation that strconv.Itoa would incur.
+	// The key builder length-prefixes each field so (off, method, path)
 	// never collide with a different split of the same concatenated
 	// bytes.
 	var offBuf [4]byte
