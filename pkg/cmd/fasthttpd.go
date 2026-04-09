@@ -28,8 +28,9 @@ import (
 // indicates the default configuration file path.
 const EnvFasthttpdConfig = "FASTHTTPD_CONFIG"
 
-// version will update by github actions.
-const version = "0.5.4"
+// version is injected at build time via -ldflags "-X ...version=...".
+// Defaults to "dev" for `go install` / `go run` style builds.
+var version = "dev"
 
 const (
 	cmd          = "fasthttpd"

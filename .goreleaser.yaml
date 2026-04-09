@@ -7,6 +7,8 @@ builds:
     binary: fasthttpd
     env:
       - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/fasthttpd/fasthttpd/pkg/cmd.version={{.Version}}
     goos:
       - linux
       - windows
