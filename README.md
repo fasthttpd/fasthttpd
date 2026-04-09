@@ -12,7 +12,8 @@ FastHttpd is a lightweight http server using [valyala/fasthttp](https://github.c
 - Access logging
 - Reverse proxy
 - Customize headers
-- Support TLS
+- Support TLS (HTTPS/SSL)
+- Automatic TLS certificates via Let's Encrypt (autocert / ACME)
 - Virtual hosts
 - YAML configuration
 
@@ -29,7 +30,7 @@ go install github.com/fasthttpd/fasthttpd/cmd/fasthttpd@latest
 Download binary from [release](https://github.com/fasthttpd/fasthttpd/releases).
 
 ```sh
-VERSION=0.5.4 GOOS=linux GOARCH=amd64; \
+VERSION=0.6.0 GOOS=linux GOARCH=amd64; \
   curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | \
   tar xz fasthttpd && \
   sudo mv fasthttpd /usr/sbin
@@ -50,7 +51,7 @@ brew install fasthttpd
 Download deb or rpm from [release](https://github.com/fasthttpd/fasthttpd/releases), and then execute `apt install` or `yum install`. 
 
 ```sh
-VERSION=0.5.4 ARCH=amd64; \
+VERSION=0.6.0 ARCH=amd64; \
   curl -fsSL -O "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${ARCH}.deb"
 sudo apt install "./fasthttpd_${VERSION}_${ARCH}.deb"
 ```
@@ -99,6 +100,7 @@ Examples
 ## Configuration
 
 For more information, refer to [fasthttpd.org/configuration](https://fasthttpd.org/configuration).
+For enabling Let's Encrypt (autocert), see [examples/config.autocert.yaml](examples/config.autocert.yaml).
 
 The following is a minimal configuration built into fasthttpd.
 
@@ -295,17 +297,21 @@ fasthttpd -f config.yaml -e log.output="" -e accessLog.output=stdout
 The following is a benchmark report of route. 
 This report shows that caching is effective when routing makes heavy use of regular expressions.
 
+Since v0.6.0 the cached route path is fully allocation-free, thanks to the
+`maphash`-based `CacheKeyBuilder` used for cache key construction.
+
 ```
-% GOMAXPROCS=1 go test -bench=. -benchmem -memprofile=mem.prof -cpuprofile=cpu.prof ./pkg/route/... -benchtime=10s
+% GOMAXPROCS=1 go test -bench=. -benchmem ./pkg/route/... -benchtime=10s
 goos: darwin
 goarch: arm64
 pkg: github.com/fasthttpd/fasthttpd/pkg/route
-BenchmarkRoutes_Equal        	543322784	        22.05 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCachedRoutes_Equal  	141902754	        84.47 ns/op	       1 B/op	       1 allocs/op
-BenchmarkRoutes_Prefix       	428678508	        27.95 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCachedRoutes_Prefix 	120594448	        99.57 ns/op	       1 B/op	       1 allocs/op
-BenchmarkRoutes_Regexp       	34690477	       341.0 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCachedRoutes_Regexp 	121977412	        98.47 ns/op	       1 B/op	       1 allocs/op
+cpu: Apple M4
+BenchmarkRoutes_Equal        	920876146	        13.20 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCachedRoutes_Equal  	135314598	        89.03 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRoutes_Prefix       	746245645	        16.05 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCachedRoutes_Prefix 	134016280	        89.55 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRoutes_Regexp       	75967437	       158.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCachedRoutes_Regexp 	133490258	        89.56 ns/op	       0 B/op	       0 allocs/op
 ```
 
 ## TODO
