@@ -205,7 +205,7 @@ func (d *FastHttpd) run() error {
 		if err != nil {
 			return err
 		}
-		defer h.Close()
+		defer func() { _ = h.Close() }()
 
 		server, err := d.newServer(h)
 		if err != nil {
