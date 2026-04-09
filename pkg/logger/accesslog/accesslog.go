@@ -203,7 +203,7 @@ func (l *accessLog) Log(ctx *fasthttp.RequestCtx) {
 }
 
 func (l *accessLog) portFromAddr(addr string) []byte {
-	key := util.CacheKeyString(addr)
+	key := util.CacheKeyOfString(addr)
 	if portBytes := l.addrToPortCache.Get(key); portBytes != nil {
 		return portBytes.([]byte)
 	}

@@ -1,43 +1,43 @@
 package util
 
 import (
+	"encoding/binary"
 	"testing"
-
-	"github.com/valyala/bytebufferpool"
 )
 
-func benchmarkBytesToKey(b *testing.B, fn func(bs ...[]byte) interface{}) {
+// BenchmarkCacheKeyBuilder_RouterKey mirrors the three-field shape that
+// pkg/route/route.go.CachedRoute builds for every cached lookup: a
+// little-endian uint32 offset, the HTTP method, and the URL path. The
+// expectation is 0 B/op, 0 allocs/op — any regression here means a
+// field has started escaping again.
+func BenchmarkCacheKeyBuilder_RouterKey(b *testing.B) {
+	var offBuf [4]byte
+	binary.LittleEndian.PutUint32(offBuf[:], 42)
+	method := []byte("GET")
+	path := []byte("/api/users/123")
+
+	b.ReportAllocs()
 	b.RunParallel(func(pb *testing.PB) {
-		bs := [][]byte{
-			[]byte("GET"),
-			[]byte(" "),
-			{0},
-		}
-		i := 0
 		for pb.Next() {
-			i++
-			bs[2][0] = byte(i % 256)
-			fn(bs...)
+			kb := AcquireCacheKeyBuilder()
+			kb.Write(offBuf[:])
+			kb.Write(method)
+			kb.Write(path)
+			_ = kb.Sum()
+			ReleaseCacheKeyBuilder(kb)
 		}
 	})
 }
 
-func BenchmarkBytesToKey_CacheKeyBytes(b *testing.B) {
-	fn := func(bs ...[]byte) interface{} {
-		return CacheKeyBytes(bs...)
-	}
-	benchmarkBytesToKey(b, fn)
-}
+// BenchmarkCacheKeyOfString covers the single-field shortcut used by
+// pkg/logger/accesslog. Expected: 0 B/op, 0 allocs/op.
+func BenchmarkCacheKeyOfString(b *testing.B) {
+	const addr = "192.168.1.1:54321"
 
-func BenchmarkBytesToKey_BytebufferpoolString(b *testing.B) {
-	fn := func(bs ...[]byte) interface{} {
-		p := bytebufferpool.Get()
-		for _, bb := range bs {
-			p.B = append(p.B, bb...)
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			_ = CacheKeyOfString(addr)
 		}
-		key := string(p.B)
-		bytebufferpool.Put(p)
-		return key
-	}
-	benchmarkBytesToKey(b, fn)
+	})
 }
