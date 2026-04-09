@@ -3,6 +3,7 @@ package accesslog
 import (
 	"io"
 	"net"
+	"os"
 	"testing"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
@@ -11,6 +12,14 @@ import (
 )
 
 func benchmarkAccessLog(b *testing.B, format string, ctx *fasthttp.RequestCtx) {
+	benchmarkAccessLogWithSink(b, format, ctx, io.Discard)
+}
+
+// benchmarkAccessLogWithSink drives the Common/Combined workload against an
+// arbitrary sink. The default io.Discard variant measures in-process overhead
+// only; real-file and /dev/null variants expose the cost of the write-through
+// path once the channel/goroutine pipeline is replaced in later sub-PRs.
+func benchmarkAccessLogWithSink(b *testing.B, format string, ctx *fasthttp.RequestCtx, w io.Writer) {
 	cfg := config.Config{
 		Host: "localhost",
 		AccessLog: config.AccessLog{
@@ -18,17 +27,66 @@ func benchmarkAccessLog(b *testing.B, format string, ctx *fasthttp.RequestCtx) {
 		},
 	}
 
-	l, err := newAccessLog(&logger.NopRotator{Writer: io.Discard}, cfg)
+	l, err := newAccessLog(&logger.NopRotator{Writer: w}, cfg)
 	if err != nil {
 		b.Fatalf("unexpected error: %v", err)
 	}
 
+	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			l.Collect(ctx)
 			l.Log(ctx)
 		}
 	})
+}
+
+// openBenchTempFile creates a temporary file scoped to the benchmark. The file
+// is closed and removed when the benchmark ends.
+func openBenchTempFile(b *testing.B) *os.File {
+	b.Helper()
+	f, err := os.CreateTemp(b.TempDir(), "accesslog-bench-*.log")
+	if err != nil {
+		b.Fatalf("CreateTemp: %v", err)
+	}
+	b.Cleanup(func() {
+		f.Close() //nolint:errcheck // bench cleanup
+	})
+	return f
+}
+
+// openBenchDevNull opens /dev/null (or the platform equivalent) as a *os.File
+// so the write path exercises a real file descriptor without the cost of
+// persistent filesystem writes. Useful for isolating syscall overhead.
+func openBenchDevNull(b *testing.B) *os.File {
+	b.Helper()
+	f, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	if err != nil {
+		b.Fatalf("open %s: %v", os.DevNull, err)
+	}
+	b.Cleanup(func() {
+		f.Close() //nolint:errcheck // bench cleanup
+	})
+	return f
+}
+
+func commonCtx() *fasthttp.RequestCtx {
+	remoteIP := net.IPv4(10, 1, 2, 3)
+	remoteAddr := &net.TCPAddr{IP: remoteIP, Port: 1234}
+	ctx := &fasthttp.RequestCtx{}
+	ctx.SetRemoteAddr(remoteAddr)
+	ctx.Request.SetRequestURI("/path")
+	ctx.URI().SetUsername("foo")
+	ctx.Response.SetBody([]byte("body"))
+	ctx.Response.Header.SetContentLength(4)
+	return ctx
+}
+
+func combinedCtx() *fasthttp.RequestCtx {
+	ctx := commonCtx()
+	ctx.Request.Header.Set("User-Agent", "accesslog_test")
+	ctx.Request.Header.Set("Referer", "/referer")
+	return ctx
 }
 
 func BenchmarkAccessLog_File(b *testing.B) {
@@ -53,29 +111,25 @@ func BenchmarkAccessLog_Time(b *testing.B) {
 }
 
 func BenchmarkAccessLog_Common(b *testing.B) {
-	remoteIP := net.IPv4(10, 1, 2, 3)
-	remoteAddr := &net.TCPAddr{IP: remoteIP, Port: 1234}
-	ctx := &fasthttp.RequestCtx{}
-	ctx.SetRemoteAddr(remoteAddr)
-	ctx.Request.SetRequestURI("/path")
-	ctx.URI().SetUsername("foo")
-	ctx.Response.SetBody([]byte("body"))
-	ctx.Response.Header.SetContentLength(4)
+	benchmarkAccessLog(b, FormatCommon, commonCtx())
+}
 
-	benchmarkAccessLog(b, FormatCommon, ctx)
+func BenchmarkAccessLog_Common_DevNull(b *testing.B) {
+	benchmarkAccessLogWithSink(b, FormatCommon, commonCtx(), openBenchDevNull(b))
+}
+
+func BenchmarkAccessLog_Common_TempFile(b *testing.B) {
+	benchmarkAccessLogWithSink(b, FormatCommon, commonCtx(), openBenchTempFile(b))
 }
 
 func BenchmarkAccessLog_Combined(b *testing.B) {
-	remoteIP := net.IPv4(10, 1, 2, 3)
-	remoteAddr := &net.TCPAddr{IP: remoteIP, Port: 1234}
-	ctx := &fasthttp.RequestCtx{}
-	ctx.SetRemoteAddr(remoteAddr)
-	ctx.Request.SetRequestURI("/path")
-	ctx.URI().SetUsername("foo")
-	ctx.Request.Header.Set("User-Agent", "accesslog_test")
-	ctx.Request.Header.Set("Referer", "/referer")
-	ctx.Response.SetBody([]byte("body"))
-	ctx.Response.Header.SetContentLength(4)
+	benchmarkAccessLog(b, FormatCombined, combinedCtx())
+}
 
-	benchmarkAccessLog(b, FormatCombined, ctx)
+func BenchmarkAccessLog_Combined_DevNull(b *testing.B) {
+	benchmarkAccessLogWithSink(b, FormatCombined, combinedCtx(), openBenchDevNull(b))
+}
+
+func BenchmarkAccessLog_Combined_TempFile(b *testing.B) {
+	benchmarkAccessLogWithSink(b, FormatCombined, combinedCtx(), openBenchTempFile(b))
 }
