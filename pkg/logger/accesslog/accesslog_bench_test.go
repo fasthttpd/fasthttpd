@@ -11,15 +11,15 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-func benchmarkAccessLog(b *testing.B, format string, ctx *fasthttp.RequestCtx) {
-	benchmarkAccessLogWithSink(b, format, ctx, io.Discard)
+func benchmarkAccessLog(b *testing.B, format string, newCtx func() *fasthttp.RequestCtx) {
+	benchmarkAccessLogWithSink(b, format, newCtx, io.Discard)
 }
 
 // benchmarkAccessLogWithSink drives the Common/Combined workload against an
 // arbitrary sink. The default io.Discard variant measures in-process overhead
 // only; real-file and /dev/null variants expose the cost of the write-through
 // path once the channel/goroutine pipeline is replaced in later sub-PRs.
-func benchmarkAccessLogWithSink(b *testing.B, format string, ctx *fasthttp.RequestCtx, w io.Writer) {
+func benchmarkAccessLogWithSink(b *testing.B, format string, newCtx func() *fasthttp.RequestCtx, w io.Writer) {
 	cfg := config.Config{
 		Host: "localhost",
 		AccessLog: config.AccessLog{
@@ -34,6 +34,7 @@ func benchmarkAccessLogWithSink(b *testing.B, format string, ctx *fasthttp.Reque
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
+		ctx := newCtx()
 		for pb.Next() {
 			l.Collect(ctx)
 			l.Log(ctx)
@@ -89,47 +90,44 @@ func combinedCtx() *fasthttp.RequestCtx {
 	return ctx
 }
 
-func BenchmarkAccessLog_File(b *testing.B) {
+func simpleCtx() *fasthttp.RequestCtx {
 	ctx := &fasthttp.RequestCtx{}
 	ctx.Request.SetRequestURI("/path")
+	return ctx
+}
 
-	benchmarkAccessLog(b, "%f", ctx)
+func BenchmarkAccessLog_File(b *testing.B) {
+	benchmarkAccessLog(b, "%f", simpleCtx)
 }
 
 func BenchmarkAccessLog_Request(b *testing.B) {
-	ctx := &fasthttp.RequestCtx{}
-	ctx.Request.SetRequestURI("/path")
-
-	benchmarkAccessLog(b, "%r", ctx)
+	benchmarkAccessLog(b, "%r", simpleCtx)
 }
 
 func BenchmarkAccessLog_Time(b *testing.B) {
-	ctx := &fasthttp.RequestCtx{}
-	ctx.Request.SetRequestURI("/path")
-
-	benchmarkAccessLog(b, "%t", ctx)
+	benchmarkAccessLog(b, "%t", simpleCtx)
 }
 
 func BenchmarkAccessLog_Common(b *testing.B) {
-	benchmarkAccessLog(b, FormatCommon, commonCtx())
+	benchmarkAccessLog(b, FormatCommon, commonCtx)
 }
 
 func BenchmarkAccessLog_Common_DevNull(b *testing.B) {
-	benchmarkAccessLogWithSink(b, FormatCommon, commonCtx(), openBenchDevNull(b))
+	benchmarkAccessLogWithSink(b, FormatCommon, commonCtx, openBenchDevNull(b))
 }
 
 func BenchmarkAccessLog_Common_TempFile(b *testing.B) {
-	benchmarkAccessLogWithSink(b, FormatCommon, commonCtx(), openBenchTempFile(b))
+	benchmarkAccessLogWithSink(b, FormatCommon, commonCtx, openBenchTempFile(b))
 }
 
 func BenchmarkAccessLog_Combined(b *testing.B) {
-	benchmarkAccessLog(b, FormatCombined, combinedCtx())
+	benchmarkAccessLog(b, FormatCombined, combinedCtx)
 }
 
 func BenchmarkAccessLog_Combined_DevNull(b *testing.B) {
-	benchmarkAccessLogWithSink(b, FormatCombined, combinedCtx(), openBenchDevNull(b))
+	benchmarkAccessLogWithSink(b, FormatCombined, combinedCtx, openBenchDevNull(b))
 }
 
 func BenchmarkAccessLog_Combined_TempFile(b *testing.B) {
-	benchmarkAccessLogWithSink(b, FormatCombined, combinedCtx(), openBenchTempFile(b))
+	benchmarkAccessLogWithSink(b, FormatCombined, combinedCtx, openBenchTempFile(b))
 }

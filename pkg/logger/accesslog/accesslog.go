@@ -1,16 +1,17 @@
 package accesslog
 
 import (
+	"bufio"
 	"io"
 	"net"
 	"os"
 	"regexp"
+	"sync"
 	"time"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/fasthttpd/fasthttpd/pkg/util"
-	"github.com/valyala/bytebufferpool"
 	"github.com/valyala/fasthttp"
 )
 
@@ -56,17 +57,29 @@ type accessLog struct {
 	appendFuncs       []appendFunc
 	collectRequestURI bool
 	addrToPortCache   util.Cache
-	bytesPool         bytebufferpool.Pool
-	bytesQueue        chan *bytebufferpool.ByteBuffer
-	stopQueue         chan bool
+	bufPool           sync.Pool
+	mu                sync.Mutex
+	bw                *bufio.Writer
+	done              chan struct{}
 	closed            bool
 }
 
 func newAccessLog(out logger.Rotator, cfg config.Config) (*accessLog, error) {
+	bufSize := cfg.AccessLog.BufferSize
+	if bufSize <= 0 {
+		bufSize = 4096
+	}
+
 	al := &accessLog{
-		out:        out,
-		bytesQueue: make(chan *bytebufferpool.ByteBuffer, cfg.AccessLog.QueueSize),
-		stopQueue:  make(chan bool),
+		out:  out,
+		bw:   bufio.NewWriterSize(out, bufSize),
+		done: make(chan struct{}),
+		bufPool: sync.Pool{
+			New: func() any {
+				b := make([]byte, 0, 256)
+				return &b
+			},
+		},
 	}
 	return al.init(cfg)
 }
@@ -76,6 +89,13 @@ var timeNow = func() time.Time { return time.Now() }
 
 // Rotate rotate log stream.
 func (l *accessLog) Rotate() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if err := l.bw.Flush(); err != nil {
+		return err
+	}
+
 	return l.out.Rotate()
 }
 
@@ -91,7 +111,11 @@ func (l *accessLog) Close() error {
 	}
 
 	l.closed = true
-	l.stopQueue <- true
+	close(l.done)
+
+	l.mu.Lock()
+	l.bw.Flush() //nolint:errcheck // best-effort flush on close
+	l.mu.Unlock()
 
 	l.appendFuncs = nil
 	l.collectRequestURI = false
@@ -165,7 +189,12 @@ func (l *accessLog) init(cfg config.Config) (*accessLog, error) {
 	}
 	l.appendFuncs = fns
 
-	go l.dequeueLog()
+	flushInterval := time.Duration(cfg.AccessLog.FlushInterval) * time.Millisecond
+	if flushInterval <= 0 {
+		flushInterval = time.Second
+	}
+
+	go l.flushLoop(flushInterval)
 
 	return l, nil
 }
@@ -177,14 +206,18 @@ func (l *accessLog) Collect(ctx *fasthttp.RequestCtx) {
 	}
 }
 
-func (l *accessLog) dequeueLog() {
+func (l *accessLog) flushLoop(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
 	for {
 		select {
-		case <-l.stopQueue:
+		case <-l.done:
 			return
-		case b := <-l.bytesQueue:
-			l.out.Write(b.B) //nolint:errcheck
-			bytebufferpool.Put(b)
+		case <-ticker.C:
+			l.mu.Lock()
+			l.bw.Flush() //nolint:errcheck // periodic best-effort flush
+			l.mu.Unlock()
 		}
 	}
 }
@@ -194,16 +227,20 @@ func (l *accessLog) Log(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	b := l.bytesPool.Get()
-	if cap(b.B) < 256 {
-		b.B = make([]byte, 0, 256)
-	}
+	bp := l.bufPool.Get().(*[]byte)
+	buf := (*bp)[:0]
 
 	for _, fn := range l.appendFuncs {
-		b.B = fn(b.B, ctx)
+		buf = fn(buf, ctx)
 	}
-	b.B = append(b.B, '\n')
-	l.bytesQueue <- b
+	buf = append(buf, '\n')
+
+	l.mu.Lock()
+	_, _ = l.bw.Write(buf)
+	l.mu.Unlock()
+
+	*bp = buf
+	l.bufPool.Put(bp)
 }
 
 func (l *accessLog) portFromAddr(addr string) []byte {
