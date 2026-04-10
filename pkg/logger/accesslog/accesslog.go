@@ -195,6 +195,10 @@ func (l *accessLog) Log(ctx *fasthttp.RequestCtx) {
 	}
 
 	b := l.bytesPool.Get()
+	if cap(b.B) < 256 {
+		b.B = make([]byte, 0, 256)
+	}
+
 	for _, fn := range l.appendFuncs {
 		b.B = fn(b.B, ctx)
 	}
