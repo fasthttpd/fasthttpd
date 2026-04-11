@@ -4,11 +4,22 @@ import (
 	"net"
 	"time"
 
+	"github.com/fasthttpd/fasthttpd/pkg/config"
+	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/valyala/fasthttp"
 )
 
 // FormatJSON is the keyword that selects the preset JSON output format.
 const FormatJSON = "json"
+
+// newJSONAccessLog builds an *accessLog that writes records in the preset
+// JSON format defined by appendJSONLog.
+func newJSONAccessLog(out logger.Rotator, cfg config.Config) (*accessLog, error) {
+	l := newSkeleton(out, cfg)
+	l.appendLine = appendJSONLog
+	l.startFlushLoop(cfg)
+	return l, nil
+}
 
 var xForwardedForKey = []byte("X-Forwarded-For")
 
