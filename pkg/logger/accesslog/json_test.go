@@ -216,7 +216,11 @@ func TestAccessLog_JSON(t *testing.T) {
 			ctx.SetRemoteAddr(remoteAddr)
 			tc.setup(ctx)
 
-			cfg := config.Config{AccessLog: config.AccessLog{Format: FormatJSON}}
+			cfg := config.Config{AccessLog: config.AccessLog{
+				Format: FormatJSON,
+				// Flush every Log() so wroteCh fires immediately.
+				BufferSize: 1,
+			}}
 			l, err := newAccessLog(&logger.NopRotator{Writer: out}, cfg)
 			if err != nil {
 				t.Fatalf("newAccessLog: %v", err)
