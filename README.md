@@ -11,7 +11,7 @@ FastHttpd is a lightweight http server using [valyala/fasthttp](https://github.c
 
 - Serve static files
 - Simple routing
-- Access logging
+- Access logging (NCSA-style or JSON, allocation-free hot path)
 - Reverse proxy
 - Customize headers
 - Support TLS (HTTPS/SSL)
@@ -146,6 +146,7 @@ log:
 
 accessLog:
   output: logs/access.log
+  # NCSA-style format string, or 'json' to enable the structured JSON preset.
   format: '%h %l %u %t "%r" %>s %b'
   rotation:
     maxSize: 100
@@ -314,6 +315,83 @@ BenchmarkRoutes_Prefix       	746245645	        16.05 ns/op	       0 B/op	      
 BenchmarkCachedRoutes_Prefix 	134016280	        89.55 ns/op	       0 B/op	       0 allocs/op
 BenchmarkRoutes_Regexp       	75967437	       158.1 ns/op	       0 B/op	       0 allocs/op
 BenchmarkCachedRoutes_Regexp 	133490258	        89.56 ns/op	       0 B/op	       0 allocs/op
+```
+
+## Access log
+
+FastHttpd writes access logs through a `bufio.Writer` + `sync.Pool` pipeline that
+keeps the formatting hot path allocation-free for both the classic NCSA format
+and the JSON preset.
+
+### NCSA format (default)
+
+`format` accepts an Apache-style format string. The default is the NCSA Common
+Log Format:
+
+```yaml
+accessLog:
+  output: logs/access.log
+  format: '%h %l %u %t "%r" %>s %b'
+```
+
+### JSON preset
+
+Set `format: json` to emit one JSON object per request with the following 15
+fields. The schema is flat `snake_case` so it can be ingested by jq, Loki,
+Elasticsearch, CloudWatch Logs Insights, and similar tools without
+transformation.
+
+```yaml
+accessLog:
+  output: logs/access.log
+  format: json
+  bufferSize: 4096
+  flushInterval: 1000
+```
+
+Sample output (one line, pretty-printed here for readability):
+
+```json
+{
+  "time": "2026-04-11T10:19:13+09:00",
+  "remote_addr": "10.1.2.3:51002",
+  "client_ip": "10.1.2.3",
+  "remote_user": "alice",
+  "method": "GET",
+  "uri": "/path?foo=bar",
+  "proto": "HTTP/1.1",
+  "scheme": "http",
+  "host": "example.com",
+  "status": 200,
+  "size": 1234,
+  "bytes_received": 0,
+  "duration_us": 412,
+  "referer": "https://example.com/",
+  "user_agent": "curl/8.7.1"
+}
+```
+
+Notes:
+
+- `time` is RFC 3339 with the local timezone offset.
+- `client_ip` is the left-most entry of the `X-Forwarded-For` header when
+  present, otherwise the IP portion of the connecting peer.
+- `duration_us` is integer microseconds; the unit is encoded in the key name
+  to avoid ambiguity.
+- `size` is the response body length and `bytes_received` is the request
+  header + body byte count.
+
+### Benchmark
+
+```
+% GOMAXPROCS=10 go test -bench='BenchmarkAccessLog_(Common|Combined|JSON)$' -benchmem -benchtime=3s ./pkg/logger/accesslog/
+goos: darwin
+goarch: arm64
+pkg: github.com/fasthttpd/fasthttpd/pkg/logger/accesslog
+cpu: Apple M4
+BenchmarkAccessLog_Common-10      17854176          190.8 ns/op       0 B/op       0 allocs/op
+BenchmarkAccessLog_Combined-10    17769141          206.1 ns/op       0 B/op       0 allocs/op
+BenchmarkAccessLog_JSON-10        14813068          244.2 ns/op       0 B/op       0 allocs/op
 ```
 
 ## TODO
