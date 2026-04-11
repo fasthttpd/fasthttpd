@@ -187,3 +187,48 @@ func TestBasicAuthFilter(t *testing.T) {
 		}
 	}
 }
+
+// newBenchBasicAuthFilter returns a BasicAuthFilter with a single user,
+// initialised and ready to authenticate against.
+func newBenchBasicAuthFilter(b *testing.B) *BasicAuthFilter {
+	b.Helper()
+	f := &BasicAuthFilter{
+		Realm: DefaultRealm,
+		Users: []*BasicAuthUser{
+			{Name: "foo", Secret: "bar"},
+		},
+	}
+	if err := f.init(); err != nil {
+		b.Fatalf("init: %v", err)
+	}
+	return f
+}
+
+// Each iteration resets the relevant ctx header so repeated calls in the
+// loop do not accumulate state across iterations.
+
+func BenchmarkBasicAuthFilter_Request_OK(b *testing.B) {
+	f := newBenchBasicAuthFilter(b)
+	ctx := &fasthttp.RequestCtx{}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		ctx.Request.Header.Reset()
+		ctx.Request.Header.Set("Authorization", "Basic Zm9vOmJhcg==")
+		f.Request(ctx)
+	}
+}
+
+func BenchmarkBasicAuthFilter_Request_Unauthorized(b *testing.B) {
+	f := newBenchBasicAuthFilter(b)
+	ctx := &fasthttp.RequestCtx{}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		ctx.Request.Header.Reset()
+		ctx.Response.Header.Reset()
+		f.Request(ctx)
+	}
+}
