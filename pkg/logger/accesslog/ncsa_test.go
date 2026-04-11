@@ -225,7 +225,7 @@ func TestAccessLog_NCSA(t *testing.T) {
 			want: `0001-01-01 00:00:00 Mon AM`,
 		},
 	}
-	wroteCh := make(chan bool)
+	wroteCh := make(chan bool, 1)
 	buf := new(bytes.Buffer)
 	out := &io2.Delegator{
 		WriteFunc: func(p []byte) (n int, err error) {
@@ -237,6 +237,9 @@ func TestAccessLog_NCSA(t *testing.T) {
 	for i, test := range tests {
 		buf.Reset()
 		ctx := test.ctx()
+		// Flush every Log() so wroteCh fires immediately instead of waiting
+		// on the background flush ticker.
+		test.cfg.AccessLog.BufferSize = 1
 
 		l, err := newAccessLog(&logger.NopRotator{Writer: out}, test.cfg)
 		if err != nil {
