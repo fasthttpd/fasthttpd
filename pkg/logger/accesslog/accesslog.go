@@ -56,7 +56,6 @@ type accessLog struct {
 	out               logger.Rotator
 	appendFuncs       []appendFunc
 	collectRequestURI bool
-	addrToPortCache   util.Cache
 	bufPool           sync.Pool
 	mu                sync.Mutex
 	bw                *bufio.Writer
@@ -119,7 +118,6 @@ func (l *accessLog) Close() error {
 
 	l.appendFuncs = nil
 	l.collectRequestURI = false
-	l.addrToPortCache = nil
 	if out := l.out; out != nil {
 		l.out = logger.NilRotator
 		if err := out.Close(); err != nil {
@@ -151,12 +149,9 @@ func (l *accessLog) init(cfg config.Config) (*accessLog, error) {
 			fns = append(fns, newAppendResponseHeader(ms[3]))
 		case "p":
 			if ms[3] == "remote" {
-				fns = append(fns, l.appendLpRemote)
+				fns = append(fns, appendLpRemote)
 			} else {
-				fns = append(fns, l.appendLp)
-			}
-			if l.addrToPortCache == nil {
-				l.addrToPortCache = util.NewExpireCache(0)
+				fns = append(fns, appendLp)
 			}
 		case "t":
 			if ms[3] == "" {
@@ -243,31 +238,42 @@ func (l *accessLog) Log(ctx *fasthttp.RequestCtx) {
 	l.bufPool.Put(bp)
 }
 
-func (l *accessLog) portFromAddr(addr string) []byte {
-	key := util.CacheKeyOfString(addr)
-	if portBytes := l.addrToPortCache.Get(key); portBytes != nil {
-		return portBytes.([]byte)
+// appendNetAddr appends the string representation of addr to dst without
+// allocating for the common *net.TCPAddr case.
+func appendNetAddr(dst []byte, addr net.Addr) []byte {
+	if ta, ok := addr.(*net.TCPAddr); ok {
+		if ip4 := ta.IP.To4(); ip4 != nil {
+			dst = fasthttp.AppendIPv4(dst, ip4)
+		} else {
+			dst = append(dst, '[')
+			dst = append(dst, ta.IP.String()...)
+			dst = append(dst, ']')
+		}
+		dst = append(dst, ':')
+		dst = fasthttp.AppendUint(dst, ta.Port)
+		return dst
 	}
-	_, port, err := net.SplitHostPort(addr)
-	if err != nil || port == "0" {
-		l.addrToPortCache.Set(key, []byte{})
-		return nil
-	}
-	portBytes := []byte(port)
-	l.addrToPortCache.Set(key, portBytes)
-	return portBytes
+	return append(dst, addr.String()...)
 }
 
-func (l *accessLog) appendLp(dst []byte, ctx *fasthttp.RequestCtx) []byte {
-	if p := l.portFromAddr(ctx.LocalAddr().String()); len(p) > 0 {
-		return append(dst, p...)
+// portFromAddr extracts the port from addr without allocating for *net.TCPAddr.
+func portFromAddr(addr net.Addr) int {
+	if ta, ok := addr.(*net.TCPAddr); ok {
+		return ta.Port
+	}
+	return 0
+}
+
+func appendLp(dst []byte, ctx *fasthttp.RequestCtx) []byte {
+	if p := portFromAddr(ctx.LocalAddr()); p > 0 {
+		return fasthttp.AppendUint(dst, p)
 	}
 	return appendNil(dst, nil)
 }
 
-func (l *accessLog) appendLpRemote(dst []byte, ctx *fasthttp.RequestCtx) []byte {
-	if p := l.portFromAddr(ctx.RemoteAddr().String()); len(p) > 0 {
-		return append(dst, p...)
+func appendLpRemote(dst []byte, ctx *fasthttp.RequestCtx) []byte {
+	if p := portFromAddr(ctx.RemoteAddr()); p > 0 {
+		return fasthttp.AppendUint(dst, p)
 	}
 	return appendNil(dst, nil)
 }
@@ -392,11 +398,11 @@ var (
 	appendPlus = newAppendBytes([]byte{'+'})
 	// appendLa appends client IP address of the request.
 	appendLa = func(dst []byte, ctx *fasthttp.RequestCtx) []byte {
-		return append(dst, []byte(ctx.RemoteAddr().String())...)
+		return appendNetAddr(dst, ctx.RemoteAddr())
 	}
 	// appendA appends underlying peer IP address of the connection.
 	appendA = func(dst []byte, ctx *fasthttp.RequestCtx) []byte {
-		return append(dst, []byte(ctx.LocalAddr().String())...)
+		return appendNetAddr(dst, ctx.LocalAddr())
 	}
 	// appendB appends size of response in bytes, excluding HTTP headers.
 	appendB = func(dst []byte, ctx *fasthttp.RequestCtx) []byte {

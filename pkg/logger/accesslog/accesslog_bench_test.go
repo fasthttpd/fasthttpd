@@ -131,3 +131,19 @@ func BenchmarkAccessLog_Combined_DevNull(b *testing.B) {
 func BenchmarkAccessLog_Combined_TempFile(b *testing.B) {
 	benchmarkAccessLogWithSink(b, FormatCombined, combinedCtx, openBenchTempFile(b))
 }
+
+func BenchmarkAccessLog_RemoteAddr(b *testing.B) {
+	benchmarkAccessLog(b, "%a", commonCtx)
+}
+
+func BenchmarkAccessLog_LocalAddr(b *testing.B) {
+	benchmarkAccessLog(b, "%A", commonCtx)
+}
+
+func BenchmarkAccessLog_Port(b *testing.B) {
+	benchmarkAccessLog(b, "%p", commonCtx)
+}
+
+func BenchmarkAccessLog_RemotePort(b *testing.B) {
+	benchmarkAccessLog(b, "%{remote}p", commonCtx)
+}
