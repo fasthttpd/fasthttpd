@@ -159,3 +159,15 @@ func BenchmarkAccessLog_JSON_DevNull(b *testing.B) {
 func BenchmarkAccessLog_JSON_TempFile(b *testing.B) {
 	benchmarkAccessLogWithSink(b, FormatJSON, combinedCtx, openBenchTempFile(b))
 }
+
+func BenchmarkAccessLog_LTSV(b *testing.B) {
+	benchmarkAccessLog(b, FormatLTSV, combinedCtx)
+}
+
+func BenchmarkAccessLog_LTSV_DevNull(b *testing.B) {
+	benchmarkAccessLogWithSink(b, FormatLTSV, combinedCtx, openBenchDevNull(b))
+}
+
+func BenchmarkAccessLog_LTSV_TempFile(b *testing.B) {
+	benchmarkAccessLogWithSink(b, FormatLTSV, combinedCtx, openBenchTempFile(b))
+}

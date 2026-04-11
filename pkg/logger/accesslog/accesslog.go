@@ -45,8 +45,11 @@ func NewAccessLog(cfg config.Config) (AccessLog, error) {
 
 // newAccessLog dispatches to the appropriate per-format constructor.
 func newAccessLog(out logger.Rotator, cfg config.Config) (*accessLog, error) {
-	if cfg.AccessLog.Format == FormatJSON {
+	switch cfg.AccessLog.Format {
+	case FormatJSON:
 		return newJSONAccessLog(out, cfg)
+	case FormatLTSV:
+		return newLTSVAccessLog(out, cfg)
 	}
 	return newNCSAAccessLog(out, cfg)
 }
