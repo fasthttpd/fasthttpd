@@ -46,7 +46,7 @@ func NewAccessLog(cfg config.Config) (AccessLog, error) {
 	}
 	l, err := newAccessLog(out, cfg)
 	if err != nil {
-		out.Close() //nolint:errcheck
+		_ = out.Close()
 		return nil, err
 	}
 	return l, nil
@@ -54,7 +54,7 @@ func NewAccessLog(cfg config.Config) (AccessLog, error) {
 
 type accessLog struct {
 	out               logger.Rotator
-	appendFuncs       []appendFunc
+	appendLine        appendFunc
 	collectRequestURI bool
 	bufPool           sync.Pool
 	mu                sync.Mutex
@@ -116,7 +116,7 @@ func (l *accessLog) Close() error {
 	l.bw.Flush() //nolint:errcheck // best-effort flush on close
 	l.mu.Unlock()
 
-	l.appendFuncs = nil
+	l.appendLine = nil
 	l.collectRequestURI = false
 	if out := l.out; out != nil {
 		l.out = logger.NilRotator
@@ -133,6 +133,32 @@ func (l *accessLog) init(cfg config.Config) (*accessLog, error) {
 		format = FormatCommon
 	}
 
+	if format == FormatJSON {
+		l.appendLine = appendJSONLog
+	} else {
+		fns, err := l.parseFormat(format, cfg)
+		if err != nil {
+			return nil, err
+		}
+		l.appendLine = func(dst []byte, ctx *fasthttp.RequestCtx) []byte {
+			for _, fn := range fns {
+				dst = fn(dst, ctx)
+			}
+			return dst
+		}
+	}
+
+	flushInterval := time.Duration(cfg.AccessLog.FlushInterval) * time.Millisecond
+	if flushInterval <= 0 {
+		flushInterval = time.Second
+	}
+
+	go l.flushLoop(flushInterval)
+
+	return l, nil
+}
+
+func (l *accessLog) parseFormat(format string, cfg config.Config) ([]appendFunc, error) {
 	var fns []appendFunc
 	for _, ms := range formatPattern.FindAllStringSubmatch(format, -1) {
 		k := ms[4]
@@ -182,16 +208,7 @@ func (l *accessLog) init(cfg config.Config) (*accessLog, error) {
 			}
 		}
 	}
-	l.appendFuncs = fns
-
-	flushInterval := time.Duration(cfg.AccessLog.FlushInterval) * time.Millisecond
-	if flushInterval <= 0 {
-		flushInterval = time.Second
-	}
-
-	go l.flushLoop(flushInterval)
-
-	return l, nil
+	return fns, nil
 }
 
 // Collect stores Request-URI to ctx as UserValue if '%r' is specified in format.
@@ -225,9 +242,7 @@ func (l *accessLog) Log(ctx *fasthttp.RequestCtx) {
 	bp := l.bufPool.Get().(*[]byte)
 	buf := (*bp)[:0]
 
-	for _, fn := range l.appendFuncs {
-		buf = fn(buf, ctx)
-	}
+	buf = l.appendLine(buf, ctx)
 	buf = append(buf, '\n')
 
 	l.mu.Lock()

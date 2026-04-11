@@ -147,3 +147,15 @@ func BenchmarkAccessLog_Port(b *testing.B) {
 func BenchmarkAccessLog_RemotePort(b *testing.B) {
 	benchmarkAccessLog(b, "%{remote}p", commonCtx)
 }
+
+func BenchmarkAccessLog_JSON(b *testing.B) {
+	benchmarkAccessLog(b, FormatJSON, combinedCtx)
+}
+
+func BenchmarkAccessLog_JSON_DevNull(b *testing.B) {
+	benchmarkAccessLogWithSink(b, FormatJSON, combinedCtx, openBenchDevNull(b))
+}
+
+func BenchmarkAccessLog_JSON_TempFile(b *testing.B) {
+	benchmarkAccessLogWithSink(b, FormatJSON, combinedCtx, openBenchTempFile(b))
+}
