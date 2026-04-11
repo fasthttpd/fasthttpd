@@ -5,13 +5,13 @@
 
 FastHttpd is a lightweight http server using [valyala/fasthttp](https://github.com/valyala/fasthttp).
 
-> FastHttpd and fasthttp are versioned independently. FastHttpd **v0.6.0** is built against fasthttp **v1.70.0**.
+> FastHttpd and fasthttp are versioned independently. FastHttpd **v0.7.0** is built against fasthttp **v1.70.0**.
 
 ## Features
 
 - Serve static files
 - Simple routing
-- Access logging (NCSA-style or JSON, allocation-free hot path)
+- Access logging (NCSA-style, JSON or LTSV, allocation-free hot path)
 - Reverse proxy
 - Customize headers
 - Support TLS (HTTPS/SSL)
@@ -32,7 +32,7 @@ go install github.com/fasthttpd/fasthttpd/cmd/fasthttpd@latest
 Download binary from [release](https://github.com/fasthttpd/fasthttpd/releases).
 
 ```sh
-VERSION=0.6.0 GOOS=linux GOARCH=amd64; \
+VERSION=0.7.0 GOOS=linux GOARCH=amd64; \
   curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | \
   tar xz fasthttpd && \
   sudo mv fasthttpd /usr/sbin
@@ -53,7 +53,7 @@ brew install fasthttpd
 Download deb or rpm from [release](https://github.com/fasthttpd/fasthttpd/releases), and then execute `apt install` or `yum install`. 
 
 ```sh
-VERSION=0.6.0 ARCH=amd64; \
+VERSION=0.7.0 ARCH=amd64; \
   curl -fsSL -O "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${ARCH}.deb"
 sudo apt install "./fasthttpd_${VERSION}_${ARCH}.deb"
 ```
@@ -146,7 +146,7 @@ log:
 
 accessLog:
   output: logs/access.log
-  # NCSA-style format string, or 'json' to enable the structured JSON preset.
+  # NCSA-style format string, or 'json' / 'ltsv' to enable a structured preset.
   format: '%h %l %u %t "%r" %>s %b'
   rotation:
     maxSize: 100
@@ -320,8 +320,8 @@ BenchmarkCachedRoutes_Regexp 	133490258	        89.56 ns/op	       0 B/op	      
 ## Access log
 
 FastHttpd writes access logs through a `bufio.Writer` + `sync.Pool` pipeline that
-keeps the formatting hot path allocation-free for both the classic NCSA format
-and the JSON preset.
+keeps the formatting hot path allocation-free for the classic NCSA format, the
+JSON preset and the LTSV preset.
 
 ### NCSA format (default)
 
@@ -381,17 +381,54 @@ Notes:
 - `size` is the response body length and `bytes_received` is the request
   header + body byte count.
 
+### LTSV preset
+
+Set `format: ltsv` to emit one [Labeled Tab-separated
+Values](http://ltsv.org/) record per request. The 13-field schema follows the
+nginx / fluentd LTSV convention, so existing parsers and log forwarders
+ingest it without configuration.
+
+```yaml
+accessLog:
+  output: logs/access.log
+  format: ltsv
+  bufferSize: 4096
+  flushInterval: 1000
+```
+
+Sample output (one line, wrapped here for readability):
+
+```
+time:2026-04-11T10:19:13+09:00	host:10.1.2.3	forwardedfor:	user:alice
+	req:GET /path?foo=bar HTTP/1.1	scheme:http	vhost:example.com
+	status:200	size:1234	reqsize:0	reqtime_microsec:412
+	referer:https://example.com/	ua:curl/8.7.1
+```
+
+Notes:
+
+- `host` is the direct peer IP (without port), matching nginx's `$remote_addr`.
+- `forwardedfor` is the raw `X-Forwarded-For` header value; unlike the JSON
+  preset, no left-most derivation is performed.
+- `req` combines the method, request URI and protocol NCSA-style.
+- Empty string fields are written as empty values, not `-`, following pure
+  LTSV convention.
+- Any `TAB`, `LF` or `CR` byte inside a string value is replaced with a
+  single space so a crafted header cannot break the LTSV line structure
+  (equivalent to nginx's `escape=default`).
+
 ### Benchmark
 
 ```
-% GOMAXPROCS=10 go test -bench='BenchmarkAccessLog_(Common|Combined|JSON)$' -benchmem -benchtime=3s ./pkg/logger/accesslog/
+% GOMAXPROCS=10 go test -bench='BenchmarkAccessLog_(Common|Combined|JSON|LTSV)$' -benchmem -benchtime=3s ./pkg/logger/accesslog/
 goos: darwin
 goarch: arm64
 pkg: github.com/fasthttpd/fasthttpd/pkg/logger/accesslog
 cpu: Apple M4
-BenchmarkAccessLog_Common-10      17854176          190.8 ns/op       0 B/op       0 allocs/op
-BenchmarkAccessLog_Combined-10    17769141          206.1 ns/op       0 B/op       0 allocs/op
-BenchmarkAccessLog_JSON-10        14813068          244.2 ns/op       0 B/op       0 allocs/op
+BenchmarkAccessLog_Common-10      17620472          187.6 ns/op       0 B/op       0 allocs/op
+BenchmarkAccessLog_Combined-10    17296656          209.6 ns/op       0 B/op       0 allocs/op
+BenchmarkAccessLog_JSON-10        14670214          243.3 ns/op       0 B/op       0 allocs/op
+BenchmarkAccessLog_LTSV-10        17862510          201.7 ns/op       0 B/op       0 allocs/op
 ```
 
 ## TODO
