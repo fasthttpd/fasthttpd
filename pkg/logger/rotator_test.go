@@ -56,7 +56,7 @@ func TestRotateShared(t *testing.T) {
 		MaxSize:    1,
 		MaxBackups: 2,
 		MaxAge:     3,
-		Compress:   true,
+		Compress:   false,
 		LocalTime:  true,
 	})
 	if err != nil {
