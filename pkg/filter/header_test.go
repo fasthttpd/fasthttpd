@@ -108,3 +108,62 @@ func TestHeaderFilter(t *testing.T) {
 		}
 	}
 }
+
+// newBenchHeaderFilter returns a HeaderFilter covering the mutation shapes
+// we want to measure for allocations: set, add and del on both the request
+// and response sides.
+func newBenchHeaderFilter(b *testing.B) Filter {
+	b.Helper()
+	f, err := NewHeaderFilter(tree.Map{
+		"request": tree.Map{
+			"set": tree.Map{
+				"X-Request-ID": tree.ToValue("bench"),
+			},
+			"del": tree.ToArrayValues("X-Forwarded-For"),
+		},
+		"response": tree.Map{
+			"set": tree.Map{
+				"Cache-Control": tree.ToValue("private, max-age=3600"),
+			},
+			"add": tree.Map{
+				"X-Frame-Options": tree.ToValue("DENY"),
+			},
+			"del": tree.ToArrayValues("Server"),
+		},
+	})
+	if err != nil {
+		b.Fatalf("NewHeaderFilter: %v", err)
+	}
+	return f
+}
+
+// Each iteration below resets the per-ctx header before invoking the
+// filter so that repeated Add mutations do not accumulate across
+// iterations. This mirrors production, where every request owns a fresh
+// RequestCtx.
+
+func BenchmarkHeaderFilter_Request(b *testing.B) {
+	f := newBenchHeaderFilter(b)
+	ctx := &fasthttp.RequestCtx{}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		ctx.Request.Header.Reset()
+		ctx.Request.Header.Set("X-Forwarded-For", "10.0.0.1")
+		f.Request(ctx)
+	}
+}
+
+func BenchmarkHeaderFilter_Response(b *testing.B) {
+	f := newBenchHeaderFilter(b)
+	ctx := &fasthttp.RequestCtx{}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		ctx.Response.Header.Reset()
+		ctx.Response.Header.Set("Server", "fasthttpd")
+		f.Response(ctx)
+	}
+}

@@ -219,3 +219,78 @@ func TestContent_Handle(t *testing.T) {
 		}()
 	}
 }
+
+// newBenchContentHandler builds a Content handler backed by the supplied
+// config and asserts it constructs cleanly.
+func newBenchContentHandler(b *testing.B, cfg tree.Map) fasthttp.RequestHandler {
+	b.Helper()
+	fn, err := NewContentHandler(cfg, logger.NilLogger)
+	if err != nil {
+		b.Fatalf("NewContentHandler: %v", err)
+	}
+	return fn
+}
+
+// Each iteration resets the response and re-seeds the request URI before
+// invoking the handler, so repeated Set/Add calls do not accumulate state
+// across iterations.
+
+func BenchmarkContent_Handle_Unconditional(b *testing.B) {
+	fn := newBenchContentHandler(b, tree.Map{
+		"headers": tree.Map{
+			"Content-Type": tree.ToValue("text/plain"),
+		},
+		"body": tree.ToValue("hello"),
+	})
+	ctx := &fasthttp.RequestCtx{}
+	ctx.Request.SetRequestURI("/hello")
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		ctx.Response.Reset()
+		fn(ctx)
+	}
+}
+
+func BenchmarkContent_Handle_PathCondition(b *testing.B) {
+	fn := newBenchContentHandler(b, tree.Map{
+		"body": tree.ToValue("default"),
+		"conditions": tree.Array{
+			tree.Map{
+				"path": tree.ToValue("/good-morning"),
+				"body": tree.ToValue("good morning"),
+			},
+		},
+	})
+	ctx := &fasthttp.RequestCtx{}
+	ctx.Request.SetRequestURI("/good-morning")
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		ctx.Response.Reset()
+		fn(ctx)
+	}
+}
+
+func BenchmarkContent_Handle_QueryCondition(b *testing.B) {
+	fn := newBenchContentHandler(b, tree.Map{
+		"body": tree.ToValue("default"),
+		"conditions": tree.Array{
+			tree.Map{
+				"queryStringContains": tree.ToValue("a=1&c=3"),
+				"body":                tree.ToValue("matched"),
+			},
+		},
+	})
+	ctx := &fasthttp.RequestCtx{}
+	ctx.Request.SetRequestURI("/hello?a=1&b=2&c=3")
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		ctx.Response.Reset()
+		fn(ctx)
+	}
+}
