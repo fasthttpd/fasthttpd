@@ -1,42 +1,12 @@
 package handler
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
 )
-
-func TestNewContent(t *testing.T) {
-	tests := []struct {
-		cfg  tree.Map
-		want *Content
-	}{
-		{
-			cfg: tree.Map{
-				"headers": tree.Map{"Content-Type": tree.ToValue("text/plain")},
-				"body":    tree.ToValue("Hello"),
-			},
-			want: &Content{
-				handlerCfg: tree.Map{
-					"headers": tree.Map{"Content-Type": tree.ToValue("text/plain")},
-					"body":    tree.ToValue("Hello"),
-				},
-			},
-		},
-	}
-	for i, test := range tests {
-		got, err := NewContent(test.cfg)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !reflect.DeepEqual(got, test.want) {
-			t.Errorf("tests[%d] unexpected content %v; want %v", i, got, test.want)
-		}
-	}
-}
 
 func TestContent_Handle(t *testing.T) {
 	tests := []struct {

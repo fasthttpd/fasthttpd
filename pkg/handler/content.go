@@ -11,8 +11,46 @@ import (
 )
 
 // Content represents a handler that provides a simple content.
+//
+// The config tree is walked once at construction time and the result is
+// stored as plain Go values so that Handle never reaches back into the
+// tree.Map hierarchy on the hot path. This keeps per-request work at
+// zero allocations, matching the fasthttp baseline.
 type Content struct {
-	handlerCfg tree.Map
+	defaultResponse contentResponse
+	conditions      []contentCondition
+}
+
+type contentHeader struct {
+	key, value []byte
+}
+
+type contentResponse struct {
+	headers    []contentHeader
+	body       []byte
+	statusCode int
+	hasStatus  bool
+}
+
+type contentConditionKind uint8
+
+const (
+	condKindNone contentConditionKind = iota
+	condKindPath
+	condKindQuery
+	condKindPercentage
+)
+
+type contentQueryMatch struct {
+	key, value []byte
+}
+
+type contentCondition struct {
+	kind         contentConditionKind
+	path         []byte
+	queryMatches []contentQueryMatch
+	percentage   int
+	response     contentResponse
 }
 
 var _ fasthttp.RequestHandler = (*Content)(nil).Handle
@@ -20,18 +58,46 @@ var _ fasthttp.RequestHandler = (*Content)(nil).Handle
 // NewContent creates a new Content that provides a simple content.
 // The handlerCfg can be specified 'body' string and 'headers' map.
 func NewContent(handlerCfg tree.Map) (*Content, error) {
-	return &Content{handlerCfg: handlerCfg}, nil
+	h := &Content{
+		defaultResponse: buildContentResponse(handlerCfg, nil),
+	}
+	if conds := handlerCfg.Get("conditions").Array(); len(conds) > 0 {
+		h.conditions = make([]contentCondition, 0, len(conds))
+		for _, c := range conds {
+			h.conditions = append(h.conditions, buildContentCondition(c.Map(), handlerCfg))
+		}
+	}
+	return h, nil
 }
 
-func (h *Content) outputHeaders(ctx *fasthttp.RequestCtx, cfg tree.Map) {
-	headers := cfg.Get("headers")
-	if headers.IsNil() {
-		headers = h.handlerCfg.Get("headers")
+// buildContentResponse extracts body / headers / status from cfg. When cfg
+// does not declare headers, it inherits them from fallback (the root
+// handler config), matching the pre-refactor fallback rule.
+func buildContentResponse(cfg, fallback tree.Map) contentResponse {
+	r := contentResponse{}
+	if cfg.Has("body") {
+		r.body = []byte(cfg.Get("body").Value().String())
 	}
+	if cfg.Has("status") {
+		r.hasStatus = true
+		r.statusCode = cfg.Get("status").Value().Int()
+	}
+	headers := cfg.Get("headers")
+	if headers.IsNil() && fallback != nil {
+		headers = fallback.Get("headers")
+	}
+	r.headers = appendContentHeaders(nil, headers)
+	return r
+}
+
+func appendContentHeaders(dst []contentHeader, headers tree.Node) []contentHeader {
 	switch headers.Type() {
 	case tree.TypeMap:
 		for k, v := range headers.Map() {
-			ctx.Response.Header.Set(k, v.Value().String())
+			dst = append(dst, contentHeader{
+				key:   []byte(k),
+				value: []byte(v.Value().String()),
+			})
 		}
 	case tree.TypeArray:
 		for _, v := range headers.Array() {
@@ -39,23 +105,47 @@ func (h *Content) outputHeaders(ctx *fasthttp.RequestCtx, cfg tree.Map) {
 			case tree.TypeStringValue:
 				kv := strings.SplitN(v.Value().String(), ": ", 2)
 				if len(kv) == 2 {
-					ctx.Response.Header.Add(kv[0], kv[1])
+					dst = append(dst, contentHeader{
+						key:   []byte(kv[0]),
+						value: []byte(kv[1]),
+					})
 				}
 			case tree.TypeMap:
 				for kk, vv := range v.Map() {
-					ctx.Response.Header.Add(kk, vv.Value().String())
+					dst = append(dst, contentHeader{
+						key:   []byte(kk),
+						value: []byte(vv.Value().String()),
+					})
 				}
 			}
 		}
 	}
+	return dst
 }
 
-func (h *Content) output(ctx *fasthttp.RequestCtx, cfg tree.Map) {
-	h.outputHeaders(ctx, cfg)
-	ctx.Response.SetBody([]byte(cfg.Get("body").Value().String()))
-	if cfg.Has("status") {
-		ctx.Response.SetStatusCode(cfg.Get("status").Value().Int())
+func buildContentCondition(cfg, fallback tree.Map) contentCondition {
+	cc := contentCondition{response: buildContentResponse(cfg, fallback)}
+	switch {
+	case cfg.Has("path"):
+		cc.kind = condKindPath
+		cc.path = []byte(cfg.Get("path").Value().String())
+	case cfg.Has("queryStringContains"):
+		cc.kind = condKindQuery
+		args := &fasthttp.Args{}
+		args.Parse(cfg.Get("queryStringContains").Value().String())
+		for k, v := range args.All() {
+			cc.queryMatches = append(cc.queryMatches, contentQueryMatch{
+				key:   append([]byte(nil), k...),
+				value: append([]byte(nil), v...),
+			})
+		}
+	default:
+		if pct := cfg.Get("percentage").Value().Int(); pct > 0 {
+			cc.kind = condKindPercentage
+			cc.percentage = pct
+		}
 	}
+	return cc
 }
 
 var contentRandomPercentage = func() int {
@@ -64,36 +154,49 @@ var contentRandomPercentage = func() int {
 
 // Handle sets headers and body to the provided ctx.
 func (h *Content) Handle(ctx *fasthttp.RequestCtx) {
-	for _, condCfg := range h.handlerCfg.Get("conditions").Array() {
-		if condCfg.Has("path") {
-			if string(ctx.Path()) == condCfg.Get("path").Value().String() {
-				h.output(ctx, condCfg.Map())
+	for i := range h.conditions {
+		cond := &h.conditions[i]
+		switch cond.kind {
+		case condKindPath:
+			if bytes.Equal(ctx.Path(), cond.path) {
+				cond.response.writeTo(ctx)
 				return
 			}
-		} else if condCfg.Has("queryStringContains") {
-			matches := true
+		case condKindQuery:
 			args := ctx.Request.URI().QueryArgs()
-			condArgs := fasthttp.AcquireArgs()
-			condArgs.Parse(condCfg.Get("queryStringContains").Value().String())
-			for key, value := range condArgs.All() {
-				if !bytes.Equal(args.PeekBytes(key), value) {
+			matches := true
+			for j := range cond.queryMatches {
+				qm := &cond.queryMatches[j]
+				if !bytes.Equal(args.PeekBytes(qm.key), qm.value) {
 					matches = false
 					break
 				}
 			}
-			fasthttp.ReleaseArgs(condArgs)
 			if matches {
-				h.output(ctx, condCfg.Map())
+				cond.response.writeTo(ctx)
 				return
 			}
-		} else if percentage := condCfg.Get("percentage").Value().Int(); percentage > 0 {
-			if contentRandomPercentage() <= percentage {
-				h.output(ctx, condCfg.Map())
+		case condKindPercentage:
+			if contentRandomPercentage() <= cond.percentage {
+				cond.response.writeTo(ctx)
 				return
 			}
 		}
 	}
-	h.output(ctx, h.handlerCfg)
+	h.defaultResponse.writeTo(ctx)
+}
+
+func (r *contentResponse) writeTo(ctx *fasthttp.RequestCtx) {
+	for i := range r.headers {
+		hdr := &r.headers[i]
+		ctx.Response.Header.AddBytesKV(hdr.key, hdr.value)
+	}
+	if r.body != nil {
+		ctx.Response.SetBodyRaw(r.body)
+	}
+	if r.hasStatus {
+		ctx.Response.SetStatusCode(r.statusCode)
+	}
 }
 
 // NewContentHandler creates a new fasthttp.RequestHandler via Content.Handle.
