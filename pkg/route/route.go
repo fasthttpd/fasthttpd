@@ -146,9 +146,10 @@ func NewRoutes(cfg config.Config) (*Routes, error) {
 	}
 	rs := &Routes{routes: routes}
 	if cfg.RoutesCache.Enable {
-		rs.cache = util.NewExpireCacheInterval(
+		rs.cache = util.NewExpireCacheIntervalMax(
 			int64(cfg.RoutesCache.Expire),
 			int64(cfg.RoutesCache.Interval),
+			cfg.RoutesCache.MaxEntries,
 		)
 		rs.cache.OnRelease(onResultReleased)
 	}
