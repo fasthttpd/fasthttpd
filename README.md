@@ -101,7 +101,7 @@ Examples
 
 ## Configuration
 
-For more information, refer to [fasthttpd.org/configuration](https://fasthttpd.org/configuration).
+For the full reference, see [docs/configuration.md](docs/configuration.md).
 For enabling Let's Encrypt (autocert), see [examples/config.autocert.yaml](examples/config.autocert.yaml).
 
 The following is a minimal configuration built into fasthttpd.
@@ -123,161 +123,7 @@ routes:
     handler: static
 ```
 
-The following is a configuration that uses most of the current FastHttpd features.
-
-```yaml
-host: localhost
-# NOTE: Define listen addr. It is supported ipv6 `[::1]:8080`
-listen: ':8080'
-root: ./public
-
-# Define fasthttp.Server settings.
-server:
-  name: fasthttpd
-  readBufferSize: 4096
-  writeBufferSize: 4096
-
-log:
-  output: logs/error.log
-  # NOTE: Flags supports date|time|microseconds
-  flags: [date, time]
-  rotation:
-    maxSize: 100
-
-accessLog:
-  output: logs/access.log
-  # NCSA-style format string, or 'json' / 'ltsv' to enable a structured preset.
-  format: '%h %l %u %t "%r" %>s %b'
-  rotation:
-    maxSize: 100
-    maxBackups: 14
-    maxAge: 28
-    compress: true
-    localTime: true
- 
-# Define custom error pages (x matches [0-9])
-errorPages:
-  '404': /err/404.html
-  '5xx': /err/5xx.html
-
-# Define named filters
-filters:
-
-  'auth':
-    type: basicAuth
-    users:
-      # WARNING: It is unsafe to define plain secrets. It is recommended for development use only.
-      - name: fast
-        secret: httpd
-    usersFile: ./users.yaml
-
-  'cache':
-    type: header
-    response:
-      set:
-        'Cache-Control': 'private, max-age=3600'
-
-# Define named handlers
-handlers:
-
-  'static':
-    type: fs
-    indexNames: [index.html]
-    generateIndexPages: false
-    compress: true
-    compressRoot: ./compressed
-
-  'static-overwrite':
-    type: fs
-    indexNames: [index.html]
-    root: ./public-overwrite
-  
-  'hello':
-    type: content
-    headers:
-      'Content-Type': 'text/plain; charset=utf-8'
-    body: Hello FastHttpd
-    conditions:
-      - path: '/hello/world'
-        body: Hello world
-      - queryStringContains: 'time=morning'
-        body: Good morning FastHttpd
-      - percentage: 10
-        body: 10% hit FastHttpd
-
-# The routes are processed in sequence and interrupted when the status or the handler is specified.
-routes:
-
-  # Allows GET, POST, HEAD only.
-  - methods: [PUT, DELETE, CONNECT, OPTIONS, TRACE, PATCH]
-    status: 405
-    statusMessage: 'Method not allowed'
-
-  # Route to /index.html.
-  - path: /
-    match: equal
-    handler: static
-
-  # Redirect to external url with status code 302.
-  - path: /redirect-external
-    match: equal
-    rewrite: http://example.com/
-    status: 302
-
-  # Redirect to internal uri with status code 302 and appendQueryString.
-  # If "GET /redirect-internal?name=value" is requested then it redirect to "/internal?foo=bar&name=value"
-  - path: /redirect-internal
-    match: equal
-    rewrite: /internal?foo=bar
-    rewriteAppendQueryString: true
-    status: 302
-  
-  # Route to static-overwrite resources using regexp.
-  - path: .*\.(js|css|jpg|png|gif|ico)$
-    match: regexp
-    filters: [cache]
-    methods: [GET, HEAD]
-    handler: static-overwrite
-    nextIfNotFound: true
-  
-  # Route to static resources using regexp.
-  - path: .*\.(js|css|jpg|png|gif|ico)$
-    match: regexp
-    filters: [cache]
-    methods: [GET, HEAD]
-    handler: static
-
-  # Rewrite the path and route to next (no handler and no status).
-  - path: ^/view/(.+)
-    match: regexp
-    rewrite: /view?id=$1
-
-  # Other requests are routed to hello with auth filter.
-  - filters: [auth]
-    handler: hello
-
-routesCache:
-  enable: true
-  expire: 60000
-
----
-
-host: localhost
-listen: ':8443'
-
-ssl:
-  certFile: ./ssl/localhost.crt
-  keyFile: ./ssl/localhost.key
-
-handlers:
-  'backend':
-    type: proxy
-    url: 'http://localhost:8080'
-
-routes:
-  - path: /
-    handler: backend
-```
+For a fuller configuration that exercises most of FastHttpd's features, see [docs/configuration.md](docs/configuration.md).
 
 ## Override configuration using edit option
 
@@ -319,103 +165,9 @@ BenchmarkCachedRoutes_Regexp 	133490258	        89.56 ns/op	       0 B/op	      
 
 ## Access log
 
-FastHttpd writes access logs through a `bufio.Writer` + `sync.Pool` pipeline that
-keeps the formatting hot path allocation-free for the classic NCSA format, the
-JSON preset and the LTSV preset.
+FastHttpd writes access logs through a `bufio.Writer` + `sync.Pool` pipeline that keeps the formatting hot path allocation-free for the classic NCSA format, the JSON preset and the LTSV preset.
 
-### NCSA format (default)
-
-`format` accepts an Apache-style format string. The default is the NCSA Common
-Log Format:
-
-```yaml
-accessLog:
-  output: logs/access.log
-  format: '%h %l %u %t "%r" %>s %b'
-```
-
-### JSON preset
-
-Set `format: json` to emit one JSON object per request with the following 15
-fields. The schema is flat `snake_case` so it can be ingested by jq, Loki,
-Elasticsearch, CloudWatch Logs Insights, and similar tools without
-transformation.
-
-```yaml
-accessLog:
-  output: logs/access.log
-  format: json
-  bufferSize: 4096
-  flushInterval: 1000
-```
-
-Sample output (one line, pretty-printed here for readability):
-
-```json
-{
-  "time": "2026-04-11T10:19:13+09:00",
-  "remote_addr": "10.1.2.3:51002",
-  "client_ip": "10.1.2.3",
-  "remote_user": "alice",
-  "method": "GET",
-  "uri": "/path?foo=bar",
-  "proto": "HTTP/1.1",
-  "scheme": "http",
-  "host": "example.com",
-  "status": 200,
-  "size": 1234,
-  "bytes_received": 0,
-  "duration_us": 412,
-  "referer": "https://example.com/",
-  "user_agent": "curl/8.7.1"
-}
-```
-
-Notes:
-
-- `time` is RFC 3339 with the local timezone offset.
-- `client_ip` is the left-most entry of the `X-Forwarded-For` header when
-  present, otherwise the IP portion of the connecting peer.
-- `duration_us` is integer microseconds; the unit is encoded in the key name
-  to avoid ambiguity.
-- `size` is the response body length and `bytes_received` is the request
-  header + body byte count.
-
-### LTSV preset
-
-Set `format: ltsv` to emit one [Labeled Tab-separated
-Values](http://ltsv.org/) record per request. The 13-field schema follows the
-nginx / fluentd LTSV convention, so existing parsers and log forwarders
-ingest it without configuration.
-
-```yaml
-accessLog:
-  output: logs/access.log
-  format: ltsv
-  bufferSize: 4096
-  flushInterval: 1000
-```
-
-Sample output (one line, wrapped here for readability):
-
-```
-time:2026-04-11T10:19:13+09:00	host:10.1.2.3	forwardedfor:	user:alice
-	req:GET /path?foo=bar HTTP/1.1	scheme:http	vhost:example.com
-	status:200	size:1234	reqsize:0	reqtime_microsec:412
-	referer:https://example.com/	ua:curl/8.7.1
-```
-
-Notes:
-
-- `host` is the direct peer IP (without port), matching nginx's `$remote_addr`.
-- `forwardedfor` is the raw `X-Forwarded-For` header value; unlike the JSON
-  preset, no left-most derivation is performed.
-- `req` combines the method, request URI and protocol NCSA-style.
-- Empty string fields are written as empty values, not `-`, following pure
-  LTSV convention.
-- Any `TAB`, `LF` or `CR` byte inside a string value is replaced with a
-  single space so a crafted header cannot break the LTSV line structure
-  (equivalent to nginx's `escape=default`).
+See [docs/access-log.md](docs/access-log.md) for format options, JSON / LTSV schema and field-level notes.
 
 ### Benchmark
 
@@ -430,11 +182,6 @@ BenchmarkAccessLog_Combined-10    17296656          209.6 ns/op       0 B/op    
 BenchmarkAccessLog_JSON-10        14670214          243.3 ns/op       0 B/op       0 allocs/op
 BenchmarkAccessLog_LTSV-10        17862510          201.7 ns/op       0 B/op       0 allocs/op
 ```
-
-## TODO
-
-- Support HTTP/3
-- Benchmark reports
 
 ## Third-party library licenses
 
