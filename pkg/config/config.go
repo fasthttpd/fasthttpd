@@ -186,11 +186,16 @@ type Route struct {
 	NextIfNotFound           bool     `yaml:"nextIfNotFound"`
 }
 
-// RoutesCache represents a configuration of route cache.
+// RoutesCache represents a configuration of route cache. MaxEntries
+// caps the cache at a fixed number of entries; when zero or negative
+// the cache is unbounded (pre-existing behavior). When the cap is
+// reached, Set on a new key is dropped so that already-cached hot
+// paths survive adversarial unique-key floods.
 type RoutesCache struct {
-	Enable   bool `yaml:"enable"`
-	Expire   int  `yaml:"expire"`
-	Interval int  `yaml:"interval"`
+	Enable     bool `yaml:"enable"`
+	Expire     int  `yaml:"expire"`
+	Interval   int  `yaml:"interval"`
+	MaxEntries int  `yaml:"maxEntries"`
 }
 
 // UnmarshalYAMLPath decodes path as multi Config YAML documents file.
