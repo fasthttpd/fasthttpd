@@ -106,79 +106,91 @@ func CacheKeyOfString(s string) CacheKey {
 
 // Cache is an interface that defines accessor of the cache.
 type Cache interface {
-	Get(key CacheKey) interface{}
-	Set(key CacheKey, value interface{})
+	Get(key CacheKey) any
+	Set(key CacheKey, value any)
 	Del(key CacheKey)
 	Len() int
 	// OnRelease sets a callback that will be called on the key is released.
-	OnRelease(cb func(key CacheKey, value interface{}))
+	OnRelease(cb func(key CacheKey, value any))
 }
 
 const (
-	// defaultExpire is 5 * 60 * 1000 ms (5 min)
-	defaultExpire = 5 * 60 * 1000
-	// defaultInterval is 60 * 1000 ms (1 min)
-	defaultInterval = 60 * 1000
+	// defaultCacheExpire is 5 * 60 * 1000 ms (5 min)
+	defaultCacheExpire = 5 * 60 * 1000
+	// defaultCacheInterval is 60 * 1000 ms (1 min)
+	defaultCacheInterval = 60 * 1000
+	// defaultCacheStoreSize is the initial map capacity used when the
+	// caller does not specify MaxEntries.
+	defaultCacheStoreSize = 1024
 )
 
-var expireCacheNow = func() int64 {
+// cacheNow returns the current time in milliseconds since the Unix
+// epoch. Tests swap it to inject a deterministic clock.
+var cacheNow = func() int64 {
 	return time.Now().UnixMilli()
 }
 
-type expireCacheValue struct {
-	value interface{}
+type cacheValue struct {
+	value any
 	peek  int64
 }
 
-type expireCache struct {
-	store     map[CacheKey]*expireCacheValue
+type cache struct {
+	store     map[CacheKey]*cacheValue
 	expire    int64
 	interval  int64
 	next      int64
 	max       int
 	mutex     sync.Mutex
-	onRelease func(key CacheKey, value interface{})
+	onRelease func(key CacheKey, value any)
 }
 
-var _ Cache = (*expireCache)(nil)
+var _ Cache = (*cache)(nil)
 
-// NewExpireCache returns a new cache with the specified expire (ms),
-// default interval 1 min, and no entry limit.
-func NewExpireCache(expire int64) Cache {
-	return NewExpireCacheIntervalMax(expire, 0, 0)
-}
-
-// NewExpireCacheInterval returns a new cache with the specified expire
-// (ms) and interval (ms), and no entry limit.
-func NewExpireCacheInterval(expire, interval int64) Cache {
-	return NewExpireCacheIntervalMax(expire, interval, 0)
-}
-
-// NewExpireCacheIntervalMax returns a new cache with the specified
-// expire (ms), interval (ms), and maxEntries.
+// CacheConfig configures a Cache produced by NewCache.
 //
-// If maxEntries is zero or negative the cache is unbounded. When the
-// cache has reached maxEntries, Set on a new key is dropped (the
-// existing entries are preserved); this prioritizes already-cached hot
-// paths over adversarial unique-key floods.
-func NewExpireCacheIntervalMax(expire, interval int64, maxEntries int) Cache {
-	if expire <= 0 {
-		expire = defaultExpire
+// All durations are in milliseconds. Zero (or negative) values for
+// Expire and Interval fall back to package defaults; a non-positive
+// MaxEntries means the cache is unbounded.
+type CacheConfig struct {
+	// Expire is the entry TTL in milliseconds. An entry whose peek
+	// timestamp is older than Expire is removed on the next eviction
+	// pass.
+	Expire int64
+	// Interval is the minimum gap, in milliseconds, between background
+	// eviction passes.
+	Interval int64
+	// MaxEntries caps the number of stored entries. When the cap is
+	// reached, Set on a new key is dropped (existing entries are
+	// preserved); this prioritizes already-cached hot paths over
+	// adversarial unique-key floods. Zero or negative means unbounded.
+	MaxEntries int
+}
+
+// NewCache returns a new Cache configured by cfg.
+func NewCache(cfg CacheConfig) Cache {
+	storeSize := cfg.MaxEntries
+	if storeSize <= 0 {
+		storeSize = defaultCacheStoreSize
 	}
-	if interval <= 0 {
-		interval = defaultInterval
+	c := &cache{
+		store:    make(map[CacheKey]*cacheValue, storeSize),
+		expire:   cfg.Expire,
+		interval: cfg.Interval,
+		max:      cfg.MaxEntries,
 	}
-	return &expireCache{
-		store:    make(map[CacheKey]*expireCacheValue, 256),
-		expire:   expire,
-		interval: interval,
-		next:     expireCacheNow() + interval,
-		max:      maxEntries,
+	if c.expire <= 0 {
+		c.expire = defaultCacheExpire
 	}
+	if c.interval <= 0 {
+		c.interval = defaultCacheInterval
+	}
+	c.next = cacheNow() + c.interval
+	return c
 }
 
 // Get returns the value mapped to the specified key and extends its expiration.
-func (c *expireCache) Get(key CacheKey) interface{} {
+func (c *cache) Get(key CacheKey) any {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -186,7 +198,7 @@ func (c *expireCache) Get(key CacheKey) interface{} {
 	if v == nil {
 		return nil
 	}
-	now := expireCacheNow()
+	now := cacheNow()
 	v.peek = now
 	c.scheduleEvictLocked(now)
 	return v.value
@@ -195,25 +207,25 @@ func (c *expireCache) Get(key CacheKey) interface{} {
 // Set stores the value with key. When a maxEntries cap is configured
 // and the cache already holds that many entries, Set on a new key is
 // dropped; existing keys can still be updated in place.
-func (c *expireCache) Set(key CacheKey, value interface{}) {
+func (c *cache) Set(key CacheKey, value any) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	now := expireCacheNow()
+	now := cacheNow()
 	if c.max > 0 && len(c.store) >= c.max {
 		if _, exists := c.store[key]; !exists {
 			c.scheduleEvictLocked(now)
 			return
 		}
 	}
-	c.store[key] = &expireCacheValue{
+	c.store[key] = &cacheValue{
 		value: value,
 		peek:  now,
 	}
 	c.scheduleEvictLocked(now)
 }
 
-func (c *expireCache) Del(key CacheKey) {
+func (c *cache) Del(key CacheKey) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -227,7 +239,7 @@ func (c *expireCache) Del(key CacheKey) {
 	}
 }
 
-func (c *expireCache) Len() int {
+func (c *cache) Len() int {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -238,7 +250,7 @@ func (c *expireCache) Len() int {
 // by Del or by the background eviction pass. Passing nil clears the
 // callback; while no callback is set, Del and eviction skip goroutine
 // dispatch entirely and leave the hot path free of scheduler churn.
-func (c *expireCache) OnRelease(cb func(key CacheKey, value interface{})) {
+func (c *cache) OnRelease(cb func(key CacheKey, value any)) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -248,7 +260,7 @@ func (c *expireCache) OnRelease(cb func(key CacheKey, value interface{})) {
 // scheduleEvictLocked decides whether the interval has elapsed and, if so,
 // arms the next interval and launches a background eviction goroutine.
 // The caller must hold c.mutex.
-func (c *expireCache) scheduleEvictLocked(now int64) {
+func (c *cache) scheduleEvictLocked(now int64) {
 	if now < c.next {
 		return
 	}
@@ -263,10 +275,10 @@ func (c *expireCache) scheduleEvictLocked(now int64) {
 // When no onRelease callback is registered the eviction pass skips
 // allocating the release list and dispatching goroutines, keeping the
 // default routesCache path free of per-tick scheduler churn.
-func (c *expireCache) evict(now int64) {
+func (c *cache) evict(now int64) {
 	type released struct {
 		k CacheKey
-		v interface{}
+		v any
 	}
 
 	c.mutex.Lock()

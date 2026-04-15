@@ -92,16 +92,16 @@ func TestCacheKey_ShortcutMatchesBuilder(t *testing.T) {
 	}
 }
 
-func Test_expireCache(t *testing.T) {
-	expireCacheNowOrg := expireCacheNow
-	defer func() { expireCacheNow = expireCacheNowOrg }()
+func TestCache(t *testing.T) {
+	cacheNowOrg := cacheNow
+	defer func() { cacheNow = cacheNowOrg }()
 
 	now := int64(0)
-	expireCacheNow = func() int64 {
+	cacheNow = func() int64 {
 		return now
 	}
 
-	c := NewExpireCache(0).(*expireCache)
+	c := NewCache(CacheConfig{}).(*cache)
 	c.Set(CacheKeyOfString("key1"), "value1")
 	c.Set(CacheKeyOfString("key2"), "value2")
 	c.Set(CacheKeyOfString("key3"), "value3")
@@ -142,12 +142,12 @@ func Test_expireCache(t *testing.T) {
 	}
 }
 
-func Test_expireCache_OnRelease(t *testing.T) {
-	expireCacheNowOrg := expireCacheNow
-	defer func() { expireCacheNow = expireCacheNowOrg }()
+func TestCache_OnRelease(t *testing.T) {
+	cacheNowOrg := cacheNow
+	defer func() { cacheNow = cacheNowOrg }()
 
 	now := int64(0)
-	expireCacheNow = func() int64 {
+	cacheNow = func() int64 {
 		return now
 	}
 
@@ -155,8 +155,8 @@ func Test_expireCache_OnRelease(t *testing.T) {
 	key := CacheKeyOfString("key")
 	value := "value"
 
-	c := NewExpireCacheInterval(1, 1).(*expireCache)
-	c.OnRelease(func(k CacheKey, v interface{}) {
+	c := NewCache(CacheConfig{Expire: 1, Interval: 1}).(*cache)
+	c.OnRelease(func(k CacheKey, v any) {
 		if k != key || v != value {
 			t.Errorf("unexpected key value: %v %v", k, v)
 		}
@@ -174,17 +174,17 @@ func Test_expireCache_OnRelease(t *testing.T) {
 	c.OnRelease(nil)
 }
 
-// Test_expireCache_NoCallback ensures Del and evict remain functional
+// TestCache_NoCallback ensures Del and evict remain functional
 // (key removed, no panic) when OnRelease has never been set. This
 // guards the fast path that skips goroutine dispatch in that case.
-func Test_expireCache_NoCallback(t *testing.T) {
-	expireCacheNowOrg := expireCacheNow
-	defer func() { expireCacheNow = expireCacheNowOrg }()
+func TestCache_NoCallback(t *testing.T) {
+	cacheNowOrg := cacheNow
+	defer func() { cacheNow = cacheNowOrg }()
 
 	now := int64(0)
-	expireCacheNow = func() int64 { return now }
+	cacheNow = func() int64 { return now }
 
-	c := NewExpireCacheInterval(1, 1).(*expireCache)
+	c := NewCache(CacheConfig{Expire: 1, Interval: 1}).(*cache)
 	keyA := CacheKeyOfString("a")
 	keyB := CacheKeyOfString("b")
 	c.Set(keyA, "va")
@@ -210,17 +210,17 @@ func Test_expireCache_NoCallback(t *testing.T) {
 	t.Fatalf("evict did not drain store: size=%d", c.Len())
 }
 
-// Test_expireCache_MaxEntries verifies that the drop-new policy rejects
+// TestCache_MaxEntries verifies that the drop-new policy rejects
 // Set on a novel key when the cache is full, but still lets existing
 // keys be updated in place and frees room once entries are removed.
-func Test_expireCache_MaxEntries(t *testing.T) {
-	expireCacheNowOrg := expireCacheNow
-	defer func() { expireCacheNow = expireCacheNowOrg }()
+func TestCache_MaxEntries(t *testing.T) {
+	cacheNowOrg := cacheNow
+	defer func() { cacheNow = cacheNowOrg }()
 
 	now := int64(0)
-	expireCacheNow = func() int64 { return now }
+	cacheNow = func() int64 { return now }
 
-	c := NewExpireCacheIntervalMax(1000, 1000, 2).(*expireCache)
+	c := NewCache(CacheConfig{Expire: 1000, Interval: 1000, MaxEntries: 2}).(*cache)
 	keyA := CacheKeyOfString("a")
 	keyB := CacheKeyOfString("b")
 	keyC := CacheKeyOfString("c")
@@ -257,11 +257,11 @@ func Test_expireCache_MaxEntries(t *testing.T) {
 	}
 }
 
-// BenchmarkExpireCache_Get measures the steady-state cache-hit path,
+// BenchmarkCache_Get measures the steady-state cache-hit path,
 // which is the only branch reached during normal routesCache operation
 // after warmup. Must remain zero-alloc.
-func BenchmarkExpireCache_Get(b *testing.B) {
-	c := NewExpireCache(60_000)
+func BenchmarkCache_Get(b *testing.B) {
+	c := NewCache(CacheConfig{Expire: 60_000})
 	key := CacheKeyOfString("hit")
 	c.Set(key, "value")
 
@@ -272,10 +272,10 @@ func BenchmarkExpireCache_Get(b *testing.B) {
 	}
 }
 
-// BenchmarkExpireCache_Del_NoCallback guards the fast path that skips
+// BenchmarkCache_Del_NoCallback guards the fast path that skips
 // goroutine dispatch in Del when OnRelease is unset.
-func BenchmarkExpireCache_Del_NoCallback(b *testing.B) {
-	c := NewExpireCache(60_000)
+func BenchmarkCache_Del_NoCallback(b *testing.B) {
+	c := NewCache(CacheConfig{Expire: 60_000})
 	key := CacheKeyOfString("k")
 
 	b.ReportAllocs()
@@ -286,17 +286,17 @@ func BenchmarkExpireCache_Del_NoCallback(b *testing.B) {
 	}
 }
 
-// BenchmarkExpireCache_Evict_NoCallback forces an eviction pass over
+// BenchmarkCache_Evict_NoCallback forces an eviction pass over
 // expired entries with no callback registered. The fast path skips
 // allocating the release list and dispatching goroutines.
-func BenchmarkExpireCache_Evict_NoCallback(b *testing.B) {
-	expireCacheNowOrg := expireCacheNow
-	defer func() { expireCacheNow = expireCacheNowOrg }()
+func BenchmarkCache_Evict_NoCallback(b *testing.B) {
+	cacheNowOrg := cacheNow
+	defer func() { cacheNow = cacheNowOrg }()
 
 	now := int64(0)
-	expireCacheNow = func() int64 { return now }
+	cacheNow = func() int64 { return now }
 
-	c := NewExpireCacheInterval(1, 1_000_000).(*expireCache)
+	c := NewCache(CacheConfig{Expire: 1, Interval: 1_000_000}).(*cache)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -311,11 +311,11 @@ func BenchmarkExpireCache_Evict_NoCallback(b *testing.B) {
 	}
 }
 
-// BenchmarkExpireCache_Set_MaxReached exercises the drop-new branch of
+// BenchmarkCache_Set_MaxReached exercises the drop-new branch of
 // Set when the cap is saturated. It is expected to allocate nothing
 // because no wrapper is created.
-func BenchmarkExpireCache_Set_MaxReached(b *testing.B) {
-	c := NewExpireCacheIntervalMax(60_000, 60_000, 2)
+func BenchmarkCache_Set_MaxReached(b *testing.B) {
+	c := NewCache(CacheConfig{Expire: 60_000, Interval: 60_000, MaxEntries: 2})
 	c.Set(CacheKeyOfString("a"), "va")
 	c.Set(CacheKeyOfString("b"), "vb")
 	reject := CacheKeyOfString("c")
