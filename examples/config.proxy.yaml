@@ -1,14 +1,86 @@
+# Reverse-proxy / load-balancer example.
+#
+# One fasthttpd process opens four listeners:
+#   :8080 — front-door proxy that rotates across three local backends
+#   :9000, :9001, :9002 — backends that identify themselves via the `content`
+#   handler so you can confirm which one served each request.
+#
+# Try it:
+#   $ fasthttpd -f examples/config.proxy.yaml
+#   $ curl http://localhost:8080/
+#   Hello from backend 9000
+#   $ curl http://localhost:8080/
+#   Hello from backend 9001
+#   $ curl http://localhost:8080/
+#   Hello from backend 9002
+
 host: localhost
 listen: ':8080'
 
-log:
-  output: stderr
-
 handlers:
-  'backend':
+  'pool':
     type: proxy
-    url: http://localhost:9000/
+    algorithm: round-robin
+    healthCheckInterval: 5
+    urls:
+      - http://localhost:9000/
+      - http://localhost:9001/
+      - http://localhost:9002/
 
 routes:
   - path: /
-    handler: backend
+    handler: pool
+
+---
+
+# Backend #1 on :9000
+host: localhost
+listen: ':9000'
+
+handlers:
+  'b9000':
+    type: content
+    headers:
+      Content-Type: 'text/plain; charset=utf-8'
+    body: |
+      Hello from backend 9000
+
+routes:
+  - path: /
+    handler: b9000
+
+---
+
+# Backend #2 on :9001
+host: localhost
+listen: ':9001'
+
+handlers:
+  'b9001':
+    type: content
+    headers:
+      Content-Type: 'text/plain; charset=utf-8'
+    body: |
+      Hello from backend 9001
+
+routes:
+  - path: /
+    handler: b9001
+
+---
+
+# Backend #3 on :9002
+host: localhost
+listen: ':9002'
+
+handlers:
+  'b9002':
+    type: content
+    headers:
+      Content-Type: 'text/plain; charset=utf-8'
+    body: |
+      Hello from backend 9002
+
+routes:
+  - path: /
+    handler: b9002
