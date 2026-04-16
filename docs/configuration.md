@@ -388,8 +388,8 @@ The following handler types are supported.
 
 - `fs` — serve static files from the local filesystem.
 - `content` — serve in-memory content.
-- `proxy` — reverse-proxy to a single backend.
-- `balancer` — reverse-proxy to multiple backends with a configurable algorithm.
+- `proxy` — reverse-proxy to one or more backends with a configurable algorithm.
+- `balancer` — deprecated alias of `proxy`.
 
 ### FS
 
@@ -434,44 +434,34 @@ handlers:
 
 ### Proxy
 
-Proxy reverse-proxies to a single backend.
+Proxy reverse-proxies to one or more backends.
 
 ```yaml
 handlers:
-  'backend':
+  'single':
     type: proxy
     url: 'http://localhost:8080'
-```
 
-| Key | Description |
-| --- | ----------- |
-| `url` | Backend URL. |
-
-> **Note:** To proxy to multiple backends, use [Balancer](#balancer).
-
-### Balancer
-
-Balancer reverse-proxies to multiple backends, powered by [zehuamama/balancer](https://github.com/zehuamama/balancer).
-
-```yaml
-handlers:
-  'backend':
-    type: balancer
+  'pool':
+    type: proxy
     urls:
       - http://localhost:9000/
       - http://localhost:9001/
       - http://localhost:9002/
-    algorithm: ip-hash
+    algorithm: round-robin
     healthCheckInterval: 5
 ```
 
 | Key | Description |
 | --- | ----------- |
-| `urls` | Backend URLs. |
-| `algorithm` | One of `ip-hash`, `consistent-hash`, `p2c`, `random`, `round-robin`, `least-load`, `bounded`. |
-| `healthCheckInterval` | Health-check interval in seconds. |
+| `url` | Single backend URL (used when `urls` is not set). |
+| `urls` | Backend URL list. |
+| `algorithm` | One of `round-robin` (default), `random`, `ip-hash`. |
+| `healthCheckInterval` | Health-check interval in seconds. Omit or set to `0` (default) to disable the checker. |
 
-> **Note:** If `Proxy` gains multi-backend support, `Balancer` may be deprecated.
+### Balancer
+
+`balancer` is a deprecated alias of [Proxy](#proxy) that accepts the same config keys. It is kept for backward compatibility; prefer `type: proxy` in new configs.
 
 ## Routes
 

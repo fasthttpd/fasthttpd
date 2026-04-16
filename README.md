@@ -187,5 +187,4 @@ BenchmarkAccessLog_LTSV-10        17862510          201.7 ns/op       0 B/op    
 
 - [valyala/fasthttp](https://github.com/valyala/fasthttp)
 - [natefinch/lumberjack](https://github.com/natefinch/lumberjack)
-- [zehuamama/balancer](https://github.com/zehuamama/balancer)
 - [mojatter/tree](https://github.com/mojatter/tree)
