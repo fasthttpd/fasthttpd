@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
@@ -64,7 +65,10 @@ type FastHttpd struct {
 	configFile string
 	editExprs  util.StringList
 	servers    []*fasthttp.Server
-	stopHup    context.CancelFunc
+
+	hupMu    sync.Mutex
+	hupCh    chan os.Signal
+	hupClose sync.Once
 }
 
 func NewFastHttpd() *FastHttpd {
@@ -188,11 +192,11 @@ func (d *FastHttpd) run() error {
 		listenedCfgs[cfg.Listen] = append(listenedCfgs[cfg.Listen], cfg)
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
 	go func() {
 		<-ctx.Done()
-		// log.Printf("signal int: shutdown fasthttpd")
 		if err := d.Shutdown(); err != nil {
 			log.Printf("failed to shutdown: %v", err)
 		}
@@ -200,7 +204,7 @@ func (d *FastHttpd) run() error {
 
 	d.handleHUP()
 
-	errChs := make(chan error, 2)
+	errChs := make(chan error, len(listenedCfgs))
 	for listen, cfgs := range listenedCfgs {
 		h, err := handler.NewServerHandler(cfgs)
 		if err != nil {
@@ -239,30 +243,40 @@ func (d *FastHttpd) run() error {
 }
 
 func (d *FastHttpd) handleHUP() {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGHUP)
-	d.stopHup = stop
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGHUP)
+
+	d.hupMu.Lock()
+	d.hupCh = ch
+	d.hupMu.Unlock()
+
 	go func() {
-		for {
-			<-ctx.Done()
-			if d.stopHup == nil {
-				break
-			}
-			// log.Printf("signal hup: rotate logs")
+		for range ch {
 			if err := logger.RotateShared(); err != nil {
-				log.Printf("failed to rotate stored: %v", err)
+				log.Printf("failed to rotate logs: %v", err)
 			}
-			stop()
-			ctx, stop = signal.NotifyContext(context.Background(), syscall.SIGHUP)
-			d.stopHup = stop
 		}
 	}()
 }
 
-func (d *FastHttpd) Shutdown() error {
-	if stopHup := d.stopHup; stopHup != nil {
-		d.stopHup = nil
-		stopHup()
+func (d *FastHttpd) stopHUP() {
+	d.hupMu.Lock()
+	ch := d.hupCh
+	d.hupMu.Unlock()
+
+	if ch == nil {
+		return
 	}
+
+	d.hupClose.Do(func() {
+		signal.Stop(ch)
+		close(ch)
+	})
+}
+
+func (d *FastHttpd) Shutdown() error {
+	d.stopHUP()
+
 	var errs []error
 	for _, server := range d.servers {
 		if err := server.Shutdown(); err != nil {
