@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
 )
@@ -77,4 +78,22 @@ func (h *headerFilter) filter(fh fasthttpHeader) {
 
 func init() {
 	RegisterNewFilterFunc("header", NewHeaderFilter)
+	config.RegisterFilterSchema("header", headerSchemas)
+}
+
+// headerSchemas covers symmetric request/response header rewrites.
+// set/add values are arbitrary user-named header keys (MapOfSchema);
+// del is a list of header names to strip.
+var headerSchemas = map[string]config.Schema{
+	".type":         config.StringSchema{Enum: []string{"header"}},
+	".request":      config.MapSchema{},
+	".request.set":  config.MapOfSchema{Value: config.StringSchema{}},
+	".request.add":  config.MapOfSchema{Value: config.StringSchema{}},
+	".request.del":  config.ArraySchema{},
+	".request.del[]": config.StringSchema{},
+	".response":     config.MapSchema{},
+	".response.set": config.MapOfSchema{Value: config.StringSchema{}},
+	".response.add": config.MapOfSchema{Value: config.StringSchema{}},
+	".response.del": config.ArraySchema{},
+	".response.del[]": config.StringSchema{},
 }

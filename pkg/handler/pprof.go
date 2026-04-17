@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http/pprof"
 
+	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
@@ -82,4 +83,7 @@ func NewPprofHandler(cfg tree.Map, _ logger.Logger) (fasthttp.RequestHandler, er
 
 func init() {
 	RegisterNewHandlerFunc("pprof", NewPprofHandler)
+	config.RegisterHandlerSchema("pprof", map[string]config.Schema{
+		".type": config.StringSchema{Enum: []string{"pprof"}},
+	})
 }

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
@@ -17,4 +18,5 @@ func NewBalancerHandler(cfg tree.Map, l logger.Logger) (fasthttp.RequestHandler,
 
 func init() {
 	RegisterNewHandlerFunc("balancer", NewBalancerHandler)
+	config.RegisterHandlerSchema("balancer", proxySchemas("balancer"))
 }

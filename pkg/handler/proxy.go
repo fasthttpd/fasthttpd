@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
@@ -221,4 +222,19 @@ func NewProxyHandler(cfg tree.Map, l logger.Logger) (fasthttp.RequestHandler, er
 
 func init() {
 	RegisterNewHandlerFunc("proxy", NewProxyHandler)
+	config.RegisterHandlerSchema("proxy", proxySchemas("proxy"))
+}
+
+// proxySchemas builds the schema set for a proxy-like handler with
+// the given type discriminator. Shared with balancer, which is an
+// alias that differs only in the accepted `type` value.
+func proxySchemas(typeName string) map[string]config.Schema {
+	return map[string]config.Schema{
+		".type":                config.StringSchema{Enum: []string{typeName}},
+		".url":                 config.StringSchema{},
+		".urls":                config.ArraySchema{},
+		".urls[]":              config.StringSchema{},
+		".algorithm":           config.StringSchema{Enum: []string{algoRoundRobin, algoRandom, algoIPHash}},
+		".healthCheckInterval": config.IntSchema{Min: config.Int64Ptr(0)},
+	}
 }

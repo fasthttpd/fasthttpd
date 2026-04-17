@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
 	"go.yaml.in/yaml/v3"
@@ -103,4 +104,16 @@ func (f *BasicAuthFilter) Response(ctx *fasthttp.RequestCtx) bool {
 
 func init() {
 	RegisterNewFilterFunc("basicAuth", NewBasicAuthFilter)
+	config.RegisterFilterSchema("basicAuth", basicAuthSchemas)
+}
+
+// basicAuthSchemas mirrors BasicAuthFilter's YAML-tagged fields.
+// Either users (inline) or usersFile (external YAML) may be set.
+var basicAuthSchemas = map[string]config.Schema{
+	".type":           config.StringSchema{Enum: []string{"basicAuth"}},
+	".realm":          config.StringSchema{},
+	".usersFile":      config.StringSchema{},
+	".users":          config.ArraySchema{},
+	".users[].name":   config.StringSchema{},
+	".users[].secret": config.StringSchema{},
 }
