@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
@@ -88,5 +89,70 @@ func TestFS_Handler(t *testing.T) {
 	}
 	if !bytes.Equal(ctx.Response.Body(), expected) {
 		t.Errorf("unexpected body %q; want %q", ctx.Response.Body(), expected)
+	}
+}
+
+func TestFS_SchemaRegistered(t *testing.T) {
+	testCases := []struct {
+		caseName string
+		handler  tree.Map
+		wantErr  string // substring; empty means success
+	}{
+		{
+			caseName: "valid fs handler",
+			handler: tree.Map{
+				"type":       tree.V("fs"),
+				"root":       tree.V("./public"),
+				"indexNames": tree.A("index.html"),
+				"compress":   tree.V(true),
+			},
+		},
+		{
+			caseName: "unknown fs field is rejected",
+			handler: tree.Map{
+				"type":  tree.V("fs"),
+				"root":  tree.V("./public"),
+				"bogus": tree.V(123),
+			},
+			wantErr: ".bogus: unknown key",
+		},
+		{
+			caseName: "wrong type on fs field",
+			handler: tree.Map{
+				"type":     tree.V("fs"),
+				"compress": tree.V("yes"), // want bool
+			},
+			wantErr: "compress",
+		},
+		{
+			caseName: "compressedFileSuffixes accepts user keys",
+			handler: tree.Map{
+				"type": tree.V("fs"),
+				"compressedFileSuffixes": tree.Map{
+					"gzip": tree.V(".fasthttp.gz"),
+					"br":   tree.V(".fasthttp.br"),
+				},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			docs := []tree.Map{{
+				"handlers": tree.Map{"static": tc.handler},
+			}}
+			err := config.Validate(docs)
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Validate returned %v, want nil", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("Validate returned nil, want error containing %q", tc.wantErr)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("error %q does not contain %q", err.Error(), tc.wantErr)
+			}
+		})
 	}
 }
