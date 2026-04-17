@@ -14,8 +14,9 @@ import (
 
 // Default values.
 const (
-	DefaultListen     = ":8080"
-	DefaultServerName = "fasthttpd"
+	DefaultListen          = ":8080"
+	DefaultServerName      = "fasthttpd"
+	DefaultShutdownTimeout = "30s"
 )
 
 // Supported Route.Match values.
@@ -28,25 +29,27 @@ const (
 // Config represents a configuration root of fasthttpd.
 // If Include is not empty, other keys are ignored.
 type Config struct {
-	Host        string              `yaml:"host"`
-	Listen      string              `yaml:"listen"`
-	SSL         SSL                 `yaml:"ssl"`
-	Root        string              `yaml:"root"`
-	Server      tree.Map            `yaml:"server"`
-	Log         Log                 `yaml:"log"`
-	AccessLog   AccessLog           `yaml:"accessLog"`
-	ErrorPages  map[string]string   `yaml:"errorPages"`
-	Filters     map[string]tree.Map `yaml:"filters"`
-	Handlers    map[string]tree.Map `yaml:"handlers"`
-	Routes      []Route             `yaml:"routes"`
-	RoutesCache RoutesCache         `yaml:"routesCache"`
-	Include     string              `yaml:"include"`
+	Host            string              `yaml:"host"`
+	Listen          string              `yaml:"listen"`
+	SSL             SSL                 `yaml:"ssl"`
+	Root            string              `yaml:"root"`
+	Server          tree.Map            `yaml:"server"`
+	Log             Log                 `yaml:"log"`
+	AccessLog       AccessLog           `yaml:"accessLog"`
+	ErrorPages      map[string]string   `yaml:"errorPages"`
+	Filters         map[string]tree.Map `yaml:"filters"`
+	Handlers        map[string]tree.Map `yaml:"handlers"`
+	Routes          []Route             `yaml:"routes"`
+	RoutesCache     RoutesCache         `yaml:"routesCache"`
+	ShutdownTimeout string              `yaml:"shutdownTimeout"`
+	Include         string              `yaml:"include"`
 }
 
 // SetDefaults sets default values.
 func (cfg Config) SetDefaults() Config {
 	cfg.Listen = DefaultListen
 	cfg.Server = tree.Map{"name": tree.ToValue(DefaultServerName)}
+	cfg.ShutdownTimeout = DefaultShutdownTimeout
 	cfg.SSL = cfg.SSL.SetDefaults()
 	cfg.Log = cfg.Log.SetDefaults()
 	cfg.AccessLog = cfg.AccessLog.SetDefaults()
@@ -82,6 +85,11 @@ func (cfg Config) Normalize() (Config, error) {
 	if cfg.SSL, err = cfg.SSL.Normalize(); err != nil {
 		return cfg, err
 	}
+	if cfg.ShutdownTimeout != "" {
+		if _, err := time.ParseDuration(cfg.ShutdownTimeout); err != nil {
+			return cfg, fmt.Errorf("failed to parse shutdownTimeout: %w", err)
+		}
+	}
 	for _, route := range cfg.Routes {
 		if route.Handler != "" {
 			if _, ok := cfg.Handlers[route.Handler]; !ok {
@@ -90,6 +98,17 @@ func (cfg Config) Normalize() (Config, error) {
 		}
 	}
 	return cfg, nil
+}
+
+// ShutdownTimeoutDuration returns the parsed ShutdownTimeout. A non-positive
+// value means no deadline (use context.Background()). Assumes Normalize has
+// already validated the string.
+func (cfg Config) ShutdownTimeoutDuration() time.Duration {
+	if cfg.ShutdownTimeout == "" {
+		return 0
+	}
+	d, _ := time.ParseDuration(cfg.ShutdownTimeout)
+	return d
 }
 
 // SSL represents a configuration of SSL. If AutoCert is true, CertFile and
