@@ -166,7 +166,7 @@ func (h *hostHandler) init() error {
 	h.handlers = map[string]fasthttp.RequestHandler{}
 	for name, hcfg := range h.cfg.Handlers {
 		if hcfg.Get("root").Value().String() == "" {
-			hcfg.Set("root", tree.ToValue(h.cfg.Root)) //nolint:errcheck
+			_ = hcfg.Set("root", tree.ToValue(h.cfg.Root))
 		}
 		hh, err := NewHandler(hcfg, l)
 		if err != nil {
