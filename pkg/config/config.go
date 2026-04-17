@@ -156,11 +156,11 @@ func (l Log) SetDefaults() Log {
 
 // AccessLog represents a configuration of access log.
 type AccessLog struct {
-	Output        string   `yaml:"output"`
-	Format        string   `yaml:"format"`
-	QueueSize     int      `yaml:"queueSize"`     // Deprecated: silently ignored. Use BufferSize instead.
-	BufferSize    int      `yaml:"bufferSize"`
-	FlushInterval int      `yaml:"flushInterval"` // milliseconds
+	Output        string `yaml:"output"`
+	Format        string `yaml:"format"`
+	QueueSize     int    `yaml:"queueSize"` // Deprecated: silently ignored. Use BufferSize instead.
+	BufferSize    int    `yaml:"bufferSize"`
+	FlushInterval int    `yaml:"flushInterval"` // milliseconds
 	Rotation      Rotation
 }
 
