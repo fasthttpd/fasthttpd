@@ -130,12 +130,20 @@ func Edit(ms []tree.Map, exprs []string) ([]tree.Map, error) {
 }
 
 // FromTreeMap converts a tree.Map document into a Config. The map is
-// decoded through Config's YAML tags (via tree.UnmarshalViaYAML), then
-// SetDefaults fills any unset fields, and Normalize applies the same
-// numeric/duration fixups that the YAML-path loader does.
+// routed through a YAML decoder with KnownFields(true) so typos in
+// typed portions of Config (Host / Listen / SSL / Log / AccessLog /
+// Routes / RoutesCache / Server) fail loudly rather than being
+// silently dropped. After decode, SetDefaults fills unset fields and
+// Normalize applies the remaining fixups.
 func FromTreeMap(m tree.Map) (Config, error) {
 	cfg := Config{}.SetDefaults()
-	if err := tree.UnmarshalViaYAML(m, &cfg); err != nil {
+	data, err := tree.MarshalYAML(m)
+	if err != nil {
+		return cfg, err
+	}
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	if err := dec.Decode(&cfg); err != nil {
 		return cfg, err
 	}
 	return cfg.Normalize()

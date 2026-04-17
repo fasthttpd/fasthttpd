@@ -113,9 +113,7 @@ func (d *FastHttpd) newServer(h handler.ServerHandler) (*fasthttp.Server, error)
 		ErrorHandler: h.HandleError,
 		Logger:       h.Logger(),
 	}
-	if err := tree.UnmarshalViaJSON(h.Config(), s); err != nil {
-		return nil, err
-	}
+	h.Config().ApplyTo(s)
 	return s, nil
 }
 

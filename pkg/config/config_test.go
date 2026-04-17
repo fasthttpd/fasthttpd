@@ -21,10 +21,10 @@ func TestUnmarshalYAMLPath(t *testing.T) {
 			Host:   "localhost",
 			Listen: ":8080",
 			Root:   "./public",
-			Server: tree.Map{
-				"name":            tree.ToValue("fasthttpd"),
-				"readBufferSize":  tree.ToValue(4096),
-				"writeBufferSize": tree.ToValue(4096),
+			Server: Server{
+				Name:            "fasthttpd",
+				ReadBufferSize:  4096,
+				WriteBufferSize: 4096,
 			},
 			SSL: SSL{}.SetDefaults(),
 			Log: Log{
@@ -154,9 +154,7 @@ func TestUnmarshalYAMLPath(t *testing.T) {
 				CertFile: "./ssl/localhost.crt",
 				KeyFile:  "./ssl/localhost.key",
 			},
-			Server: tree.Map{
-				"name": tree.ToValue("fasthttpd"),
-			},
+			Server: Server{Name: "fasthttpd"},
 			Handlers: map[string]tree.Map{
 				"backend": {
 					"type": tree.ToValue("proxy"),
@@ -230,7 +228,7 @@ func TestUnmarshalYAMLPath_Include(t *testing.T) {
 		{
 			Host:            "include1.local",
 			Listen:          ":8080",
-			Server:          tree.Map{"name": tree.ToValue("fasthttpd")},
+			Server:          Server{Name: "fasthttpd"},
 			SSL:             SSL{}.SetDefaults(),
 			Log:             Log{}.SetDefaults(),
 			AccessLog:       AccessLog{}.SetDefaults(),
@@ -238,7 +236,7 @@ func TestUnmarshalYAMLPath_Include(t *testing.T) {
 		}, {
 			Host:            "include2.local",
 			Listen:          ":8080",
-			Server:          tree.Map{"name": tree.ToValue("fasthttpd")},
+			Server:          Server{Name: "fasthttpd"},
 			SSL:             SSL{}.SetDefaults(),
 			Log:             Log{}.SetDefaults(),
 			AccessLog:       AccessLog{}.SetDefaults(),
@@ -285,23 +283,21 @@ func TestConfig_Normalize(t *testing.T) {
 			cfg:  Config{},
 			want: Config{},
 		}, {
+			// Normalize no longer touches Server fields: duration
+			// parsing happens inside Server.Duration.UnmarshalYAML
+			// at decode time. Kept here so the invariant "an empty
+			// Config normalizes to itself" stays covered.
 			cfg: Config{
-				Server: tree.Map{
-					"readTimeout": tree.ToValue("60s"),
-				},
+				Server: Server{ReadTimeout: Duration(60 * time.Second)},
 			},
 			want: Config{
-				Server: tree.Map{
-					"readTimeout": tree.NumberValue(60 * time.Second),
-				},
+				Server: Server{ReadTimeout: Duration(60 * time.Second)},
 			},
 		}, {
 			cfg: Config{
-				Server: tree.Map{
-					"readTimeout": tree.ToValue("invalid duration"),
-				},
+				ShutdownTimeout: "invalid duration",
 			},
-			errstr: `time: invalid duration "invalid duration"`,
+			errstr: `failed to parse shutdownTimeout: time: invalid duration "invalid duration"`,
 		}, {
 			cfg: Config{
 				SSL: SSL{

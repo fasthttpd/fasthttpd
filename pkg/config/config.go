@@ -6,9 +6,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/mojatter/tree"
+	"github.com/valyala/fasthttp"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -33,7 +37,7 @@ type Config struct {
 	Listen          string              `yaml:"listen"`
 	SSL             SSL                 `yaml:"ssl"`
 	Root            string              `yaml:"root"`
-	Server          tree.Map            `yaml:"server"`
+	Server          Server              `yaml:"server"`
 	Log             Log                 `yaml:"log"`
 	AccessLog       AccessLog           `yaml:"accessLog"`
 	ErrorPages      map[string]string   `yaml:"errorPages"`
@@ -48,7 +52,7 @@ type Config struct {
 // SetDefaults sets default values.
 func (cfg Config) SetDefaults() Config {
 	cfg.Listen = DefaultListen
-	cfg.Server = tree.Map{"name": tree.ToValue(DefaultServerName)}
+	cfg.Server = Server{Name: DefaultServerName}
 	cfg.ShutdownTimeout = DefaultShutdownTimeout
 	cfg.SSL = cfg.SSL.SetDefaults()
 	cfg.Log = cfg.Log.SetDefaults()
@@ -58,29 +62,6 @@ func (cfg Config) SetDefaults() Config {
 
 // Normalize normalizes values.
 func (cfg Config) Normalize() (Config, error) {
-	serverTimeDurationNames := []string{
-		"readTimeout",
-		"writeTimeout",
-		"idleTimeout",
-		"maxKeepaliveDuration",
-		"maxIdleWorkerDuration",
-		"tcpKeepalivePeriod",
-		"sleepWhenConcurrencyLimitsExceeded",
-	}
-	for _, name := range serverTimeDurationNames {
-		if cfg.Server.Has(name) {
-			v := cfg.Server.Get(name)
-			if v.Type().IsStringValue() {
-				d, err := time.ParseDuration(v.Value().String())
-				if err != nil {
-					return cfg, err
-				}
-				if err := cfg.Server.Set(name, tree.NumberValue(d)); err != nil {
-					return cfg, err
-				}
-			}
-		}
-	}
 	var err error
 	if cfg.SSL, err = cfg.SSL.Normalize(); err != nil {
 		return cfg, err
@@ -98,6 +79,156 @@ func (cfg Config) Normalize() (Config, error) {
 		}
 	}
 	return cfg, nil
+}
+
+// Size wraps a byte count so YAML input may be either a string with
+// a binary unit suffix ("4k", "8 KiB", "2M") or a plain integer
+// literal (4096). Accepted suffixes are K/M/G (case-insensitive),
+// optionally followed by `i` and/or `B`, all interpreted as powers
+// of 1024.
+type Size int64
+
+var sizeRe = regexp.MustCompile(`^\s*(\d+)\s*([KMG]?)[Ii]?[Bb]?\s*$`)
+
+// parseSize parses strings like "4K", "8kib", "2 MB" into a byte
+// count using binary units (K=1024, M=1024^2, G=1024^3). A bare
+// integer ("4096") is also accepted.
+func parseSize(s string) (int64, error) {
+	m := sizeRe.FindStringSubmatch(strings.ToUpper(s))
+	if m == nil {
+		return 0, fmt.Errorf("invalid size %q", s)
+	}
+	n, err := strconv.ParseInt(m[1], 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid size %q: %w", s, err)
+	}
+	switch m[2] {
+	case "K":
+		n <<= 10
+	case "M":
+		n <<= 20
+	case "G":
+		n <<= 30
+	}
+	return n, nil
+}
+
+// UnmarshalYAML accepts "!!str" (parsed via parseSize) or "!!int"
+// (interpreted as a byte count).
+func (s *Size) UnmarshalYAML(value *yaml.Node) error {
+	switch value.Tag {
+	case "!!str":
+		n, err := parseSize(value.Value)
+		if err != nil {
+			return err
+		}
+		*s = Size(n)
+	case "!!int":
+		var n int64
+		if err := value.Decode(&n); err != nil {
+			return err
+		}
+		*s = Size(n)
+	default:
+		return fmt.Errorf("size must be string or integer, got tag %s", value.Tag)
+	}
+	return nil
+}
+
+// Duration wraps time.Duration so YAML input may be either a string
+// parseable by time.ParseDuration ("60s") or an integer nanoseconds
+// literal. MarshalJSON emits the underlying int64 so a round-trip
+// through fasthttp.Server (which uses time.Duration) is lossless.
+type Duration time.Duration
+
+// UnmarshalYAML accepts "!!str" (parsed via time.ParseDuration) or
+// "!!int" (interpreted as nanoseconds).
+func (d *Duration) UnmarshalYAML(value *yaml.Node) error {
+	switch value.Tag {
+	case "!!str":
+		p, err := time.ParseDuration(value.Value)
+		if err != nil {
+			return fmt.Errorf("invalid duration %q: %w", value.Value, err)
+		}
+		*d = Duration(p)
+	case "!!int":
+		var n int64
+		if err := value.Decode(&n); err != nil {
+			return err
+		}
+		*d = Duration(n)
+	default:
+		return fmt.Errorf("duration must be string or integer, got tag %s", value.Tag)
+	}
+	return nil
+}
+
+// Server mirrors the configurable fields of fasthttp.Server. Handler
+// callbacks and other function-typed fields are intentionally omitted
+// (fasthttpd wires those itself); keepHijackedConns is also omitted
+// because fasthttpd does not expose Hijack, and getOnly is omitted
+// because method restriction is expressed via Routes.
+type Server struct {
+	Name               string `yaml:"name"`
+	Concurrency        int    `yaml:"concurrency"`
+	ReadBufferSize     Size   `yaml:"readBufferSize"`
+	WriteBufferSize    Size   `yaml:"writeBufferSize"`
+	MaxConnsPerIP      int    `yaml:"maxConnsPerIP"`
+	MaxRequestsPerConn int    `yaml:"maxRequestsPerConn"`
+	MaxRequestBodySize Size   `yaml:"maxRequestBodySize"`
+
+	ReadTimeout                        Duration `yaml:"readTimeout"`
+	WriteTimeout                       Duration `yaml:"writeTimeout"`
+	IdleTimeout                        Duration `yaml:"idleTimeout"`
+	MaxIdleWorkerDuration              Duration `yaml:"maxIdleWorkerDuration"`
+	TCPKeepalivePeriod                 Duration `yaml:"tcpKeepalivePeriod"`
+	SleepWhenConcurrencyLimitsExceeded Duration `yaml:"sleepWhenConcurrencyLimitsExceeded"`
+
+	DisableKeepalive              bool `yaml:"disableKeepalive"`
+	TCPKeepalive                  bool `yaml:"tcpKeepalive"`
+	ReduceMemoryUsage             bool `yaml:"reduceMemoryUsage"`
+	DisablePreParseMultipartForm  bool `yaml:"disablePreParseMultipartForm"`
+	LogAllErrors                  bool `yaml:"logAllErrors"`
+	SecureErrorLogMessage         bool `yaml:"secureErrorLogMessage"`
+	DisableHeaderNamesNormalizing bool `yaml:"disableHeaderNamesNormalizing"`
+	NoDefaultServerHeader         bool `yaml:"noDefaultServerHeader"`
+	NoDefaultDate                 bool `yaml:"noDefaultDate"`
+	NoDefaultContentType          bool `yaml:"noDefaultContentType"`
+	CloseOnShutdown               bool `yaml:"closeOnShutdown"`
+	StreamRequestBody             bool `yaml:"streamRequestBody"`
+}
+
+// ApplyTo copies Server's configurable fields onto dst. Handler /
+// ErrorHandler / Logger / TLSConfig are wired separately and left
+// untouched.
+func (s Server) ApplyTo(dst *fasthttp.Server) {
+	dst.Name = s.Name
+	dst.Concurrency = s.Concurrency
+	dst.ReadBufferSize = int(s.ReadBufferSize)
+	dst.WriteBufferSize = int(s.WriteBufferSize)
+	dst.MaxConnsPerIP = s.MaxConnsPerIP
+	dst.MaxRequestsPerConn = s.MaxRequestsPerConn
+	dst.MaxRequestBodySize = int(s.MaxRequestBodySize)
+
+	dst.ReadTimeout = time.Duration(s.ReadTimeout)
+	dst.WriteTimeout = time.Duration(s.WriteTimeout)
+	dst.IdleTimeout = time.Duration(s.IdleTimeout)
+	dst.MaxIdleWorkerDuration = time.Duration(s.MaxIdleWorkerDuration)
+	dst.TCPKeepalivePeriod = time.Duration(s.TCPKeepalivePeriod)
+	dst.SleepWhenConcurrencyLimitsExceeded = time.Duration(s.SleepWhenConcurrencyLimitsExceeded)
+
+	dst.DisableKeepalive = s.DisableKeepalive
+	dst.TCPKeepalive = s.TCPKeepalive
+	dst.ReduceMemoryUsage = s.ReduceMemoryUsage
+	dst.DisablePreParseMultipartForm = s.DisablePreParseMultipartForm
+	dst.LogAllErrors = s.LogAllErrors
+	dst.SecureErrorLogMessage = s.SecureErrorLogMessage
+	dst.DisableHeaderNamesNormalizing = s.DisableHeaderNamesNormalizing
+	dst.NoDefaultServerHeader = s.NoDefaultServerHeader
+	dst.NoDefaultDate = s.NoDefaultDate
+	dst.NoDefaultContentType = s.NoDefaultContentType
+	dst.CloseOnShutdown = s.CloseOnShutdown
+	dst.StreamRequestBody = s.StreamRequestBody
 }
 
 // ShutdownTimeoutDuration returns the parsed ShutdownTimeout. A non-positive
