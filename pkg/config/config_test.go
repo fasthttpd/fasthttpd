@@ -144,6 +144,7 @@ func TestUnmarshalYAMLPath(t *testing.T) {
 				Enable: true,
 				Expire: 60000,
 			},
+			ShutdownTimeout: DefaultShutdownTimeout,
 		}, {
 			Host:      "localhost",
 			Listen:    ":8443",
@@ -168,6 +169,7 @@ func TestUnmarshalYAMLPath(t *testing.T) {
 					Handler: "backend",
 				},
 			},
+			ShutdownTimeout: DefaultShutdownTimeout,
 		},
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -226,19 +228,21 @@ func TestUnmarshalYAMLPath_Include(t *testing.T) {
 	}
 	want := []Config{
 		{
-			Host:      "include1.local",
-			Listen:    ":8080",
-			Server:    tree.Map{"name": tree.ToValue("fasthttpd")},
-			SSL:       SSL{}.SetDefaults(),
-			Log:       Log{}.SetDefaults(),
-			AccessLog: AccessLog{}.SetDefaults(),
+			Host:            "include1.local",
+			Listen:          ":8080",
+			Server:          tree.Map{"name": tree.ToValue("fasthttpd")},
+			SSL:             SSL{}.SetDefaults(),
+			Log:             Log{}.SetDefaults(),
+			AccessLog:       AccessLog{}.SetDefaults(),
+			ShutdownTimeout: DefaultShutdownTimeout,
 		}, {
-			Host:      "include2.local",
-			Listen:    ":8080",
-			Server:    tree.Map{"name": tree.ToValue("fasthttpd")},
-			SSL:       SSL{}.SetDefaults(),
-			Log:       Log{}.SetDefaults(),
-			AccessLog: AccessLog{}.SetDefaults(),
+			Host:            "include2.local",
+			Listen:          ":8080",
+			Server:          tree.Map{"name": tree.ToValue("fasthttpd")},
+			SSL:             SSL{}.SetDefaults(),
+			Log:             Log{}.SetDefaults(),
+			AccessLog:       AccessLog{}.SetDefaults(),
+			ShutdownTimeout: DefaultShutdownTimeout,
 		},
 	}
 	if !reflect.DeepEqual(got, want) {

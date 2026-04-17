@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/handler"
@@ -59,12 +60,13 @@ func newMinimalConfig() config.Config {
 }
 
 type FastHttpd struct {
-	flagSet    *flag.FlagSet
-	isVersion  bool
-	isHelp     bool
-	configFile string
-	editExprs  util.StringList
-	servers    []*fasthttp.Server
+	flagSet          *flag.FlagSet
+	isVersion        bool
+	isHelp           bool
+	configFile       string
+	editExprs        util.StringList
+	servers          []*fasthttp.Server
+	shutdownTimeouts []time.Duration
 
 	hupMu    sync.Mutex
 	hupCh    chan os.Signal
@@ -223,6 +225,7 @@ func (d *FastHttpd) run() error {
 
 		h.Logger().Printf("starting fasthttpd on %q", listen)
 		d.servers = append(d.servers, server)
+		d.shutdownTimeouts = append(d.shutdownTimeouts, cfgs[0].ShutdownTimeoutDuration())
 
 		go func() {
 			err := server.Serve(ln)
@@ -278,15 +281,22 @@ func (d *FastHttpd) stopHUP() {
 func (d *FastHttpd) Shutdown() error {
 	d.stopHUP()
 
-	var errs []error
-	for _, server := range d.servers {
-		if err := server.Shutdown(); err != nil {
-			errs = append(errs, err)
-		}
+	var wg sync.WaitGroup
+	errs := make([]error, len(d.servers))
+	for i, server := range d.servers {
+		wg.Go(func() {
+			ctx := context.Background()
+			if timeout := d.shutdownTimeouts[i]; timeout > 0 {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, timeout)
+				defer cancel()
+			}
+			if err := server.ShutdownWithContext(ctx); err != nil {
+				errs[i] = err
+			}
+		})
 	}
-	if len(errs) == 0 {
-		return nil
-	}
+	wg.Wait()
 	return errors.Join(errs...)
 }
 
