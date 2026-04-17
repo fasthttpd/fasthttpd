@@ -11,8 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -44,19 +42,21 @@ const (
 `
 )
 
-func newMinimalConfig() config.Config {
-	return config.Config{
-		Host: "localhost",
-		Root: "./public",
-		Log:  config.Log{Output: "stderr"},
-		Handlers: map[string]tree.Map{
-			"static": {
-				"type":       tree.ToValue("fs"),
-				"indexNames": tree.ToArrayValues("index.html"),
+// minimalTreeMap returns the fallback configuration used when no -f
+// file is supplied but at least one -e expression is given.
+func minimalTreeMap() tree.Map {
+	return tree.Map{
+		"host": tree.V("localhost"),
+		"root": tree.V("./public"),
+		"log":  tree.Map{"output": tree.V("stderr")},
+		"handlers": tree.Map{
+			"static": tree.Map{
+				"type":       tree.V("fs"),
+				"indexNames": tree.A("index.html"),
 			},
 		},
-		Routes: []config.Route{{Handler: "static"}},
-	}.SetDefaults()
+		"routes": tree.Array{tree.Map{"handler": tree.V("static")}},
+	}
 }
 
 type FastHttpd struct {
@@ -94,9 +94,9 @@ func (d *FastHttpd) initFlagSet(args []string) error {
 	return s.Parse(args[1:])
 }
 
-func (d *FastHttpd) loadConfigs() ([]config.Config, error) {
+func (d *FastHttpd) loadTreeMaps() ([]tree.Map, error) {
 	if d.configFile == "" {
-		return []config.Config{newMinimalConfig()}, nil
+		return []tree.Map{minimalTreeMap()}, nil
 	}
 	dir, file := filepath.Split(d.configFile)
 	if dir != "" {
@@ -104,42 +104,7 @@ func (d *FastHttpd) loadConfigs() ([]config.Config, error) {
 			return nil, err
 		}
 	}
-	cfgs, err := config.UnmarshalYAMLPath(file)
-	if err != nil {
-		return nil, err
-	}
-	return cfgs, nil
-}
-
-func (d *FastHttpd) editConfigs(cfgs []config.Config) ([]config.Config, error) {
-	if len(d.editExprs) > 0 {
-		n, err := tree.MarshalViaYAML(cfgs)
-		if err != nil {
-			return nil, err
-		}
-		for _, expr := range d.editExprs {
-			lr := strings.SplitN(expr, "=", 2)
-			if len(lr) == 2 {
-				if !strings.HasPrefix(lr[0], ".") {
-					lr[0] = ".[]." + lr[0]
-				}
-				if !strings.HasPrefix(lr[1], `"`) &&
-					lr[1] != "true" && lr[1] != "false" && lr[1] != "null" {
-					if _, err := strconv.Atoi(lr[1]); err != nil {
-						lr[1] = strconv.Quote(lr[1])
-					}
-				}
-				expr = lr[0] + "=" + lr[1]
-			}
-			if err := tree.Edit(&n, expr); err != nil {
-				return nil, err
-			}
-		}
-		if err := tree.UnmarshalViaYAML(n, &cfgs); err != nil {
-			return nil, err
-		}
-	}
-	return cfgs, nil
+	return config.LoadTreeMaps(file)
 }
 
 func (d *FastHttpd) newServer(h handler.ServerHandler) (*fasthttp.Server, error) {
@@ -181,11 +146,15 @@ func (d *FastHttpd) listen(listen string, cfgs []config.Config, server *fasthttp
 }
 
 func (d *FastHttpd) run() error {
-	cfgs, err := d.loadConfigs()
+	ms, err := d.loadTreeMaps()
 	if err != nil {
 		return err
 	}
-	cfgs, err = d.editConfigs(cfgs)
+	ms, err = config.Edit(ms, d.editExprs)
+	if err != nil {
+		return err
+	}
+	cfgs, err := config.FromTreeMaps(ms)
 	if err != nil {
 		return err
 	}
