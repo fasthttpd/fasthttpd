@@ -154,6 +154,9 @@ func (d *FastHttpd) run() error {
 	if err != nil {
 		return err
 	}
+	if err := config.Validate(ms); err != nil {
+		return err
+	}
 	cfgs, err := config.FromTreeMaps(ms)
 	if err != nil {
 		return err
