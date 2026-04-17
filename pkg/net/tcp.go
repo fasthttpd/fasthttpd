@@ -13,12 +13,15 @@ func GetNetwork(listen string) string {
 	return "tcp4"
 }
 
-// NOTE: Copy from fasthttp/server.go
+// TcpKeepaliveListener sets TCP keep-alive on accepted connections so dead
+// TCP connections (e.g. laptop closed mid-download) eventually go away.
 //
-// TcpKeepaliveListener sets TCP keep-alive timeouts on accepted
-// connections. It's used by ListenAndServe, ListenAndServeTLS and
-// ListenAndServeTLSEmbed so dead TCP connections (e.g. closing laptop mid-download)
-// eventually go away.
+// fasthttp.Server.acceptConn also sets keepalive via its connKeepAliveer
+// interface since v1.38, so this wrapper looks redundant for plain TCP
+// listeners. It is kept because *tls.Conn does not implement SetKeepAlive,
+// so fasthttp cannot apply Server.TCPKeepalive when the listener is
+// tls.NewListener-wrapped. Setting keepalive on the inner *net.TCPConn here,
+// before TLS wrapping, preserves the setting for TLS servers.
 type TcpKeepaliveListener struct {
 	*net.TCPListener
 	Keepalive       bool
