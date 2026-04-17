@@ -252,6 +252,7 @@ func (d *FastHttpd) handleHUP() {
 
 	go func() {
 		for range ch {
+			log.Println("received SIGHUP, rotating logs")
 			if err := logger.RotateShared(); err != nil {
 				log.Printf("failed to rotate logs: %v", err)
 			}
