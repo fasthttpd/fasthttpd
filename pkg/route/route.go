@@ -112,7 +112,7 @@ func (r *Route) rewrite(path []byte) []byte {
 	return r.rewriteUriBytes
 }
 
-func onResultReleased(_ util.CacheKey, value interface{}) {
+func onResultReleased(_ util.CacheKey, value any) {
 	if r, ok := value.(*Result); ok {
 		r.Release()
 	}

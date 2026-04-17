@@ -109,7 +109,7 @@ var (
 	_            Logger = (*nilLogger)(nil)
 )
 
-func (nilLogger) Printf(format string, args ...interface{}) {}
+func (nilLogger) Printf(format string, args ...any) {}
 func (nilLogger) Rotate() error                             { return nil }
 func (nilLogger) Write([]byte) (int, error)                 { return 0, nil }
 func (nilLogger) Close() error                              { return nil }
@@ -117,14 +117,14 @@ func (nilLogger) LogLogger() *log.Logger                    { return NilLogLogge
 
 // LoggerDelegator can delegate the Logger functions.
 type LoggerDelegator struct {
-	PrintfFunc    func(format string, args ...interface{})
+	PrintfFunc    func(format string, args ...any)
 	RotateFunc    func() error
 	WriteFunc     func([]byte) (int, error)
 	CloseFunc     func() error
 	LogLoggerFunc func() *log.Logger
 }
 
-func (l *LoggerDelegator) Printf(format string, args ...interface{}) {
+func (l *LoggerDelegator) Printf(format string, args ...any) {
 	if l.PrintfFunc != nil {
 		l.PrintfFunc(format, args...)
 	}

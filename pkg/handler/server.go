@@ -61,7 +61,7 @@ func newVirtualHandler(cfgs []config.Config) (*virtualHandler, error) {
 	return &virtualHandler{
 		handlers: handlers,
 		logger: &logger.LoggerDelegator{
-			PrintfFunc: func(format string, args ...interface{}) {
+			PrintfFunc: func(format string, args ...any) {
 				for _, l := range loggers {
 					l.Printf(format, args...)
 				}
