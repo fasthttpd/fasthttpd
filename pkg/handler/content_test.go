@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
@@ -262,5 +264,68 @@ func BenchmarkContent_Handle_QueryCondition(b *testing.B) {
 	for b.Loop() {
 		ctx.Response.Reset()
 		fn(ctx)
+	}
+}
+
+func TestContent_SchemaRegistered(t *testing.T) {
+	testCases := []struct {
+		caseName string
+		handler  tree.Map
+		wantErr  string
+	}{
+		{
+			caseName: "valid content",
+			handler: tree.Map{
+				"type":   tree.V("content"),
+				"body":   tree.V("hi"),
+				"status": tree.V(200),
+				"headers": tree.Map{
+					"Content-Type": tree.V("text/plain"),
+				},
+			},
+		},
+		{
+			caseName: "conditions with path",
+			handler: tree.Map{
+				"type": tree.V("content"),
+				"conditions": tree.Array{
+					tree.Map{"path": tree.V("/x"), "body": tree.V("x")},
+				},
+			},
+		},
+		{
+			caseName: "unknown content field",
+			handler: tree.Map{
+				"type":  tree.V("content"),
+				"bogus": tree.V(1),
+			},
+			wantErr: ".bogus: unknown key",
+		},
+		{
+			caseName: "status out of range",
+			handler: tree.Map{
+				"type":   tree.V("content"),
+				"status": tree.V(999),
+			},
+			wantErr: "status",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			docs := []tree.Map{{"handlers": tree.Map{"c": tc.handler}}}
+			err := config.Validate(docs)
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Validate returned %v, want nil", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("Validate returned nil, want error containing %q", tc.wantErr)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("error %q does not contain %q", err.Error(), tc.wantErr)
+			}
+		})
 	}
 }
