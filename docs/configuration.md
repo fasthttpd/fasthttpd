@@ -526,6 +526,18 @@ routesCache:
 | `interval` | Minimum gap between background eviction passes, in milliseconds. Defaults to 1 minute (60000) when omitted or non-positive. |
 | `maxEntries` | Maximum number of stored entries. When the cap is reached, `Set` on a new key is dropped (existing entries are preserved); this prioritizes already-cached hot paths over adversarial unique-key floods. Zero or negative means unbounded. |
 
+## ShutdownTimeout
+
+`shutdownTimeout` bounds how long the server waits for in-flight requests to finish after receiving `SIGINT` or `SIGTERM`. When the timeout elapses, `Shutdown` returns `context.DeadlineExceeded` and the process exits. An empty value or `"0s"` disables the deadline (wait indefinitely).
+
+The value is a [Go duration string](https://pkg.go.dev/time#ParseDuration) (`"30s"`, `"1m"`, etc.). Defaults to `"30s"`.
+
+```yaml
+shutdownTimeout: 30s
+```
+
+When multiple documents share the same `listen`, only the first document's `shutdownTimeout` applies — see [Virtual hosts](#virtual-hosts).
+
 ## SSL
 
 ```yaml
