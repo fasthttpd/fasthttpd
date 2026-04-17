@@ -51,7 +51,7 @@ func openBenchTempFile(b *testing.B) *os.File {
 		b.Fatalf("CreateTemp: %v", err)
 	}
 	b.Cleanup(func() {
-		f.Close() //nolint:errcheck // bench cleanup
+		_ = f.Close() // bench cleanup
 	})
 	return f
 }
@@ -66,7 +66,7 @@ func openBenchDevNull(b *testing.B) *os.File {
 		b.Fatalf("open %s: %v", os.DevNull, err)
 	}
 	b.Cleanup(func() {
-		f.Close() //nolint:errcheck // bench cleanup
+		_ = f.Close() // bench cleanup
 	})
 	return f
 }

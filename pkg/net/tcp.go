@@ -34,12 +34,12 @@ func (ln *TcpKeepaliveListener) Accept() (net.Conn, error) {
 		return nil, err
 	}
 	if err := tc.SetKeepAlive(ln.Keepalive); err != nil {
-		tc.Close() //nolint:errcheck
+		_ = tc.Close()
 		return nil, err
 	}
 	if ln.KeepalivePeriod > 0 {
 		if err := tc.SetKeepAlivePeriod(ln.KeepalivePeriod); err != nil {
-			tc.Close() //nolint:errcheck
+			_ = tc.Close()
 			return nil, err
 		}
 	}

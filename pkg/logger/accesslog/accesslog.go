@@ -125,7 +125,7 @@ func (l *accessLog) Close() error {
 	close(l.done)
 
 	l.mu.Lock()
-	l.bw.Flush() //nolint:errcheck // best-effort flush on close
+	_ = l.bw.Flush() // best-effort flush on close
 	l.mu.Unlock()
 
 	l.appendLine = nil
@@ -156,7 +156,7 @@ func (l *accessLog) flushLoop(interval time.Duration) {
 			return
 		case <-ticker.C:
 			l.mu.Lock()
-			l.bw.Flush() //nolint:errcheck // periodic best-effort flush
+			_ = l.bw.Flush() // periodic best-effort flush
 			l.mu.Unlock()
 		}
 	}

@@ -28,7 +28,7 @@ func NewLogger(cfg config.Log) (Logger, error) {
 	}
 	l, err := newLogger(out, cfg)
 	if err != nil {
-		out.Close() //nolint:errcheck
+		_ = out.Close()
 		return nil, err
 	}
 	return l, nil
