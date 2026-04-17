@@ -526,6 +526,18 @@ routesCache:
 | `interval` | Minimum gap between background eviction passes, in milliseconds. Defaults to 1 minute (60000) when omitted or non-positive. |
 | `maxEntries` | Maximum number of stored entries. When the cap is reached, `Set` on a new key is dropped (existing entries are preserved); this prioritizes already-cached hot paths over adversarial unique-key floods. Zero or negative means unbounded. |
 
+## ShutdownTimeout
+
+`shutdownTimeout` bounds how long the server waits for in-flight requests to finish after receiving `SIGINT` or `SIGTERM`. When the timeout elapses, `Shutdown` returns `context.DeadlineExceeded` and the process exits. An empty value or `"0s"` disables the deadline (wait indefinitely).
+
+The value is a [Go duration string](https://pkg.go.dev/time#ParseDuration) (`"30s"`, `"1m"`, etc.). Defaults to `"30s"`.
+
+```yaml
+shutdownTimeout: 30s
+```
+
+When multiple documents share the same `listen`, only the first document's `shutdownTimeout` applies — see [Virtual hosts](#virtual-hosts).
+
 ## SSL
 
 ```yaml
@@ -546,7 +558,7 @@ See [examples/config.autocert.yaml](https://github.com/fasthttpd/fasthttpd/blob/
 
 ## Virtual hosts
 
-Virtual hosts can be defined in a multi-document YAML file. The first document is the default host.
+Virtual hosts can be defined in a multi-document YAML file. Each document becomes a virtual host, and the first document is the default host that handles requests whose `Host` header does not match any other document.
 
 ```yaml
 host: default.example.com
@@ -555,6 +567,17 @@ listen: ':80'
 host: other.example.com
 listen: ':80'
 ```
+
+### Shared listener merge rules
+
+When multiple documents share the same `listen` address, fasthttpd opens a single listener and merges the documents as follows:
+
+- **Routes, handlers, filters** — dispatched per request based on the `Host` header. Each virtual host has its own route table, handler set, and filter set.
+- **Server settings (`server:` block)** — the first document's values are used for the shared listener. Values from other documents are ignored.
+- **Top-level fields that take effect per listener** (such as `shutdownTimeout`) — the first document's value is used.
+- **Log output (`log.output`)** — writes are fanned out to every unique output across the documents on the shared listener. Set the same `log.output` in every document to avoid duplicate lines.
+
+Fields that are inherently per-host (`host`, `root`, `errorPages`, route/handler/filter definitions) apply only to their own document.
 
 ## Include
 
