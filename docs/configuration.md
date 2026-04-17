@@ -546,7 +546,7 @@ See [examples/config.autocert.yaml](https://github.com/fasthttpd/fasthttpd/blob/
 
 ## Virtual hosts
 
-Virtual hosts can be defined in a multi-document YAML file. The first document is the default host.
+Virtual hosts can be defined in a multi-document YAML file. Each document becomes a virtual host, and the first document is the default host that handles requests whose `Host` header does not match any other document.
 
 ```yaml
 host: default.example.com
@@ -555,6 +555,17 @@ listen: ':80'
 host: other.example.com
 listen: ':80'
 ```
+
+### Shared listener merge rules
+
+When multiple documents share the same `listen` address, fasthttpd opens a single listener and merges the documents as follows:
+
+- **Routes, handlers, filters** — dispatched per request based on the `Host` header. Each virtual host has its own route table, handler set, and filter set.
+- **Server settings (`server:` block)** — the first document's values are used for the shared listener. Values from other documents are ignored.
+- **Top-level fields that take effect per listener** (such as `shutdownTimeout`) — the first document's value is used.
+- **Log output (`log.output`)** — writes are fanned out to every unique output across the documents on the shared listener. Set the same `log.output` in every document to avoid duplicate lines.
+
+Fields that are inherently per-host (`host`, `root`, `errorPages`, route/handler/filter definitions) apply only to their own document.
 
 ## Include
 
