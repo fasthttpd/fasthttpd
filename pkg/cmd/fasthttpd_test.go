@@ -5,8 +5,13 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
+	"syscall"
 	"testing"
+	"time"
 
+	"github.com/fasthttpd/fasthttpd/pkg/config"
+	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttputil"
 )
@@ -59,4 +64,47 @@ func TestFastHttpd(t *testing.T) {
 	if resp.Header.ContentLength() != int(info.Size()) {
 		t.Errorf("unexpected content length %d; want %d", resp.Header.ContentLength(), info.Size())
 	}
+}
+
+func TestFastHttpd_HandleHUP(t *testing.T) {
+	// Note: no t.Parallel — this test sends SIGHUP to the whole test process.
+
+	tmpDir := t.TempDir()
+	output := filepath.Join(tmpDir, "hup.log")
+
+	rotator, err := logger.SharedRotator(output, config.Rotation{
+		MaxSize:    1,
+		MaxBackups: 2,
+		MaxAge:     3,
+		LocalTime:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rotator.Close()
+
+	if _, err := rotator.Write([]byte("before rotate\n")); err != nil {
+		t.Fatal(err)
+	}
+
+	d := NewFastHttpd()
+	d.handleHUP()
+	defer d.Shutdown() //nolint:errcheck
+
+	if err := syscall.Kill(os.Getpid(), syscall.SIGHUP); err != nil {
+		t.Fatal(err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		entries, err := os.ReadDir(tmpDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(entries) >= 2 {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("rotation did not happen within deadline")
 }
