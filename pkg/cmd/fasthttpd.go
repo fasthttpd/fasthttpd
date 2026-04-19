@@ -39,6 +39,9 @@ const (
 	examplesText = `Examples:
   % fasthttpd -f ./examples/config.minimal.yaml
   % fasthttpd -e root=./examples/public -e listen=:8080
+  % fasthttpd -t -f ./examples/config.minimal.yaml
+  % fasthttpd -T -f ./examples/config.minimal.yaml -e listen=:9000
+  % fasthttpd -T=json -f ./examples/config.minimal.yaml
 `
 )
 
@@ -63,6 +66,8 @@ type FastHttpd struct {
 	flagSet          *flag.FlagSet
 	isVersion        bool
 	isHelp           bool
+	isTest           bool
+	dumpFormat       dumpFormat
 	configFile       string
 	editExprs        util.StringList
 	servers          []*fasthttp.Server
@@ -85,6 +90,8 @@ func (d *FastHttpd) initFlagSet(args []string) error {
 	s.BoolVar(&d.isHelp, "h", false, "help for "+cmd)
 	s.StringVar(&d.configFile, "f", os.Getenv(EnvFasthttpdConfig), "configuration file")
 	s.Var(&d.editExprs, "e", "edit expression (eg. -e KEY=VALUE)")
+	s.BoolVar(&d.isTest, "t", false, "test configuration and exit")
+	s.Var(&d.dumpFormat, "T", "test configuration and dump it (yaml|json; default yaml)")
 	s.Usage = func() {
 		fmt.Fprintf(os.Stderr, "%s\n\nUsage:\n  %s\n\n", desc, usage)
 		fmt.Fprintln(os.Stderr, "Flags:")
@@ -278,7 +285,14 @@ func (d *FastHttpd) Main(args []string) error {
 		fmt.Println(version)
 		return nil
 	}
-	if d.isHelp || (d.configFile == "" && len(d.editExprs) == 0) {
+	if d.isHelp {
+		d.flagSet.Usage()
+		return nil
+	}
+	if d.isTest || d.dumpFormat.value != "" {
+		return d.testOrDump(os.Stdout, os.Stderr, shouldColor(os.Stderr))
+	}
+	if d.configFile == "" && len(d.editExprs) == 0 {
 		d.flagSet.Usage()
 		return nil
 	}

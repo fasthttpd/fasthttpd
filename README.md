@@ -77,17 +77,20 @@ Then you can hit http://localhost:8080 in your browser.
 Usage
 
 ```sh
-FastHttpd is a HTTP server using valyala/fasthttp.
+FastHttpd is a lightweight http server using valyala/fasthttp.
 
 Usage:
-  fasthttpd [flags] [query] ([file...])
+  fasthttpd [flags]
 
 Flags:
+  -T value
+    	test configuration and dump it (yaml|json; default yaml)
   -e value
     	edit expression (eg. -e KEY=VALUE)
   -f string
     	configuration file
   -h	help for fasthttpd
+  -t	test configuration and exit
   -v	print version
 ```
 
@@ -97,6 +100,8 @@ Examples
 % fasthttpd -f examples/config.minimal.yaml
 % fasthttpd -f examples/config.minimal.yaml -e accessLog.output=stdout
 % fasthttpd -e root=./examples/public -e listen=0.0.0.0:8080
+% fasthttpd -t -f examples/config.minimal.yaml
+% fasthttpd -T -f examples/config.minimal.yaml -e listen=:9000
 ```
 
 ## Configuration
@@ -140,6 +145,35 @@ Show access log and disable other log
 ```sh
 fasthttpd -f config.yaml -e log.output="" -e accessLog.output=stdout
 ```
+
+## Test and dump the final configuration
+
+FastHttpd can validate the config without starting the server. `-t`
+runs Load / Edit / Validate / FromTreeMaps and reports success or the
+first error.
+
+```sh
+fasthttpd -t -f config.yaml
+```
+
+`-T` additionally dumps the final, normalized configuration to stdout
+(`-T=yaml` by default, `-T=json` for JSON). When combined with `-e`,
+the pre-Edit configuration is written to **stderr** so stdout stays a
+single parseable document:
+
+```sh
+# See the config as written vs. as served
+fasthttpd -T -f config.yaml -e listen=:9000
+
+# Pipe the normalized config through jq
+fasthttpd -T=json -f config.yaml | jq '.[0].Routes'
+
+# Save the pre-Edit snapshot aside
+fasthttpd -T -f config.yaml -e root=/custom 2> pre.yaml
+```
+
+On a TTY the pre-Edit block is dimmed so the primary (stdout) output
+stands out. Set `NO_COLOR` to disable.
 
 ## RoutesCache
 
