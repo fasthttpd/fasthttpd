@@ -1,0 +1,11 @@
+{
+  "host": "localhost",
+  "listen": ":8080",
+  "server": {
+    "name": "fasthttpd",
+    "concurrency": 256
+  },
+  "routes": [
+    {"path": "/", "handler": "static"}
+  ]
+}

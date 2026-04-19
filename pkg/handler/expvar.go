@@ -3,6 +3,7 @@
 package handler
 
 import (
+	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
@@ -18,4 +19,7 @@ func NewExpvarHandler(cfg tree.Map, l logger.Logger) (fasthttp.RequestHandler, e
 
 func init() {
 	RegisterNewHandlerFunc("expvar", NewExpvarHandler)
+	config.RegisterHandlerSchema("expvar", map[string]config.Schema{
+		".type": config.StringSchema{Enum: []string{"expvar"}},
+	})
 }

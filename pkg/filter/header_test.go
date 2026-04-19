@@ -2,8 +2,10 @@ package filter
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
+	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
 )
@@ -165,5 +167,63 @@ func BenchmarkHeaderFilter_Response(b *testing.B) {
 		ctx.Response.Header.Reset()
 		ctx.Response.Header.Set("Server", "fasthttpd")
 		f.Response(ctx)
+	}
+}
+
+func TestHeader_SchemaRegistered(t *testing.T) {
+	testCases := []struct {
+		caseName string
+		filter   tree.Map
+		wantErr  string
+	}{
+		{
+			caseName: "valid set/add/del",
+			filter: tree.Map{
+				"type": tree.V("header"),
+				"request": tree.Map{
+					"set": tree.Map{"X-Req": tree.V("1")},
+				},
+				"response": tree.Map{
+					"add": tree.Map{"X-Res": tree.V("2")},
+					"del": tree.A("X-Foo"),
+				},
+			},
+		},
+		{
+			caseName: "unknown top-level field",
+			filter: tree.Map{
+				"type":  tree.V("header"),
+				"bogus": tree.V(1),
+			},
+			wantErr: ".bogus: unknown key",
+		},
+		{
+			caseName: "unknown nested action",
+			filter: tree.Map{
+				"type": tree.V("header"),
+				"request": tree.Map{
+					"strip": tree.Map{"X-Foo": tree.V("")},
+				},
+			},
+			wantErr: ".request.strip",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			docs := []tree.Map{{"filters": tree.Map{"h": tc.filter}}}
+			err := config.ValidateTreeMaps(docs)
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("ValidateTreeMaps returned %v, want nil", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("ValidateTreeMaps returned nil, want error containing %q", tc.wantErr)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("error %q does not contain %q", err.Error(), tc.wantErr)
+			}
+		})
 	}
 }

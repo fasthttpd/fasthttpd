@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"strings"
 
+	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
@@ -210,4 +211,24 @@ func NewContentHandler(cfg tree.Map, _ logger.Logger) (fasthttp.RequestHandler, 
 
 func init() {
 	RegisterNewHandlerFunc("content", NewContentHandler)
+	config.RegisterHandlerSchema("content", contentSchemas)
+}
+
+// contentSchemas covers the content handler's declarative response.
+// `headers` uses AnySchema because the handler accepts both map form
+// ({K: V}) and array form (["K: V", ...]); a tighter rule would
+// reject one of them. Condition-level fields mirror the defaults.
+var contentSchemas = map[string]config.Schema{
+	".type":       config.StringSchema{Enum: []string{"content"}},
+	".body":       config.StringSchema{},
+	".status":     config.IntSchema{Min: config.Int64Ptr(100), Max: config.Int64Ptr(599)},
+	".headers":    config.AnySchema{},
+	".conditions": config.ArraySchema{},
+
+	".conditions[].path":                config.StringSchema{},
+	".conditions[].queryStringContains": config.StringSchema{},
+	".conditions[].percentage":          config.IntSchema{Min: config.Int64Ptr(0), Max: config.Int64Ptr(100)},
+	".conditions[].body":                config.StringSchema{},
+	".conditions[].status":              config.IntSchema{Min: config.Int64Ptr(100), Max: config.Int64Ptr(599)},
+	".conditions[].headers":             config.AnySchema{},
 }

@@ -3,8 +3,10 @@ package filter
 import (
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
 )
@@ -230,5 +232,67 @@ func BenchmarkBasicAuthFilter_Request_Unauthorized(b *testing.B) {
 		ctx.Request.Header.Reset()
 		ctx.Response.Header.Reset()
 		f.Request(ctx)
+	}
+}
+
+func TestBasicAuth_SchemaRegistered(t *testing.T) {
+	testCases := []struct {
+		caseName string
+		filter   tree.Map
+		wantErr  string
+	}{
+		{
+			caseName: "valid inline users",
+			filter: tree.Map{
+				"type":  tree.V("basicAuth"),
+				"realm": tree.V("Site"),
+				"users": tree.Array{
+					tree.Map{"name": tree.V("u"), "secret": tree.V("p")},
+				},
+			},
+		},
+		{
+			caseName: "valid usersFile",
+			filter: tree.Map{
+				"type":      tree.V("basicAuth"),
+				"usersFile": tree.V("./users.yaml"),
+			},
+		},
+		{
+			caseName: "unknown user field",
+			filter: tree.Map{
+				"type": tree.V("basicAuth"),
+				"users": tree.Array{
+					tree.Map{"name": tree.V("u"), "passwd": tree.V("p")},
+				},
+			},
+			wantErr: "passwd",
+		},
+		{
+			caseName: "unknown top-level field",
+			filter: tree.Map{
+				"type":  tree.V("basicAuth"),
+				"bogus": tree.V(1),
+			},
+			wantErr: ".bogus: unknown key",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			docs := []tree.Map{{"filters": tree.Map{"auth": tc.filter}}}
+			err := config.ValidateTreeMaps(docs)
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("ValidateTreeMaps returned %v, want nil", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("ValidateTreeMaps returned nil, want error containing %q", tc.wantErr)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("error %q does not contain %q", err.Error(), tc.wantErr)
+			}
+		})
 	}
 }

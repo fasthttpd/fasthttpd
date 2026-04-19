@@ -19,7 +19,7 @@ import (
 // ServerHandler is an interface that defines the methods to handle a server.
 type ServerHandler interface {
 	// Config returns the config.Config.Server.
-	Config() tree.Map
+	Config() config.Server
 	// Logger returns a logger.
 	Logger() logger.Logger
 	// Handle handles the provided request.
@@ -86,7 +86,7 @@ func (v *virtualHandler) handler(hostBytes []byte) *hostHandler {
 }
 
 // Config returns the config.Config.Server.
-func (v *virtualHandler) Config() tree.Map {
+func (v *virtualHandler) Config() config.Server {
 	return v.handlers[0].cfg.Server
 }
 
@@ -185,7 +185,7 @@ func (h *hostHandler) init() error {
 }
 
 // Config returns the config.Config.Server.
-func (h *hostHandler) Config() tree.Map {
+func (h *hostHandler) Config() config.Server {
 	return h.cfg.Server
 }
 

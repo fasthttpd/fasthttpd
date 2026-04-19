@@ -18,6 +18,18 @@ import (
 	"github.com/valyala/fasthttp/fasthttputil"
 )
 
+func TestFastHttpd_ValidateFullYAML(t *testing.T) {
+	// Loads the reference config that exercises every built-in
+	// handler/filter type and ensures the registered schemas accept it.
+	ms, err := config.LoadTreeMaps("../config/testdata/full.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := config.ValidateTreeMaps(ms); err != nil {
+		t.Fatalf("ValidateTreeMaps(full.yaml) returned %v, want nil", err)
+	}
+}
+
 func TestFastHttpd(t *testing.T) {
 	t.Parallel()
 

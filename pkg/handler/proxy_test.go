@@ -3,9 +3,11 @@ package handler
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
@@ -248,5 +250,65 @@ func TestProxyBalancer_RunHealthCheck(t *testing.T) {
 	}
 	if !b.backends[2].alive.Load() {
 		t.Errorf("recovering backend should be marked back online")
+	}
+}
+
+func TestProxy_SchemaRegistered(t *testing.T) {
+	testCases := []struct {
+		caseName string
+		handler  tree.Map
+		wantErr  string
+	}{
+		{
+			caseName: "valid single-url proxy",
+			handler: tree.Map{
+				"type": tree.V("proxy"),
+				"url":  tree.V("http://localhost:8080"),
+			},
+		},
+		{
+			caseName: "valid balanced proxy",
+			handler: tree.Map{
+				"type":                tree.V("proxy"),
+				"urls":                tree.A("http://a:8080", "http://b:8080"),
+				"algorithm":           tree.V("ip-hash"),
+				"healthCheckInterval": tree.V(5),
+			},
+		},
+		{
+			caseName: "unknown algorithm rejected",
+			handler: tree.Map{
+				"type":      tree.V("proxy"),
+				"url":       tree.V("http://localhost"),
+				"algorithm": tree.V("least-conn"),
+			},
+			wantErr: "algorithm",
+		},
+		{
+			caseName: "unknown proxy field",
+			handler: tree.Map{
+				"type":  tree.V("proxy"),
+				"bogus": tree.V(1),
+			},
+			wantErr: ".bogus: unknown key",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			docs := []tree.Map{{"handlers": tree.Map{"p": tc.handler}}}
+			err := config.ValidateTreeMaps(docs)
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("ValidateTreeMaps returned %v, want nil", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("ValidateTreeMaps returned nil, want error containing %q", tc.wantErr)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("error %q does not contain %q", err.Error(), tc.wantErr)
+			}
+		})
 	}
 }
