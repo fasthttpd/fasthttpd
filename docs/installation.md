@@ -11,7 +11,7 @@ go install github.com/fasthttpd/fasthttpd/cmd/fasthttpd@latest
 Download a binary from the [releases page](https://github.com/fasthttpd/fasthttpd/releases).
 
 ```sh
-VERSION=0.10.0 GOOS=linux GOARCH=amd64; \
+VERSION=0.11.0 GOOS=linux GOARCH=amd64; \
   curl -fsSL "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${GOOS}_${GOARCH}.tar.gz" | \
   tar xz fasthttpd && \
   sudo mv fasthttpd /usr/sbin
@@ -32,7 +32,7 @@ brew install fasthttpd
 Download a `.deb` or `.rpm` package from the [releases page](https://github.com/fasthttpd/fasthttpd/releases), then run `apt install` or `yum install`.
 
 ```sh
-VERSION=0.10.0 ARCH=amd64; \
+VERSION=0.11.0 ARCH=amd64; \
   curl -fsSL -O "https://github.com/fasthttpd/fasthttpd/releases/download/v${VERSION}/fasthttpd_${VERSION}_${ARCH}.deb"
 sudo apt install "./fasthttpd_${VERSION}_${ARCH}.deb"
 ```
