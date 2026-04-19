@@ -23,25 +23,29 @@ func LoadTreeMaps(path string) ([]tree.Map, error) {
 }
 
 func loadTreeMapsPath(path string, includes []string) ([]tree.Map, error) {
-	if slices.Contains(includes, path) {
-		return nil, fmt.Errorf("circular dependency %v", includes)
-	}
-	data, err := os.ReadFile(path)
+	abs, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
 	}
-	if strings.HasSuffix(strings.ToLower(path), ".json") {
+	if slices.Contains(includes, abs) {
+		return nil, fmt.Errorf("circular dependency %v", includes)
+	}
+	data, err := os.ReadFile(abs)
+	if err != nil {
+		return nil, err
+	}
+	if strings.HasSuffix(strings.ToLower(abs), ".json") {
 		n, err := tree.UnmarshalJSON(data)
 		if err != nil {
 			return nil, err
 		}
 		m, ok := n.(tree.Map)
 		if !ok {
-			return nil, fmt.Errorf("%s: JSON root must be an object", path)
+			return nil, fmt.Errorf("%s: JSON root must be an object", abs)
 		}
-		return expandIncludes([]tree.Map{m}, append(includes, path))
+		return expandIncludes([]tree.Map{m}, append(includes, abs))
 	}
-	return unmarshalTreeMaps(data, append(includes, path))
+	return unmarshalTreeMaps(data, append(includes, abs))
 }
 
 func unmarshalTreeMaps(data []byte, includes []string) ([]tree.Map, error) {

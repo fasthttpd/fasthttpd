@@ -48,12 +48,29 @@ func TestLoadTreeMaps_CircularInclude(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = LoadTreeMaps("include-circular.yaml")
-	if err == nil {
-		t.Fatal("expected error, got nil")
+	testCases := []struct {
+		caseName string
+		path     string
+	}{
+		{
+			caseName: "self include with identical spelling",
+			path:     "include-circular.yaml",
+		},
+		{
+			caseName: "self include across ./ prefix mismatch",
+			path:     "include-circular-dotslash.yaml",
+		},
 	}
-	if !strings.Contains(err.Error(), "circular dependency") {
-		t.Errorf("error %q does not mention circular dependency", err.Error())
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			_, err := LoadTreeMaps(tc.path)
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), "circular dependency") {
+				t.Errorf("error %q does not mention circular dependency", err.Error())
+			}
+		})
 	}
 }
 
