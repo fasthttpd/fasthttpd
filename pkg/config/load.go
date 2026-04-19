@@ -97,7 +97,14 @@ func Edit(ms []tree.Map, exprs []string) ([]tree.Map, error) {
 			if !strings.HasPrefix(lr[0], ".") {
 				lr[0] = ".[]." + lr[0]
 			}
+			// Auto-quote bare strings so shell-friendly forms like
+			// "root=./public" still parse. Values that already look
+			// like a YAML/JSON literal — quoted strings, bools, null,
+			// integers, or flow array/map ("[...]", "{...}") — are
+			// left untouched and handed straight to tree.Edit.
 			if !strings.HasPrefix(lr[1], `"`) &&
+				!strings.HasPrefix(lr[1], "[") &&
+				!strings.HasPrefix(lr[1], "{") &&
 				lr[1] != "true" && lr[1] != "false" && lr[1] != "null" {
 				if _, err := strconv.Atoi(lr[1]); err != nil {
 					lr[1] = strconv.Quote(lr[1])
