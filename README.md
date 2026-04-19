@@ -17,7 +17,8 @@ FastHttpd is a lightweight http server using [valyala/fasthttp](https://github.c
 - Support TLS (HTTPS/SSL)
 - Automatic TLS certificates via Let's Encrypt (autocert / ACME)
 - Virtual hosts
-- YAML configuration
+- YAML configuration with schema-based validation
+- Test and dump the final configuration (`-t` / `-T`, nginx-style)
 
 ## Installation
 
