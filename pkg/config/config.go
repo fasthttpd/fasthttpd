@@ -1,9 +1,7 @@
 package config
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -31,7 +29,6 @@ const (
 )
 
 // Config represents a configuration root of fasthttpd.
-// If Include is not empty, other keys are ignored.
 type Config struct {
 	Host            string              `yaml:"host"`
 	Listen          string              `yaml:"listen"`
@@ -46,7 +43,6 @@ type Config struct {
 	Routes          []Route             `yaml:"routes"`
 	RoutesCache     RoutesCache         `yaml:"routesCache"`
 	ShutdownTimeout string              `yaml:"shutdownTimeout"`
-	Include         string              `yaml:"include"`
 }
 
 // SetDefaults sets default values.
@@ -348,60 +344,3 @@ type RoutesCache struct {
 	MaxEntries int  `yaml:"maxEntries"`
 }
 
-// UnmarshalYAMLPath decodes path as multi Config YAML documents file.
-func UnmarshalYAMLPath(path string) ([]Config, error) {
-	return unmarshalYAMLPath(path, nil)
-}
-
-func unmarshalYAMLPath(path string, includes []string) ([]Config, error) {
-	for _, inc := range includes {
-		if inc == path {
-			return nil, fmt.Errorf("circular dependency %v", includes)
-		}
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	return unmarshalYAML(data, append(includes, path))
-}
-
-// UnmarshalYAML decodes data as multi Config YAML documents.
-func UnmarshalYAML(data []byte) ([]Config, error) {
-	return unmarshalYAML(data, nil)
-}
-
-func unmarshalYAML(data []byte, includes []string) ([]Config, error) {
-	dec := yaml.NewDecoder(bytes.NewReader(data))
-	var cfgs []Config
-	for {
-		cfg := Config{}.SetDefaults()
-		if err := dec.Decode(&cfg); err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, err
-		}
-		if cfg.Include != "" {
-			incs, err := filepath.Glob(cfg.Include)
-			if err != nil {
-				return nil, err
-			}
-			for _, inc := range incs {
-				incCfgs, err := unmarshalYAMLPath(inc, includes)
-				if err != nil {
-					return nil, err
-				}
-				cfgs = append(cfgs, incCfgs...)
-			}
-			continue
-		}
-		var err error
-		cfg, err = cfg.Normalize()
-		if err != nil {
-			return nil, err
-		}
-		cfgs = append(cfgs, cfg)
-	}
-	return cfgs, nil
-}

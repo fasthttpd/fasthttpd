@@ -35,9 +35,34 @@ func TestLoadTreeMaps_NotFound(t *testing.T) {
 	}
 }
 
+func TestLoadTreeMaps_Include(t *testing.T) {
+	// Glob in include expansion resolves relative to cwd.
+	currentDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(currentDir) //nolint:errcheck
+
+	if err := os.Chdir("testdata"); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := LoadTreeMaps("include.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantHosts := []string{"include1.local", "include2.local"}
+	gotHosts := make([]string, len(got))
+	for i, m := range got {
+		gotHosts[i] = m.Get("host").Value().String()
+	}
+	if !reflect.DeepEqual(gotHosts, wantHosts) {
+		t.Errorf("hosts = %v, want %v", gotHosts, wantHosts)
+	}
+}
+
 func TestLoadTreeMaps_CircularInclude(t *testing.T) {
-	// Glob in include expansion resolves relative to cwd, so match
-	// the cwd assumption used by TestUnmarshalYAMLPath_IncludeCircular.
+	// Glob in include expansion resolves relative to cwd.
 	currentDir, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)

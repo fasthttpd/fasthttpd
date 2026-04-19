@@ -232,7 +232,11 @@ func testRoute(t *testing.T, rs *Routes) {
 }
 
 func TestRoute(t *testing.T) {
-	c, err := config.UnmarshalYAMLPath("../config/testdata/full.yaml")
+	ms, err := config.LoadTreeMaps("../config/testdata/full.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := config.FromTreeMaps(ms)
 	if err != nil {
 		t.Fatal(err)
 	}
