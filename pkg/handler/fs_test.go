@@ -140,15 +140,15 @@ func TestFS_SchemaRegistered(t *testing.T) {
 			docs := []tree.Map{{
 				"handlers": tree.Map{"static": tc.handler},
 			}}
-			err := config.Validate(docs)
+			err := config.ValidateTreeMaps(docs)
 			if tc.wantErr == "" {
 				if err != nil {
-					t.Fatalf("Validate returned %v, want nil", err)
+					t.Fatalf("ValidateTreeMaps returned %v, want nil", err)
 				}
 				return
 			}
 			if err == nil {
-				t.Fatalf("Validate returned nil, want error containing %q", tc.wantErr)
+				t.Fatalf("ValidateTreeMaps returned nil, want error containing %q", tc.wantErr)
 			}
 			if !strings.Contains(err.Error(), tc.wantErr) {
 				t.Errorf("error %q does not contain %q", err.Error(), tc.wantErr)

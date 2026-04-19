@@ -25,6 +25,32 @@ func TestLoadTreeMaps(t *testing.T) {
 	}
 }
 
+func TestLoadTreeMaps_JSON(t *testing.T) {
+	// JSON is a subset of YAML 1.2, so a .json file goes through the
+	// same YAML decoder and yields an equivalent tree.Map.
+	got, err := LoadTreeMaps("testdata/simple.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 document, got %d", len(got))
+	}
+	m := got[0]
+	if h := m.Get("host").Value().String(); h != "localhost" {
+		t.Errorf("host = %q, want %q", h, "localhost")
+	}
+	if c := m.Get("server").Get("concurrency").Value().Int(); c != 256 {
+		t.Errorf("server.concurrency = %d, want 256", c)
+	}
+	routes := m.Get("routes").Array()
+	if len(routes) != 1 {
+		t.Fatalf("expected 1 route, got %d", len(routes))
+	}
+	if p := routes[0].Get("path").Value().String(); p != "/" {
+		t.Errorf("routes[0].path = %q, want %q", p, "/")
+	}
+}
+
 func TestLoadTreeMaps_NotFound(t *testing.T) {
 	_, err := LoadTreeMaps("testdata/not-found.yaml")
 	if err == nil {
@@ -35,9 +61,8 @@ func TestLoadTreeMaps_NotFound(t *testing.T) {
 	}
 }
 
-func TestLoadTreeMaps_CircularInclude(t *testing.T) {
-	// Glob in include expansion resolves relative to cwd, so match
-	// the cwd assumption used by TestUnmarshalYAMLPath_IncludeCircular.
+func TestLoadTreeMaps_Include(t *testing.T) {
+	// Glob in include expansion resolves relative to cwd.
 	currentDir, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
@@ -48,12 +73,55 @@ func TestLoadTreeMaps_CircularInclude(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = LoadTreeMaps("include-circular.yaml")
-	if err == nil {
-		t.Fatal("expected error, got nil")
+	got, err := LoadTreeMaps("include.yaml")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(err.Error(), "circular dependency") {
-		t.Errorf("error %q does not mention circular dependency", err.Error())
+	wantHosts := []string{"include1.local", "include2.local"}
+	gotHosts := make([]string, len(got))
+	for i, m := range got {
+		gotHosts[i] = m.Get("host").Value().String()
+	}
+	if !reflect.DeepEqual(gotHosts, wantHosts) {
+		t.Errorf("hosts = %v, want %v", gotHosts, wantHosts)
+	}
+}
+
+func TestLoadTreeMaps_CircularInclude(t *testing.T) {
+	// Glob in include expansion resolves relative to cwd.
+	currentDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(currentDir) //nolint:errcheck
+
+	if err := os.Chdir("testdata"); err != nil {
+		t.Fatal(err)
+	}
+
+	testCases := []struct {
+		caseName string
+		path     string
+	}{
+		{
+			caseName: "self include with identical spelling",
+			path:     "include-circular.yaml",
+		},
+		{
+			caseName: "self include across ./ prefix mismatch",
+			path:     "include-circular-dotslash.yaml",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			_, err := LoadTreeMaps(tc.path)
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), "circular dependency") {
+				t.Errorf("error %q does not mention circular dependency", err.Error())
+			}
+		})
 	}
 }
 

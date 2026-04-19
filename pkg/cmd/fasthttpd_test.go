@@ -25,8 +25,8 @@ func TestFastHttpd_ValidateFullYAML(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := config.Validate(ms); err != nil {
-		t.Fatalf("Validate(full.yaml) returned %v, want nil", err)
+	if err := config.ValidateTreeMaps(ms); err != nil {
+		t.Fatalf("ValidateTreeMaps(full.yaml) returned %v, want nil", err)
 	}
 }
 
