@@ -22,13 +22,13 @@ func LoadTreeMaps(path string) ([]tree.Map, error) {
 	return loadTreeMapsPath(path, nil)
 }
 
-func loadTreeMapsPath(path string, includes []string) ([]tree.Map, error) {
+func loadTreeMapsPath(path string, loadedPaths []string) ([]tree.Map, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
 	}
-	if slices.Contains(includes, abs) {
-		return nil, fmt.Errorf("circular dependency %v", includes)
+	if slices.Contains(loadedPaths, abs) {
+		return nil, fmt.Errorf("circular dependency %v", loadedPaths)
 	}
 	data, err := os.ReadFile(abs)
 	if err != nil {
@@ -43,12 +43,12 @@ func loadTreeMapsPath(path string, includes []string) ([]tree.Map, error) {
 		if !ok {
 			return nil, fmt.Errorf("%s: JSON root must be an object", abs)
 		}
-		return expandIncludes([]tree.Map{m}, append(includes, abs))
+		return expandIncludes([]tree.Map{m}, append(loadedPaths, abs))
 	}
-	return unmarshalTreeMaps(data, append(includes, abs))
+	return unmarshalTreeMaps(data, append(loadedPaths, abs))
 }
 
-func unmarshalTreeMaps(data []byte, includes []string) ([]tree.Map, error) {
+func unmarshalTreeMaps(data []byte, loadedPaths []string) ([]tree.Map, error) {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	var ms []tree.Map
 	for {
@@ -61,10 +61,10 @@ func unmarshalTreeMaps(data []byte, includes []string) ([]tree.Map, error) {
 		}
 		ms = append(ms, m)
 	}
-	return expandIncludes(ms, includes)
+	return expandIncludes(ms, loadedPaths)
 }
 
-func expandIncludes(ms []tree.Map, includes []string) ([]tree.Map, error) {
+func expandIncludes(ms []tree.Map, loadedPaths []string) ([]tree.Map, error) {
 	var out []tree.Map
 	for _, m := range ms {
 		inc := m.Get("include").Value().String()
@@ -77,7 +77,7 @@ func expandIncludes(ms []tree.Map, includes []string) ([]tree.Map, error) {
 			return nil, err
 		}
 		for _, p := range paths {
-			sub, err := loadTreeMapsPath(p, includes)
+			sub, err := loadTreeMapsPath(p, loadedPaths)
 			if err != nil {
 				return nil, err
 			}
