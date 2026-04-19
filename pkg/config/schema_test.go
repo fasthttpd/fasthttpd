@@ -8,7 +8,7 @@ import (
 	"github.com/mojatter/tree"
 )
 
-func TestValidate(t *testing.T) {
+func TestValidateTreeMaps(t *testing.T) {
 	testCases := []struct {
 		caseName string
 		docs     []tree.Map
@@ -41,15 +41,15 @@ func TestValidate(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.caseName, func(t *testing.T) {
-			err := Validate(tc.docs)
+			err := ValidateTreeMaps(tc.docs)
 			if tc.wantErr == "" {
 				if err != nil {
-					t.Fatalf("Validate returned %v, want nil", err)
+					t.Fatalf("ValidateTreeMaps returned %v, want nil", err)
 				}
 				return
 			}
 			if err == nil {
-				t.Fatalf("Validate returned nil, want error containing %q", tc.wantErr)
+				t.Fatalf("ValidateTreeMaps returned nil, want error containing %q", tc.wantErr)
 			}
 			if !strings.Contains(err.Error(), tc.wantErr) {
 				t.Errorf("error %q does not contain %q", err.Error(), tc.wantErr)
@@ -412,20 +412,20 @@ func TestRegisterHandlerSchema_Dispatch(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.caseName, func(t *testing.T) {
 			docs := []tree.Map{{"handlers": tree.Map{"h": tc.handler}}}
-			err := Validate(docs)
+			err := ValidateTreeMaps(docs)
 			checkErr(t, err, tc.wantErr)
 		})
 	}
 }
 
-func TestValidate_MultiDocPrefix(t *testing.T) {
+func TestValidateTreeMaps_MultiDocPrefix(t *testing.T) {
 	// With more than one document, errors are prefixed with
 	// `documents[N].` so the user can locate the offending doc.
 	docs := []tree.Map{
 		{},
 		{"handlers": tree.Map{"h": tree.Map{"root": tree.V("/srv")}}},
 	}
-	err := Validate(docs)
+	err := ValidateTreeMaps(docs)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -435,9 +435,9 @@ func TestValidate_MultiDocPrefix(t *testing.T) {
 }
 
 func TestRegisterFilterSchema_Dispatch(t *testing.T) {
-	// Register a throwaway schema and verify Validate routes filter
-	// entries by their "type" field. Also covers RegisterFilterSchema
-	// and validateFilter in this package's tests.
+	// Register a throwaway schema and verify ValidateTreeMaps routes
+	// filter entries by their "type" field. Also covers
+	// RegisterFilterSchema and validateFilter in this package's tests.
 	RegisterFilterSchema("test-fs-filter", map[string]Schema{
 		".type": StringSchema{Enum: []string{"test-fs-filter"}},
 		".name": StringSchema{},
@@ -484,7 +484,7 @@ func TestRegisterFilterSchema_Dispatch(t *testing.T) {
 				v = tree.V("not-a-map")
 			}
 			docs := []tree.Map{{"filters": tree.Map{"f": v}}}
-			err := Validate(docs)
+			err := ValidateTreeMaps(docs)
 			checkErr(t, err, tc.wantErr)
 		})
 	}

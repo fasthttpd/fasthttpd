@@ -327,12 +327,12 @@ func RegisterFilterSchema(typeName string, schemas map[string]Schema) {
 	schemaMu.Unlock()
 }
 
-// Validate runs schema-driven validation over each document's
+// ValidateTreeMaps runs schema-driven validation over each document's
 // free-form handlers / filters subtrees. Typed portions of Config
 // (including the Server struct) are validated by FromTreeMap via the
 // yaml decoder with KnownFields(true), so this function intentionally
 // does not re-check them.
-func Validate(ms []tree.Map) error {
+func ValidateTreeMaps(ms []tree.Map) error {
 	schemaMu.Lock()
 	defer schemaMu.Unlock()
 
