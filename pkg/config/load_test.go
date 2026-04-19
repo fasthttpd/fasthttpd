@@ -184,6 +184,32 @@ func TestEdit(t *testing.T) {
 			},
 		},
 		{
+			caseName: "array literal is handed through as YAML flow",
+			exprs:    []string{"indexNames=[index.php, fallback.html]"},
+			check: func(t *testing.T, ms []tree.Map) {
+				arr := ms[0].Get("indexNames").Array()
+				if len(arr) != 2 {
+					t.Fatalf("indexNames length = %d, want 2", len(arr))
+				}
+				if got := arr[0].Value().String(); got != "index.php" {
+					t.Errorf("indexNames[0] = %q, want %q", got, "index.php")
+				}
+				if got := arr[1].Value().String(); got != "fallback.html" {
+					t.Errorf("indexNames[1] = %q, want %q", got, "fallback.html")
+				}
+			},
+		},
+		{
+			caseName: "map literal is handed through as YAML flow",
+			exprs:    []string{"headers={Content-Type: text/plain}"},
+			check: func(t *testing.T, ms []tree.Map) {
+				got := ms[0].Get("headers").Get("Content-Type").Value().String()
+				if got != "text/plain" {
+					t.Errorf("headers.Content-Type = %q, want %q", got, "text/plain")
+				}
+			},
+		},
+		{
 			caseName: "invalid expression returns error",
 			exprs:    []string{"not a valid expr"},
 			wantErr:  "syntax error",
