@@ -14,10 +14,12 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// LoadTreeMaps reads path as YAML (multi-document) or JSON (single
-// object) and returns each document as a tree.Map. `include` directives
-// in the loaded documents are expanded recursively; circular includes
-// are detected and reported.
+// LoadTreeMaps reads path and returns each document as a tree.Map.
+// The YAML decoder handles both YAML (multi-document, `---`-separated)
+// and JSON inputs — JSON is a subset of YAML 1.2, so `.json` files
+// work without a separate code path. `include` directives in the loaded
+// documents are expanded recursively; circular includes are detected
+// and reported.
 func LoadTreeMaps(path string) ([]tree.Map, error) {
 	return loadTreeMapsPath(path, nil)
 }
@@ -33,17 +35,6 @@ func loadTreeMapsPath(path string, loadedPaths []string) ([]tree.Map, error) {
 	data, err := os.ReadFile(abs)
 	if err != nil {
 		return nil, err
-	}
-	if strings.HasSuffix(strings.ToLower(abs), ".json") {
-		n, err := tree.UnmarshalJSON(data)
-		if err != nil {
-			return nil, err
-		}
-		m, ok := n.(tree.Map)
-		if !ok {
-			return nil, fmt.Errorf("%s: JSON root must be an object", abs)
-		}
-		return expandIncludes([]tree.Map{m}, append(loadedPaths, abs))
 	}
 	return unmarshalTreeMaps(data, append(loadedPaths, abs))
 }

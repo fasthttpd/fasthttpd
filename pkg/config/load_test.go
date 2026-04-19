@@ -25,6 +25,32 @@ func TestLoadTreeMaps(t *testing.T) {
 	}
 }
 
+func TestLoadTreeMaps_JSON(t *testing.T) {
+	// JSON is a subset of YAML 1.2, so a .json file goes through the
+	// same YAML decoder and yields an equivalent tree.Map.
+	got, err := LoadTreeMaps("testdata/simple.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 document, got %d", len(got))
+	}
+	m := got[0]
+	if h := m.Get("host").Value().String(); h != "localhost" {
+		t.Errorf("host = %q, want %q", h, "localhost")
+	}
+	if c := m.Get("server").Get("concurrency").Value().Int(); c != 256 {
+		t.Errorf("server.concurrency = %d, want 256", c)
+	}
+	routes := m.Get("routes").Array()
+	if len(routes) != 1 {
+		t.Fatalf("expected 1 route, got %d", len(routes))
+	}
+	if p := routes[0].Get("path").Value().String(); p != "/" {
+		t.Errorf("routes[0].path = %q, want %q", p, "/")
+	}
+}
+
 func TestLoadTreeMaps_NotFound(t *testing.T) {
 	_, err := LoadTreeMaps("testdata/not-found.yaml")
 	if err == nil {
