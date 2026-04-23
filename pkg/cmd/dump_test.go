@@ -121,14 +121,14 @@ func TestFastHttpd_TestOrDump(t *testing.T) {
 		{
 			caseName:   "-T=json without -e dumps bare array",
 			dumpFormat: "json",
-			wantStdout: []string{`[`, `"Host": "localhost"`},
+			wantStdout: []string{`[`, `"host": "localhost"`},
 			missStdout: []string{`"preEdit"`, `"normalized"`},
 		},
 		{
 			caseName:   "-T=json with -e splits streams",
 			dumpFormat: "json",
 			editExprs:  []string{"listen=:9000"},
-			wantStdout: []string{`"Listen": ":9000"`},
+			wantStdout: []string{`"listen": ":9000"`},
 			missStdout: []string{`"preEdit"`, `"normalized"`},
 			wantStderr: []string{`"host"`, `"localhost"`},
 			missStderr: []string{`":9000"`},

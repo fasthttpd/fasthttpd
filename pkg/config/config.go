@@ -30,19 +30,19 @@ const (
 
 // Config represents a configuration root of fasthttpd.
 type Config struct {
-	Host            string              `yaml:"host"`
-	Listen          string              `yaml:"listen"`
-	SSL             SSL                 `yaml:"ssl"`
-	Root            string              `yaml:"root"`
-	Server          Server              `yaml:"server"`
-	Log             Log                 `yaml:"log"`
-	AccessLog       AccessLog           `yaml:"accessLog"`
-	ErrorPages      map[string]string   `yaml:"errorPages"`
-	Filters         map[string]tree.Map `yaml:"filters"`
-	Handlers        map[string]tree.Map `yaml:"handlers"`
-	Routes          []Route             `yaml:"routes"`
-	RoutesCache     RoutesCache         `yaml:"routesCache"`
-	ShutdownTimeout string              `yaml:"shutdownTimeout"`
+	Host            string              `yaml:"host" json:"host"`
+	Listen          string              `yaml:"listen" json:"listen"`
+	SSL             SSL                 `yaml:"ssl" json:"ssl"`
+	Root            string              `yaml:"root" json:"root"`
+	Server          Server              `yaml:"server" json:"server"`
+	Log             Log                 `yaml:"log" json:"log"`
+	AccessLog       AccessLog           `yaml:"accessLog" json:"accessLog"`
+	ErrorPages      map[string]string   `yaml:"errorPages" json:"errorPages"`
+	Filters         map[string]tree.Map `yaml:"filters" json:"filters"`
+	Handlers        map[string]tree.Map `yaml:"handlers" json:"handlers"`
+	Routes          []Route             `yaml:"routes" json:"routes"`
+	RoutesCache     RoutesCache         `yaml:"routesCache" json:"routesCache"`
+	ShutdownTimeout string              `yaml:"shutdownTimeout" json:"shutdownTimeout"`
 }
 
 // SetDefaults sets default values.
@@ -165,33 +165,33 @@ func (d *Duration) UnmarshalYAML(value *yaml.Node) error {
 // because fasthttpd does not expose Hijack, and getOnly is omitted
 // because method restriction is expressed via Routes.
 type Server struct {
-	Name               string `yaml:"name"`
-	Concurrency        int    `yaml:"concurrency"`
-	ReadBufferSize     Size   `yaml:"readBufferSize"`
-	WriteBufferSize    Size   `yaml:"writeBufferSize"`
-	MaxConnsPerIP      int    `yaml:"maxConnsPerIP"`
-	MaxRequestsPerConn int    `yaml:"maxRequestsPerConn"`
-	MaxRequestBodySize Size   `yaml:"maxRequestBodySize"`
+	Name               string `yaml:"name" json:"name"`
+	Concurrency        int    `yaml:"concurrency" json:"concurrency"`
+	ReadBufferSize     Size   `yaml:"readBufferSize" json:"readBufferSize"`
+	WriteBufferSize    Size   `yaml:"writeBufferSize" json:"writeBufferSize"`
+	MaxConnsPerIP      int    `yaml:"maxConnsPerIP" json:"maxConnsPerIP"`
+	MaxRequestsPerConn int    `yaml:"maxRequestsPerConn" json:"maxRequestsPerConn"`
+	MaxRequestBodySize Size   `yaml:"maxRequestBodySize" json:"maxRequestBodySize"`
 
-	ReadTimeout                        Duration `yaml:"readTimeout"`
-	WriteTimeout                       Duration `yaml:"writeTimeout"`
-	IdleTimeout                        Duration `yaml:"idleTimeout"`
-	MaxIdleWorkerDuration              Duration `yaml:"maxIdleWorkerDuration"`
-	TCPKeepalivePeriod                 Duration `yaml:"tcpKeepalivePeriod"`
-	SleepWhenConcurrencyLimitsExceeded Duration `yaml:"sleepWhenConcurrencyLimitsExceeded"`
+	ReadTimeout                        Duration `yaml:"readTimeout" json:"readTimeout"`
+	WriteTimeout                       Duration `yaml:"writeTimeout" json:"writeTimeout"`
+	IdleTimeout                        Duration `yaml:"idleTimeout" json:"idleTimeout"`
+	MaxIdleWorkerDuration              Duration `yaml:"maxIdleWorkerDuration" json:"maxIdleWorkerDuration"`
+	TCPKeepalivePeriod                 Duration `yaml:"tcpKeepalivePeriod" json:"tcpKeepalivePeriod"`
+	SleepWhenConcurrencyLimitsExceeded Duration `yaml:"sleepWhenConcurrencyLimitsExceeded" json:"sleepWhenConcurrencyLimitsExceeded"`
 
-	DisableKeepalive              bool `yaml:"disableKeepalive"`
-	TCPKeepalive                  bool `yaml:"tcpKeepalive"`
-	ReduceMemoryUsage             bool `yaml:"reduceMemoryUsage"`
-	DisablePreParseMultipartForm  bool `yaml:"disablePreParseMultipartForm"`
-	LogAllErrors                  bool `yaml:"logAllErrors"`
-	SecureErrorLogMessage         bool `yaml:"secureErrorLogMessage"`
-	DisableHeaderNamesNormalizing bool `yaml:"disableHeaderNamesNormalizing"`
-	NoDefaultServerHeader         bool `yaml:"noDefaultServerHeader"`
-	NoDefaultDate                 bool `yaml:"noDefaultDate"`
-	NoDefaultContentType          bool `yaml:"noDefaultContentType"`
-	CloseOnShutdown               bool `yaml:"closeOnShutdown"`
-	StreamRequestBody             bool `yaml:"streamRequestBody"`
+	DisableKeepalive              bool `yaml:"disableKeepalive" json:"disableKeepalive"`
+	TCPKeepalive                  bool `yaml:"tcpKeepalive" json:"tcpKeepalive"`
+	ReduceMemoryUsage             bool `yaml:"reduceMemoryUsage" json:"reduceMemoryUsage"`
+	DisablePreParseMultipartForm  bool `yaml:"disablePreParseMultipartForm" json:"disablePreParseMultipartForm"`
+	LogAllErrors                  bool `yaml:"logAllErrors" json:"logAllErrors"`
+	SecureErrorLogMessage         bool `yaml:"secureErrorLogMessage" json:"secureErrorLogMessage"`
+	DisableHeaderNamesNormalizing bool `yaml:"disableHeaderNamesNormalizing" json:"disableHeaderNamesNormalizing"`
+	NoDefaultServerHeader         bool `yaml:"noDefaultServerHeader" json:"noDefaultServerHeader"`
+	NoDefaultDate                 bool `yaml:"noDefaultDate" json:"noDefaultDate"`
+	NoDefaultContentType          bool `yaml:"noDefaultContentType" json:"noDefaultContentType"`
+	CloseOnShutdown               bool `yaml:"closeOnShutdown" json:"closeOnShutdown"`
+	StreamRequestBody             bool `yaml:"streamRequestBody" json:"streamRequestBody"`
 }
 
 // ApplyTo copies Server's configurable fields onto dst. Handler /
@@ -241,10 +241,10 @@ func (cfg Config) ShutdownTimeoutDuration() time.Duration {
 // SSL represents a configuration of SSL. If AutoCert is true, CertFile and
 // KeyFile are ignored.
 type SSL struct {
-	CertFile         string `yaml:"certFile"`
-	KeyFile          string `yaml:"keyFile"`
-	AutoCert         bool   `yaml:"autoCert"`
-	AutoCertCacheDir string `yaml:"autoCertCacheDir"`
+	CertFile         string `yaml:"certFile" json:"certFile"`
+	KeyFile          string `yaml:"keyFile" json:"keyFile"`
+	AutoCert         bool   `yaml:"autoCert" json:"autoCert"`
+	AutoCertCacheDir string `yaml:"autoCertCacheDir" json:"autoCertCacheDir"`
 }
 
 // SetDefaults sets default values.
@@ -268,11 +268,11 @@ func (ssl SSL) Normalize() (SSL, error) {
 
 // Rotation represents a configuration of log rotation.
 type Rotation struct {
-	MaxSize    int  `yaml:"maxSize"`
-	MaxBackups int  `yaml:"maxBackups"`
-	MaxAge     int  `yaml:"maxAge"`
-	Compress   bool `yaml:"compress"`
-	LocalTime  bool `yaml:"localTime"`
+	MaxSize    int  `yaml:"maxSize" json:"maxSize"`
+	MaxBackups int  `yaml:"maxBackups" json:"maxBackups"`
+	MaxAge     int  `yaml:"maxAge" json:"maxAge"`
+	Compress   bool `yaml:"compress" json:"compress"`
+	LocalTime  bool `yaml:"localTime" json:"localTime"`
 }
 
 // SetDefaults sets default values.
@@ -287,10 +287,10 @@ func (r Rotation) SetDefaults() Rotation {
 
 // Log represents a configuration of logging.
 type Log struct {
-	Output   string   `yaml:"output"`
-	Prefix   string   `yaml:"prefix"`
-	Flags    []string `yaml:"flags"`
-	Rotation Rotation
+	Output   string   `yaml:"output" json:"output"`
+	Prefix   string   `yaml:"prefix" json:"prefix"`
+	Flags    []string `yaml:"flags" json:"flags"`
+	Rotation Rotation `json:"rotation"`
 }
 
 // SetDefaults sets default values.
@@ -302,12 +302,12 @@ func (l Log) SetDefaults() Log {
 
 // AccessLog represents a configuration of access log.
 type AccessLog struct {
-	Output        string `yaml:"output"`
-	Format        string `yaml:"format"`
-	QueueSize     int    `yaml:"queueSize"` // Deprecated: silently ignored. Use BufferSize instead.
-	BufferSize    int    `yaml:"bufferSize"`
-	FlushInterval int    `yaml:"flushInterval"` // milliseconds
-	Rotation      Rotation
+	Output        string   `yaml:"output" json:"output"`
+	Format        string   `yaml:"format" json:"format"`
+	QueueSize     int      `yaml:"queueSize" json:"queueSize"` // Deprecated: silently ignored. Use BufferSize instead.
+	BufferSize    int      `yaml:"bufferSize" json:"bufferSize"`
+	FlushInterval int      `yaml:"flushInterval" json:"flushInterval"` // milliseconds
+	Rotation      Rotation `json:"rotation"`
 }
 
 // SetDefaults sets default values.
@@ -320,16 +320,16 @@ func (l AccessLog) SetDefaults() AccessLog {
 
 // Route represents a configuration of route.
 type Route struct {
-	Path                     string   `yaml:"path"`
-	Match                    string   `yaml:"match"`
-	Methods                  []string `yaml:"methods"`
-	Filters                  []string `yaml:"filters"`
-	Rewrite                  string   `yaml:"rewrite"`
-	RewriteAppendQueryString bool     `yaml:"rewriteAppendQueryString"`
-	Handler                  string   `yaml:"handler"`
-	Status                   int      `yaml:"status"`
-	StatusMessage            string   `yaml:"statusMessage"`
-	NextIfNotFound           bool     `yaml:"nextIfNotFound"`
+	Path                     string   `yaml:"path" json:"path"`
+	Match                    string   `yaml:"match" json:"match"`
+	Methods                  []string `yaml:"methods" json:"methods"`
+	Filters                  []string `yaml:"filters" json:"filters"`
+	Rewrite                  string   `yaml:"rewrite" json:"rewrite"`
+	RewriteAppendQueryString bool     `yaml:"rewriteAppendQueryString" json:"rewriteAppendQueryString"`
+	Handler                  string   `yaml:"handler" json:"handler"`
+	Status                   int      `yaml:"status" json:"status"`
+	StatusMessage            string   `yaml:"statusMessage" json:"statusMessage"`
+	NextIfNotFound           bool     `yaml:"nextIfNotFound" json:"nextIfNotFound"`
 }
 
 // RoutesCache represents a configuration of route cache. MaxEntries
@@ -338,9 +338,9 @@ type Route struct {
 // reached, Set on a new key is dropped so that already-cached hot
 // paths survive adversarial unique-key floods.
 type RoutesCache struct {
-	Enable     bool `yaml:"enable"`
-	Expire     int  `yaml:"expire"`
-	Interval   int  `yaml:"interval"`
-	MaxEntries int  `yaml:"maxEntries"`
+	Enable     bool `yaml:"enable" json:"enable"`
+	Expire     int  `yaml:"expire" json:"expire"`
+	Interval   int  `yaml:"interval" json:"interval"`
+	MaxEntries int  `yaml:"maxEntries" json:"maxEntries"`
 }
 
