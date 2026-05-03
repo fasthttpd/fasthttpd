@@ -195,7 +195,7 @@ func TestHeader_SchemaRegistered(t *testing.T) {
 				"type":  tree.V("header"),
 				"bogus": tree.V(1),
 			},
-			wantErr: `unknown key "bogus"`,
+			wantErr: `.filters["h"]: unknown key "bogus"`,
 		},
 		{
 			caseName: "unknown nested action",
@@ -205,7 +205,7 @@ func TestHeader_SchemaRegistered(t *testing.T) {
 					"strip": tree.Map{"X-Foo": tree.V("")},
 				},
 			},
-			wantErr: `.request: unknown key "strip"`,
+			wantErr: `.filters["h"].request: unknown key "strip"`,
 		},
 	}
 	for _, tc := range testCases {

@@ -91,7 +91,7 @@ func (HandlerDispatch) Validate(n tree.Node, q string) error {
 	}
 	t := n.Map().Get("type").Value().String()
 	if t == "" {
-		return fmt.Errorf("%s: missing 'type'", q)
+		return fmt.Errorf(`%s: "type" is required`, q)
 	}
 	rules, ok := lookupHandlerRules(t)
 	if !ok {
@@ -121,7 +121,7 @@ func (FilterDispatch) Validate(n tree.Node, q string) error {
 	}
 	t := n.Map().Get("type").Value().String()
 	if t == "" {
-		return fmt.Errorf("%s: missing 'type'", q)
+		return fmt.Errorf(`%s: "type" is required`, q)
 	}
 	rules, ok := lookupFilterRules(t)
 	if !ok {

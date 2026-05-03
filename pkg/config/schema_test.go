@@ -29,7 +29,7 @@ func TestValidateTreeMaps(t *testing.T) {
 			docs: []tree.Map{{
 				"handlers": tree.Map{"x": tree.Map{"root": tree.V("/")}},
 			}},
-			wantErr: `handlers["x"]: missing 'type'`,
+			wantErr: `.handlers["x"]: "type" is required`,
 		},
 		{
 			caseName: "unregistered handler type passes through",
@@ -45,7 +45,7 @@ func TestValidateTreeMaps(t *testing.T) {
 			docs: []tree.Map{{
 				"handlers": tree.V("not map"),
 			}},
-			wantErr: "handlers: expected array or map",
+			wantErr: ".handlers: expected array or map",
 		},
 	}
 	for _, tc := range testCases {
@@ -190,7 +190,7 @@ func TestRegisterHandlerSchema_Dispatch(t *testing.T) {
 		{
 			caseName: "unknown key",
 			handler:  tree.Map{"type": tree.V("test-fs-handler"), "bogus": tree.V(1)},
-			wantErr:  `unknown key "bogus"`,
+			wantErr:  `.handlers["h"]: unknown key "bogus"`,
 		},
 		{
 			caseName: "not a map",
@@ -200,7 +200,7 @@ func TestRegisterHandlerSchema_Dispatch(t *testing.T) {
 		{
 			caseName: "missing type",
 			handler:  tree.Map{"root": tree.V("/srv")},
-			wantErr:  `handlers["h"]: missing 'type'`,
+			wantErr:  `.handlers["h"]: "type" is required`,
 		},
 	}
 	for _, tc := range testCases {
@@ -253,12 +253,12 @@ func TestRegisterFilterSchema_Dispatch(t *testing.T) {
 		{
 			caseName: "missing type",
 			filter:   tree.Map{"name": tree.V("x")},
-			wantErr:  `filters["f"]: missing 'type'`,
+			wantErr:  `.filters["f"]: "type" is required`,
 		},
 		{
 			caseName: "unknown key",
 			filter:   tree.Map{"type": tree.V("test-fs-filter"), "bogus": tree.V(1)},
-			wantErr:  `unknown key "bogus"`,
+			wantErr:  `.filters["f"]: unknown key "bogus"`,
 		},
 		{
 			caseName: "filter is not a map",

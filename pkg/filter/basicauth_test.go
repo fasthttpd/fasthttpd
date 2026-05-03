@@ -266,7 +266,7 @@ func TestBasicAuth_SchemaRegistered(t *testing.T) {
 					tree.Map{"name": tree.V("u"), "passwd": tree.V("p")},
 				},
 			},
-			wantErr: "passwd",
+			wantErr: `.filters["auth"].users[0]: unknown key "passwd"`,
 		},
 		{
 			caseName: "unknown top-level field",
@@ -274,7 +274,7 @@ func TestBasicAuth_SchemaRegistered(t *testing.T) {
 				"type":  tree.V("basicAuth"),
 				"bogus": tree.V(1),
 			},
-			wantErr: `unknown key "bogus"`,
+			wantErr: `.filters["auth"]: unknown key "bogus"`,
 		},
 	}
 	for _, tc := range testCases {

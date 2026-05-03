@@ -114,7 +114,7 @@ func TestFS_SchemaRegistered(t *testing.T) {
 				"root":  tree.V("./public"),
 				"bogus": tree.V(123),
 			},
-			wantErr: `unknown key "bogus"`,
+			wantErr: `.handlers["static"]: unknown key "bogus"`,
 		},
 		{
 			caseName: "wrong type on fs field",
