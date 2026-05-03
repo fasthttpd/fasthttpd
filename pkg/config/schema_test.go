@@ -165,6 +165,136 @@ func TestDurationRule_Validate(t *testing.T) {
 	}
 }
 
+func TestSizeRule_Validate(t *testing.T) {
+	testCases := []struct {
+		caseName string
+		node     tree.Node
+		wantErr  string
+	}{
+		{caseName: "string ok", node: tree.V("4k")},
+		{caseName: "string with spaces ok", node: tree.V("8 KiB")},
+		{caseName: "number ok", node: tree.V(int64(4096))},
+		{caseName: "nil skipped", node: tree.Nil},
+		{caseName: "invalid string", node: tree.V("not"), wantErr: "invalid size"},
+		{caseName: "bool rejected", node: tree.V(true), wantErr: "expected size"},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			err := SizeRule{}.Validate(tc.node, ".x")
+			checkErr(t, err, tc.wantErr)
+		})
+	}
+}
+
+// customRulerType implements [SchemaRuler] to verify the override
+// path in [ruleForType].
+type customRulerType struct{}
+
+func (customRulerType) SchemaRule() schema.Rule { return schema.Bool{} }
+
+// untaggedFieldStruct verifies the lowercased-field-name fallback for
+// fields without a `yaml:"..."` tag — matching yaml/v3 decoder
+// behavior.
+type untaggedFieldStruct struct {
+	Tagged   string `yaml:"explicit"`
+	Rotation string // no tag → key "rotation"
+	skipMe   string //nolint:unused // verifies unexported fields are ignored
+}
+
+// kitchenSink covers the kinds [SchemaFromStruct] must handle: the
+// SchemaRuler override, primitives, slices, maps of strings, maps of
+// tree.Map (special-cased), nested structs, pointers, and tagged-skip.
+type kitchenSink struct {
+	Custom   customRulerType     `yaml:"custom"`
+	Str      string              `yaml:"str"`
+	Int      int                 `yaml:"int"`
+	Bool     bool                `yaml:"bool"`
+	Float    float64             `yaml:"float"`
+	Slice    []string            `yaml:"slice"`
+	Strs     map[string]string   `yaml:"strs"`
+	RawMap   tree.Map            `yaml:"rawMap"`
+	Maps     map[string]tree.Map `yaml:"maps"`
+	Nested   untaggedFieldStruct `yaml:"nested"`
+	PtrToInt *int                `yaml:"ptrToInt"`
+	Skipped  string              `yaml:"-"`
+	Untagged bool                // key "untagged"
+}
+
+func TestSchemaFromStruct(t *testing.T) {
+	got := SchemaFromStruct(kitchenSink{})
+
+	wantKeys := []string{
+		"custom", "str", "int", "bool", "float",
+		"slice", "strs", "rawMap", "maps",
+		"nested", "ptrToInt", "untagged",
+	}
+	for _, k := range wantKeys {
+		if _, ok := got.KeyedRules[k]; !ok {
+			t.Errorf("KeyedRules missing key %q", k)
+		}
+	}
+	if _, ok := got.KeyedRules["Skipped"]; ok {
+		t.Errorf(`KeyedRules contains "Skipped"; yaml:"-" should be skipped`)
+	}
+	if _, ok := got.KeyedRules["skipMe"]; ok {
+		t.Errorf(`KeyedRules contains "skipMe"; unexported fields should be skipped`)
+	}
+
+	// SchemaRuler override: customRulerType returns schema.Bool{}.
+	if _, ok := got.KeyedRules["custom"].(schema.Bool); !ok {
+		t.Errorf("custom rule = %T; want schema.Bool", got.KeyedRules["custom"])
+	}
+	// Primitives.
+	if _, ok := got.KeyedRules["str"].(schema.String); !ok {
+		t.Errorf("str rule = %T; want schema.String", got.KeyedRules["str"])
+	}
+	if _, ok := got.KeyedRules["int"].(schema.Int); !ok {
+		t.Errorf("int rule = %T; want schema.Int", got.KeyedRules["int"])
+	}
+	if _, ok := got.KeyedRules["bool"].(schema.Bool); !ok {
+		t.Errorf("bool rule = %T; want schema.Bool", got.KeyedRules["bool"])
+	}
+	if _, ok := got.KeyedRules["float"].(schema.Float); !ok {
+		t.Errorf("float rule = %T; want schema.Float", got.KeyedRules["float"])
+	}
+	// tree.Map → schema.Map{} (no KeyedRules — accept any shape).
+	rawMap, ok := got.KeyedRules["rawMap"].(schema.Map)
+	if !ok {
+		t.Errorf("rawMap rule = %T; want schema.Map", got.KeyedRules["rawMap"])
+	} else if len(rawMap.KeyedRules) != 0 {
+		t.Errorf("rawMap rule has KeyedRules; tree.Map should be open")
+	}
+	// Nested struct → schema.Map with KeyedRules.
+	nested, ok := got.KeyedRules["nested"].(schema.Map)
+	if !ok {
+		t.Errorf("nested rule = %T; want schema.Map", got.KeyedRules["nested"])
+	} else {
+		if _, ok := nested.KeyedRules["explicit"]; !ok {
+			t.Errorf(`nested missing "explicit" key (from yaml:"explicit")`)
+		}
+		if _, ok := nested.KeyedRules["rotation"]; !ok {
+			t.Errorf(`nested missing "rotation" key (lowercased Rotation)`)
+		}
+	}
+}
+
+// TestSchemaFromStruct_AppliedToConfig is a smoke test that the
+// generator succeeds on the real Config struct and produces a schema
+// that accepts every key the Config struct actually defines.
+func TestSchemaFromStruct_AppliedToConfig(t *testing.T) {
+	root := SchemaFromStruct(Config{})
+	for _, k := range []string{
+		"host", "listen", "ssl", "root", "server",
+		"log", "accessLog", "errorPages",
+		"filters", "handlers", "routes", "routesCache",
+		"shutdownTimeout",
+	} {
+		if _, ok := root.KeyedRules[k]; !ok {
+			t.Errorf("Config schema missing top-level key %q", k)
+		}
+	}
+}
+
 func TestRegisterHandlerSchema_Dispatch(t *testing.T) {
 	RegisterHandlerSchema("test-fs-handler", schema.QueryRules{
 		".": schema.Map{KeyedRules: map[string]schema.Rule{
