@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -279,6 +280,38 @@ func TestRegisterFilterSchema_Dispatch(t *testing.T) {
 			err := ValidateTreeMaps(docs)
 			checkErr(t, err, tc.wantErr)
 		})
+	}
+}
+
+// TestValidateTreeMaps_MalformedSchemaQuery covers the case where a
+// registered handler's QueryRules carries a query string that
+// tree.Find cannot parse. ValidateTreeMaps should wrap the underlying
+// *schema.ErrQuery with an "internal" prefix so the operator can tell
+// it apart from a config error, while keeping the original ErrQuery
+// reachable via errors.As.
+func TestValidateTreeMaps_MalformedSchemaQuery(t *testing.T) {
+	RegisterHandlerSchema("test-bad-query", schema.QueryRules{
+		".[broken": schema.String{},
+	})
+	t.Cleanup(func() {
+		schemaMu.Lock()
+		delete(handlerSchemas, "test-bad-query")
+		schemaMu.Unlock()
+	})
+
+	docs := []tree.Map{{
+		"handlers": tree.Map{"x": tree.Map{"type": tree.V("test-bad-query")}},
+	}}
+	err := ValidateTreeMaps(docs)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "internal:") {
+		t.Errorf("error %q missing 'internal:' prefix", err.Error())
+	}
+	var qe *schema.ErrQuery
+	if !errors.As(err, &qe) {
+		t.Errorf("error %v does not wrap *schema.ErrQuery", err)
 	}
 }
 

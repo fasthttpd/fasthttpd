@@ -155,6 +155,12 @@ var topLevelRules = schema.QueryRules{
 // free-form handlers / filters subtrees. Typed portions of Config
 // (including the Server struct) are validated by FromTreeMap, so
 // this function intentionally does not re-check them.
+//
+// When a registered schema rule itself is malformed (its query string
+// fails to parse via tree.Find), the underlying *schema.ErrQuery is
+// wrapped with an "internal" message so the operator can tell it
+// apart from a config error. The original *schema.ErrQuery remains
+// reachable via errors.As.
 func ValidateTreeMaps(ms []tree.Map) error {
 	var errs []error
 	for i, m := range ms {
@@ -166,5 +172,13 @@ func ValidateTreeMaps(ms []tree.Map) error {
 			errs = append(errs, err)
 		}
 	}
-	return errors.Join(errs...)
+	joined := errors.Join(errs...)
+	if joined == nil {
+		return nil
+	}
+	var qe *schema.ErrQuery
+	if errors.As(joined, &qe) {
+		return fmt.Errorf("internal: malformed schema rule: %w", joined)
+	}
+	return joined
 }
