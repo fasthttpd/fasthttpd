@@ -47,6 +47,48 @@ func TestValidateTreeMaps(t *testing.T) {
 			}},
 			wantErr: ".handlers: expected array or map",
 		},
+		{
+			caseName: "unknown top-level key",
+			docs: []tree.Map{{
+				"listn": tree.V(":8080"), // typo of "listen"
+			}},
+			wantErr: `.: unknown key "listn"`,
+		},
+		{
+			caseName: "wrong type on top-level field",
+			docs: []tree.Map{{
+				"routes": tree.V("single"), // want array of Route
+			}},
+			wantErr: ".routes: expected array or map",
+		},
+		{
+			caseName: "unknown server field",
+			docs: []tree.Map{{
+				"server": tree.Map{"futureField": tree.V("x")},
+			}},
+			wantErr: `.server: unknown key "futureField"`,
+		},
+		{
+			caseName: "wrong type on server field",
+			docs: []tree.Map{{
+				"server": tree.Map{"concurrency": tree.V("many")},
+			}},
+			wantErr: ".server.concurrency: expected number, got string",
+		},
+		{
+			caseName: "invalid server duration",
+			docs: []tree.Map{{
+				"server": tree.Map{"readTimeout": tree.V("not-a-duration")},
+			}},
+			wantErr: `.server.readTimeout: invalid duration "not-a-duration"`,
+		},
+		{
+			caseName: "invalid server size",
+			docs: []tree.Map{{
+				"server": tree.Map{"readBufferSize": tree.V("not-a-size")},
+			}},
+			wantErr: `.server.readBufferSize: invalid size "not-a-size"`,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.caseName, func(t *testing.T) {
@@ -67,78 +109,21 @@ func TestValidateTreeMaps(t *testing.T) {
 	}
 }
 
-// TestFromTreeMap exercises the typed Config decoding path. Unknown
-// top-level keys fail KnownFields strict decoding; unknown Server
-// fields fail the same way one level deeper; invalid duration values
-// fail Duration.UnmarshalYAML.
+// TestFromTreeMap exercises the typed Config decoding path on a
+// schema-valid input. Error cases (unknown keys, wrong types, invalid
+// durations) are exercised against ValidateTreeMaps in
+// TestValidateTreeMaps — once the schema layer accepts a document,
+// FromTreeMap can decode it without re-checking those constraints.
 func TestFromTreeMap(t *testing.T) {
-	testCases := []struct {
-		caseName string
-		doc      tree.Map
-		wantErr  string // substring; empty means success
-	}{
-		{
-			caseName: "valid server",
-			doc: tree.Map{
-				"server": tree.Map{
-					"name":        tree.V("fasthttpd"),
-					"concurrency": tree.V(100),
-					"readTimeout": tree.V("60s"),
-				},
-			},
-		},
-		{
-			caseName: "unknown top-level key",
-			doc: tree.Map{
-				"listn": tree.V(":8080"), // typo of "listen"
-			},
-			wantErr: "field listn not found",
-		},
-		{
-			caseName: "wrong type on known top-level field",
-			doc: tree.Map{
-				"routes": tree.V("single"), // want array of Route
-			},
-			wantErr: "cannot unmarshal",
-		},
-		{
-			caseName: "unknown server field",
-			doc: tree.Map{
-				"server": tree.Map{"futureField": tree.V("x")},
-			},
-			wantErr: "field futureField not found",
-		},
-		{
-			caseName: "wrong type on known server field",
-			doc: tree.Map{
-				"server": tree.Map{"concurrency": tree.V("many")},
-			},
-			wantErr: "cannot unmarshal !!str `many` into int",
-		},
-		{
-			caseName: "invalid server duration",
-			doc: tree.Map{
-				"server": tree.Map{"readTimeout": tree.V("not-a-duration")},
-			},
-			wantErr: "invalid duration",
+	doc := tree.Map{
+		"server": tree.Map{
+			"name":        tree.V("fasthttpd"),
+			"concurrency": tree.V(100),
+			"readTimeout": tree.V("60s"),
 		},
 	}
-	for _, tc := range testCases {
-		t.Run(tc.caseName, func(t *testing.T) {
-			_, err := FromTreeMap(tc.doc)
-			if tc.wantErr == "" {
-				if err != nil {
-					t.Fatalf("FromTreeMap returned %v, want nil", err)
-				}
-				return
-			}
-			if err == nil {
-				t.Fatalf("FromTreeMap returned nil, want error containing %q", tc.wantErr)
-			}
-			if !strings.Contains(err.Error(), tc.wantErr) {
-				t.Errorf("error %q does not contain %q", err.Error(), tc.wantErr)
-			}
-		})
+	if _, err := FromTreeMap(doc); err != nil {
+		t.Fatalf("FromTreeMap returned %v, want nil", err)
 	}
 }
 

@@ -272,22 +272,27 @@ func lookupFilterRules(t string) (schema.QueryRules, bool) {
 }
 
 // topLevelRules describes the document-root shape for schema-driven
-// validation. Only `handlers` / `filters` are checked here — other
-// top-level fields (host, listen, server, routes, ...) are validated
-// by FromTreeMap via the yaml decoder with KnownFields(true).
-var topLevelRules = schema.QueryRules{
-	".handlers": schema.Every{Rules: schema.QueryRules{
+// validation. The base shape is generated from [Config] via reflect
+// (see [SchemaFromStruct]), then the `handlers` / `filters` entries
+// are overridden so per-type registered rules are dispatched against
+// each entry.
+var topLevelRules = func() schema.QueryRules {
+	root := SchemaFromStruct(Config{})
+	root.KeyedRules["handlers"] = schema.Every{Rules: schema.QueryRules{
 		".": HandlerDispatch{},
-	}},
-	".filters": schema.Every{Rules: schema.QueryRules{
+	}}
+	root.KeyedRules["filters"] = schema.Every{Rules: schema.QueryRules{
 		".": FilterDispatch{},
-	}},
-}
+	}}
+	return schema.QueryRules{".": root}
+}()
 
-// ValidateTreeMaps runs schema-driven validation over each document's
-// free-form handlers / filters subtrees. Typed portions of Config
-// (including the Server struct) are validated by FromTreeMap, so
-// this function intentionally does not re-check them.
+// ValidateTreeMaps runs schema-driven validation over each document.
+// The schema covers the entire typed [Config] shape (generated from
+// the struct via reflect) plus dispatched rules for the free-form
+// handlers / filters subtrees. After ValidateTreeMaps succeeds,
+// FromTreeMap can decode the document into Config without
+// KnownFields-style strict checking.
 //
 // When a registered schema rule itself is malformed (its query string
 // fails to parse via tree.Find), the underlying *schema.ErrQuery is
