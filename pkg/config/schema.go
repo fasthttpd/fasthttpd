@@ -3,6 +3,8 @@ package config
 import (
 	"errors"
 	"fmt"
+	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,6 +42,105 @@ func RegisterFilterSchema(typeName string, rules schema.QueryRules) {
 	filterSchemas[typeName] = rules
 }
 
+// SchemaRuler is implemented by types whose schema rule cannot be
+// derived from their Go type alone — typically types with a custom
+// YAML unmarshaler that accepts multiple input shapes (e.g. [Duration]
+// accepts both "60s" and an integer nanoseconds value).
+//
+// [SchemaFromStruct] honors this method when building the schema for
+// a struct field of type T (or *T) where T implements SchemaRuler.
+type SchemaRuler interface {
+	SchemaRule() schema.Rule
+}
+
+// SchemaFromStruct walks v's type via reflect and returns a
+// [schema.Map] whose KeyedRules mirror the struct's yaml-tagged
+// fields. Nested structs recurse; types implementing [SchemaRuler]
+// override the default kind-based mapping.
+//
+// The key for each field follows the yaml/v3 decoder convention:
+// the `yaml:"..."` tag's name, or — when the tag is absent — the
+// lowercased Go field name. Fields tagged `yaml:"-"` and unexported
+// fields are skipped.
+//
+// Intended for the typed [Config] struct so that schema-driven
+// validation can report unknown keys and type mismatches in the same
+// jq-path format used for handlers / filters.
+func SchemaFromStruct(v any) schema.Map {
+	t := reflect.TypeOf(v)
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	return schemaMapFromType(t)
+}
+
+var (
+	schemaRulerIface = reflect.TypeFor[SchemaRuler]()
+	treeMapType      = reflect.TypeFor[tree.Map]()
+)
+
+// ruleForType maps a Go type to the [schema.Rule] that validates a
+// node of that type. Custom types implementing [SchemaRuler] short-
+// circuit the kind-based default. [tree.Map] is special-cased as an
+// "open" map (no allow-list) because handler / filter contents are
+// validated by their own registered schemas.
+func ruleForType(t reflect.Type) schema.Rule {
+	if t.Implements(schemaRulerIface) {
+		return reflect.Zero(t).Interface().(SchemaRuler).SchemaRule()
+	}
+	if reflect.PointerTo(t).Implements(schemaRulerIface) {
+		return reflect.New(t).Interface().(SchemaRuler).SchemaRule()
+	}
+	if t == treeMapType {
+		return schema.Map{}
+	}
+	switch t.Kind() {
+	case reflect.String:
+		return schema.String{}
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return schema.Int{}
+	case reflect.Float32, reflect.Float64:
+		return schema.Float{}
+	case reflect.Bool:
+		return schema.Bool{}
+	case reflect.Slice, reflect.Array:
+		return schema.Every{Rules: schema.QueryRules{".": ruleForType(t.Elem())}}
+	case reflect.Map:
+		return schema.Every{Rules: schema.QueryRules{".": ruleForType(t.Elem())}}
+	case reflect.Struct:
+		return schemaMapFromType(t)
+	case reflect.Pointer:
+		return ruleForType(t.Elem())
+	default:
+		return schema.Map{}
+	}
+}
+
+// schemaMapFromType builds a [schema.Map] with KeyedRules from a
+// struct type. Each exported field is mapped using the same key the
+// yaml/v3 decoder would use: the `yaml:"..."` tag's name, or — when
+// the tag is absent — the lowercased Go field name.
+func schemaMapFromType(t reflect.Type) schema.Map {
+	rules := map[string]schema.Rule{}
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		if !f.IsExported() {
+			continue
+		}
+		tag := f.Tag.Get("yaml")
+		if tag == "-" {
+			continue
+		}
+		name, _, _ := strings.Cut(tag, ",")
+		if name == "" {
+			name = strings.ToLower(f.Name)
+		}
+		rules[name] = ruleForType(f.Type)
+	}
+	return schema.Map{KeyedRules: rules}
+}
+
 // DurationRule validates a value expressible as time.Duration: either
 // a string parseable by time.ParseDuration ("60s") or an integer
 // (interpreted as nanoseconds, matching Config.Normalize's output).
@@ -73,6 +174,38 @@ func (r DurationRule) Validate(n tree.Node, q string) error {
 	}
 	return nil
 }
+
+// SchemaRule lets [SchemaFromStruct] map a [Duration]-typed field to
+// [DurationRule] instead of the default schema.Int{}.
+func (Duration) SchemaRule() schema.Rule { return DurationRule{} }
+
+// SizeRule validates a value expressible as a [Size]: either a string
+// parseable by parseSize ("4k", "8 KiB") or a plain integer literal
+// (interpreted as a byte count). Mirrors [DurationRule] in shape so
+// schema errors for Size and Duration follow the same template.
+type SizeRule struct{}
+
+// Validate implements schema.Rule.
+func (SizeRule) Validate(n tree.Node, q string) error {
+	if n.IsNil() {
+		return nil
+	}
+	switch {
+	case n.Type().IsStringValue():
+		if _, err := parseSize(n.Value().String()); err != nil {
+			return fmt.Errorf("%s: %w", q, err)
+		}
+	case n.Type().IsNumberValue():
+		// Any integer is a valid byte count.
+	default:
+		return fmt.Errorf("%s: expected size (string or number), got %s", q, n.Type().String())
+	}
+	return nil
+}
+
+// SchemaRule lets [SchemaFromStruct] map a [Size]-typed field to
+// [SizeRule] instead of the default schema.Int{}.
+func (Size) SchemaRule() schema.Rule { return SizeRule{} }
 
 // HandlerDispatch validates a single handler entry: it reads the
 // ".type" field and applies the QueryRules registered under that
