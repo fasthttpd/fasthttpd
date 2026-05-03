@@ -15,6 +15,7 @@ import (
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/mojatter/tree"
+	"github.com/mojatter/tree/schema"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttpadaptor"
 )
@@ -225,16 +226,18 @@ func init() {
 	config.RegisterHandlerSchema("proxy", proxySchemas("proxy"))
 }
 
-// proxySchemas builds the schema set for a proxy-like handler with
-// the given type discriminator. Shared with balancer, which is an
-// alias that differs only in the accepted `type` value.
-func proxySchemas(typeName string) map[string]config.Schema {
-	return map[string]config.Schema{
-		".type":                config.StringSchema{Enum: []string{typeName}},
-		".url":                 config.StringSchema{},
-		".urls":                config.ArraySchema{},
-		".urls[]":              config.StringSchema{},
-		".algorithm":           config.StringSchema{Enum: []string{algoRoundRobin, algoRandom, algoIPHash}},
-		".healthCheckInterval": config.IntSchema{Min: config.Int64Ptr(0)},
+// proxySchemas builds the rule set for a proxy-like handler with the
+// given type discriminator. Shared with balancer, which is an alias
+// that differs only in the accepted `type` value.
+func proxySchemas(typeName string) schema.QueryRules {
+	return schema.QueryRules{
+		".": schema.Map{KeyedRules: map[string]schema.Rule{
+			"type":                schema.String{Enum: []string{typeName}},
+			"url":                 schema.String{},
+			"urls":                schema.Array{},
+			"algorithm":           schema.String{Enum: []string{algoRoundRobin, algoRandom, algoIPHash}},
+			"healthCheckInterval": schema.Int{Min: tree.Int64Ptr(0)},
+		}},
+		".urls[]": schema.String{},
 	}
 }

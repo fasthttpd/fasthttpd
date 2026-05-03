@@ -290,7 +290,7 @@ func TestProxy_SchemaRegistered(t *testing.T) {
 				"type":  tree.V("proxy"),
 				"bogus": tree.V(1),
 			},
-			wantErr: ".bogus: unknown key",
+			wantErr: `.handlers["p"]: unknown key "bogus"`,
 		},
 	}
 	for _, tc := range testCases {

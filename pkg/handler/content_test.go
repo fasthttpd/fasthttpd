@@ -299,7 +299,7 @@ func TestContent_SchemaRegistered(t *testing.T) {
 				"type":  tree.V("content"),
 				"bogus": tree.V(1),
 			},
-			wantErr: ".bogus: unknown key",
+			wantErr: `.handlers["c"]: unknown key "bogus"`,
 		},
 		{
 			caseName: "status out of range",

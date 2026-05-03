@@ -3,6 +3,7 @@ package filter
 import (
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/mojatter/tree"
+	"github.com/mojatter/tree/schema"
 	"github.com/valyala/fasthttp"
 )
 
@@ -82,18 +83,23 @@ func init() {
 }
 
 // headerSchemas covers symmetric request/response header rewrites.
-// set/add values are arbitrary user-named header keys (MapOfSchema);
-// del is a list of header names to strip.
-var headerSchemas = map[string]config.Schema{
-	".type":         config.StringSchema{Enum: []string{"header"}},
-	".request":      config.MapSchema{},
-	".request.set":  config.MapOfSchema{Value: config.StringSchema{}},
-	".request.add":  config.MapOfSchema{Value: config.StringSchema{}},
-	".request.del":  config.ArraySchema{},
-	".request.del[]": config.StringSchema{},
-	".response":     config.MapSchema{},
-	".response.set": config.MapOfSchema{Value: config.StringSchema{}},
-	".response.add": config.MapOfSchema{Value: config.StringSchema{}},
-	".response.del": config.ArraySchema{},
-	".response.del[]": config.StringSchema{},
+// set/add values are arbitrary user-named header keys (validated via
+// Every: each value must be a string); del is a list of header names
+// to strip.
+var headerSchemas = schema.QueryRules{
+	".": schema.Map{KeyedRules: map[string]schema.Rule{
+		"type":     schema.String{Enum: []string{"header"}},
+		"request":  headerSideRules,
+		"response": headerSideRules,
+	}},
+	".request.del[]":  schema.String{},
+	".response.del[]": schema.String{},
 }
+
+// headerSideRules is shared by both .request and .response, which
+// accept the same set/add/del actions.
+var headerSideRules = schema.Map{KeyedRules: map[string]schema.Rule{
+	"set": schema.Every{Rules: schema.QueryRules{".": schema.String{}}},
+	"add": schema.Every{Rules: schema.QueryRules{".": schema.String{}}},
+	"del": schema.Array{},
+}}

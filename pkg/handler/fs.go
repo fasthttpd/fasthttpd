@@ -6,6 +6,7 @@ import (
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/mojatter/tree"
+	"github.com/mojatter/tree/schema"
 	"github.com/valyala/fasthttp"
 )
 
@@ -39,21 +40,26 @@ func init() {
 
 // fsSchemas describes the config fields accepted by the fs handler.
 // Fields mirror fasthttp.FS as consumed via tree.UnmarshalViaJSON;
-// keys not listed here fail Validate under strict mode.
-var fsSchemas = map[string]config.Schema{
-	".type":                   config.StringSchema{Enum: []string{"fs"}},
-	".root":                   config.StringSchema{},
-	".compressRoot":           config.StringSchema{},
-	".compressedFileSuffix":   config.StringSchema{},
-	".indexNames":             config.ArraySchema{},
-	".indexNames[]":           config.StringSchema{},
-	".cacheDuration":          config.DurationSchema{},
-	".allowEmptyRoot":         config.BoolSchema{},
-	".compress":               config.BoolSchema{},
-	".compressBrotli":         config.BoolSchema{},
-	".compressZstd":           config.BoolSchema{},
-	".generateIndexPages":     config.BoolSchema{},
-	".acceptByteRange":        config.BoolSchema{},
-	".skipCache":              config.BoolSchema{},
-	".compressedFileSuffixes": config.MapOfSchema{Value: config.StringSchema{}},
+// the Map.KeyedRules at "." pins the allow-list so unlisted keys
+// surface as "unknown key" errors.
+var fsSchemas = schema.QueryRules{
+	".": schema.Map{KeyedRules: map[string]schema.Rule{
+		"type":                 schema.String{Enum: []string{"fs"}},
+		"root":                 schema.String{},
+		"compressRoot":         schema.String{},
+		"compressedFileSuffix": schema.String{},
+		"indexNames":           schema.Array{},
+		"cacheDuration":        config.DurationRule{},
+		"allowEmptyRoot":       schema.Bool{},
+		"compress":             schema.Bool{},
+		"compressBrotli":       schema.Bool{},
+		"compressZstd":         schema.Bool{},
+		"generateIndexPages":   schema.Bool{},
+		"acceptByteRange":      schema.Bool{},
+		"skipCache":            schema.Bool{},
+		"compressedFileSuffixes": schema.Every{Rules: schema.QueryRules{
+			".": schema.String{},
+		}},
+	}},
+	".indexNames[]": schema.String{},
 }

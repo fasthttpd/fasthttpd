@@ -10,6 +10,7 @@ import (
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/mojatter/tree"
+	"github.com/mojatter/tree/schema"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttpadaptor"
 )
@@ -83,7 +84,9 @@ func NewPprofHandler(cfg tree.Map, _ logger.Logger) (fasthttp.RequestHandler, er
 
 func init() {
 	RegisterNewHandlerFunc("pprof", NewPprofHandler)
-	config.RegisterHandlerSchema("pprof", map[string]config.Schema{
-		".type": config.StringSchema{Enum: []string{"pprof"}},
+	config.RegisterHandlerSchema("pprof", schema.QueryRules{
+		".": schema.Map{KeyedRules: map[string]schema.Rule{
+			"type": schema.String{Enum: []string{"pprof"}},
+		}},
 	})
 }
