@@ -274,7 +274,7 @@ func TestBasicAuth_SchemaRegistered(t *testing.T) {
 				"type":  tree.V("basicAuth"),
 				"bogus": tree.V(1),
 			},
-			wantErr: ".bogus: unknown key",
+			wantErr: `unknown key "bogus"`,
 		},
 	}
 	for _, tc := range testCases {
