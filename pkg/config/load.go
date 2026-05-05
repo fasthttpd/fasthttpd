@@ -94,8 +94,17 @@ func Edit(ms []tree.Map, exprs []string) ([]tree.Map, error) {
 	for _, expr := range exprs {
 		lr := strings.SplitN(expr, "=", 2)
 		if len(lr) == 2 {
-			if !strings.HasPrefix(lr[0], ".") {
-				lr[0] = ".[]." + lr[0]
+			// Auto-prefix .[] so the expression applies to every
+			// document in the wrapped array. An LHS already starting
+			// with .[ (e.g. .[].foo or .[0].foo) is taken as
+			// explicit doc targeting and left alone.
+			switch {
+			case strings.HasPrefix(lr[0], ".["):
+				// already explicit
+			case strings.HasPrefix(lr[0], "."):
+				lr[0] = ".[]" + lr[0] // .foo → .[].foo
+			default:
+				lr[0] = ".[]." + lr[0] // foo → .[].foo
 			}
 			// Auto-quote bare strings so shell-friendly forms like
 			// "root=./public" still parse. Values that already look
