@@ -184,6 +184,24 @@ func TestEdit(t *testing.T) {
 			},
 		},
 		{
+			caseName: "leading-dot path applies to each document",
+			exprs:    []string{".host=\"sub.example\""},
+			check: func(t *testing.T, ms []tree.Map) {
+				if got := ms[0].Get("host").Value().String(); got != "sub.example" {
+					t.Errorf("host = %q, want %q", got, "sub.example")
+				}
+			},
+		},
+		{
+			caseName: "nested leading-dot path reaches sub-fields",
+			exprs:    []string{".routesCache.expire=60"},
+			check: func(t *testing.T, ms []tree.Map) {
+				if got := ms[0].Get("routesCache").Get("expire").Value().Int(); got != 60 {
+					t.Errorf("routesCache.expire = %d, want 60", got)
+				}
+			},
+		},
+		{
 			caseName: "array literal is handed through as YAML flow",
 			exprs:    []string{"indexNames=[index.php, fallback.html]"},
 			check: func(t *testing.T, ms []tree.Map) {
