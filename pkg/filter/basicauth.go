@@ -8,6 +8,7 @@ import (
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/mojatter/tree"
+	"github.com/mojatter/tree/schema"
 	"github.com/valyala/fasthttp"
 	"go.yaml.in/yaml/v3"
 )
@@ -109,11 +110,19 @@ func init() {
 
 // basicAuthSchemas mirrors BasicAuthFilter's YAML-tagged fields.
 // Either users (inline) or usersFile (external YAML) may be set.
-var basicAuthSchemas = map[string]config.Schema{
-	".type":           config.StringSchema{Enum: []string{"basicAuth"}},
-	".realm":          config.StringSchema{},
-	".usersFile":      config.StringSchema{},
-	".users":          config.ArraySchema{},
-	".users[].name":   config.StringSchema{},
-	".users[].secret": config.StringSchema{},
+// Every over .users runs the inner rules against each element so
+// missing sub-fields surface as `users[i].name: required` rather
+// than being silently absent.
+var basicAuthSchemas = schema.QueryRules{
+	".": schema.Map{KeyedRules: map[string]schema.Rule{
+		"type":      schema.String{Enum: []string{"basicAuth"}},
+		"realm":     schema.String{},
+		"usersFile": schema.String{},
+		"users": schema.Every{Rules: schema.QueryRules{
+			".": schema.Map{KeyedRules: map[string]schema.Rule{
+				"name":   schema.String{},
+				"secret": schema.String{},
+			}},
+		}},
+	}},
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/mojatter/tree"
+	"github.com/mojatter/tree/schema"
 	"github.com/valyala/fasthttp"
 )
 
@@ -215,20 +216,24 @@ func init() {
 }
 
 // contentSchemas covers the content handler's declarative response.
-// `headers` uses AnySchema because the handler accepts both map form
-// ({K: V}) and array form (["K: V", ...]); a tighter rule would
-// reject one of them. Condition-level fields mirror the defaults.
-var contentSchemas = map[string]config.Schema{
-	".type":       config.StringSchema{Enum: []string{"content"}},
-	".body":       config.StringSchema{},
-	".status":     config.IntSchema{Min: config.Int64Ptr(100), Max: config.Int64Ptr(599)},
-	".headers":    config.AnySchema{},
-	".conditions": config.ArraySchema{},
-
-	".conditions[].path":                config.StringSchema{},
-	".conditions[].queryStringContains": config.StringSchema{},
-	".conditions[].percentage":          config.IntSchema{Min: config.Int64Ptr(0), Max: config.Int64Ptr(100)},
-	".conditions[].body":                config.StringSchema{},
-	".conditions[].status":              config.IntSchema{Min: config.Int64Ptr(100), Max: config.Int64Ptr(599)},
-	".conditions[].headers":             config.AnySchema{},
+// `headers` uses Or{Array, Map} because the handler accepts both map
+// form ({K: V}) and array form (["K: V", ...]); a tighter rule would
+// reject one of them.
+var contentSchemas = schema.QueryRules{
+	".": schema.Map{KeyedRules: map[string]schema.Rule{
+		"type":    schema.String{Enum: []string{"content"}},
+		"body":    schema.String{},
+		"status":  schema.Int{Min: tree.Int64Ptr(100), Max: tree.Int64Ptr(599)},
+		"headers": schema.Or{schema.Array{}, schema.Map{}},
+		"conditions": schema.Every{Rules: schema.QueryRules{
+			".": schema.Map{KeyedRules: map[string]schema.Rule{
+				"path":                schema.String{},
+				"queryStringContains": schema.String{},
+				"percentage":          schema.Int{Min: tree.Int64Ptr(0), Max: tree.Int64Ptr(100)},
+				"body":                schema.String{},
+				"status":              schema.Int{Min: tree.Int64Ptr(100), Max: tree.Int64Ptr(599)},
+				"headers":             schema.Or{schema.Array{}, schema.Map{}},
+			}},
+		}},
+	}},
 }
