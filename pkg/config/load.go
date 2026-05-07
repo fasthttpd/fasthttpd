@@ -94,8 +94,17 @@ func Edit(ms []tree.Map, exprs []string) ([]tree.Map, error) {
 	for _, expr := range exprs {
 		lr := strings.SplitN(expr, "=", 2)
 		if len(lr) == 2 {
-			if !strings.HasPrefix(lr[0], ".") {
-				lr[0] = ".[]." + lr[0]
+			// Auto-prefix .[] so the expression applies to every
+			// document in the wrapped array. An LHS already starting
+			// with .[ (e.g. .[].foo or .[0].foo) is taken as
+			// explicit doc targeting and left alone.
+			switch {
+			case strings.HasPrefix(lr[0], ".["):
+				// already explicit
+			case strings.HasPrefix(lr[0], "."):
+				lr[0] = ".[]" + lr[0] // .foo → .[].foo
+			default:
+				lr[0] = ".[]." + lr[0] // foo → .[].foo
 			}
 			// Auto-quote bare strings so shell-friendly forms like
 			// "root=./public" still parse. Values that already look
@@ -131,21 +140,20 @@ func Edit(ms []tree.Map, exprs []string) ([]tree.Map, error) {
 	return out, nil
 }
 
-// FromTreeMap converts a tree.Map document into a Config. The map is
-// routed through a YAML decoder with KnownFields(true) so typos in
-// typed portions of Config (Host / Listen / SSL / Log / AccessLog /
-// Routes / RoutesCache / Server) fail loudly rather than being
-// silently dropped. After decode, SetDefaults fills unset fields and
-// Normalize applies the remaining fixups.
+// FromTreeMap converts a tree.Map document into a Config. Schema
+// validation (via [ValidateTreeMaps]) is expected to run upstream;
+// once it succeeds, every key in m is known and every leaf has a
+// type compatible with the corresponding Config field, so the YAML
+// decoder here does not need KnownFields(true). After decode,
+// SetDefaults fills unset fields and Normalize applies the remaining
+// fixups.
 func FromTreeMap(m tree.Map) (Config, error) {
 	cfg := Config{}.SetDefaults()
 	data, err := tree.MarshalYAML(m)
 	if err != nil {
 		return cfg, err
 	}
-	dec := yaml.NewDecoder(bytes.NewReader(data))
-	dec.KnownFields(true)
-	if err := dec.Decode(&cfg); err != nil {
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return cfg, err
 	}
 	return cfg.Normalize()
