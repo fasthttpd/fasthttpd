@@ -75,7 +75,7 @@ func SchemaFromStruct(v any) schema.Map {
 }
 
 var (
-	schemaRulerIface = reflect.TypeFor[SchemaRuler]()
+	schemaRulerType  = reflect.TypeFor[SchemaRuler]()
 	treeMapType      = reflect.TypeFor[tree.Map]()
 )
 
@@ -85,10 +85,10 @@ var (
 // "open" map (no allow-list) because handler / filter contents are
 // validated by their own registered schemas.
 func ruleForType(t reflect.Type) schema.Rule {
-	if t.Implements(schemaRulerIface) {
+	if t.Implements(schemaRulerType) {
 		return reflect.Zero(t).Interface().(SchemaRuler).SchemaRule()
 	}
-	if reflect.PointerTo(t).Implements(schemaRulerIface) {
+	if reflect.PointerTo(t).Implements(schemaRulerType) {
 		return reflect.New(t).Interface().(SchemaRuler).SchemaRule()
 	}
 	if t == treeMapType {
@@ -271,12 +271,12 @@ func lookupFilterRules(t string) (schema.QueryRules, bool) {
 	return rules, ok
 }
 
-// topLevelRules describes the document-root shape for schema-driven
-// validation. The base shape is generated from [Config] via reflect
-// (see [SchemaFromStruct]), then the `handlers` / `filters` entries
-// are overridden so per-type registered rules are dispatched against
-// each entry.
-var topLevelRules = func() schema.QueryRules {
+// rootRules returns the QueryRules describing the document-root shape
+// for schema-driven validation. The base shape is generated from
+// [Config] via reflect (see [SchemaFromStruct]), then the `handlers`
+// / `filters` entries are overridden so per-type registered rules are
+// dispatched against each entry.
+func rootRules() schema.QueryRules {
 	root := SchemaFromStruct(Config{})
 	root.KeyedRules["handlers"] = schema.Every{Rules: schema.QueryRules{
 		".": HandlerDispatch{},
@@ -285,7 +285,7 @@ var topLevelRules = func() schema.QueryRules {
 		".": FilterDispatch{},
 	}}
 	return schema.QueryRules{".": root}
-}()
+}
 
 // ValidateTreeMaps runs schema-driven validation over each document.
 // The schema covers the entire typed [Config] shape (generated from
@@ -300,13 +300,14 @@ var topLevelRules = func() schema.QueryRules {
 // apart from a config error. The original *schema.ErrQuery remains
 // reachable via errors.As.
 func ValidateTreeMaps(ms []tree.Map) error {
+	rules := rootRules()
 	var errs []error
 	for i, m := range ms {
 		prefix := ""
 		if len(ms) > 1 {
 			prefix = fmt.Sprintf("documents[%d]", i)
 		}
-		if err := schema.ValidateWithPrefix(m, topLevelRules, prefix); err != nil {
+		if err := schema.ValidateWithPrefix(m, rules, prefix); err != nil {
 			errs = append(errs, err)
 		}
 	}
