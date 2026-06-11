@@ -1,4 +1,4 @@
-FROM golang:1.25-alpine
+FROM golang:1.25.11-alpine
 
 ENV GO111MODULE=on
 ENV GOPATH=""
