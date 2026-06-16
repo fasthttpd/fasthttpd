@@ -4,7 +4,7 @@ ENV GO111MODULE=on
 ENV GOPATH=""
 
 RUN --mount=target=. GOOS=linux CGO_ENABLED=0 \
-    go build -o /fasthttpd ./cmd/fasthttpd/main.go
+    go build -ldflags="-s -w" -trimpath -o /fasthttpd ./cmd/fasthttpd/main.go
 
 FROM scratch
 
