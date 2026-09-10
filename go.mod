@@ -1,8 +1,6 @@
 module github.com/fasthttpd/fasthttpd
 
-go 1.25.0
-
-toolchain go1.25.11
+go 1.26.0
 
 require (
 	github.com/mojatter/io2 v0.9.0
@@ -10,7 +8,7 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0
 	github.com/valyala/fasthttp v1.73.0
 	go.yaml.in/yaml/v3 v3.0.5
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
