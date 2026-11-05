@@ -2,6 +2,9 @@ package handler
 
 import (
 	"errors"
+	"fmt"
+	"maps"
+	"time"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
@@ -15,8 +18,17 @@ func NewFS(cfg tree.Map) (*fasthttp.FS, error) {
 	fs := &fasthttp.FS{
 		PathNotFound: SendDefaultError,
 	}
+	// FS.CacheDuration is a time.Duration, so parse "10s" style strings first.
+	if n, ok := cfg["cacheDuration"]; ok && n != nil && n.Type().IsStringValue() {
+		d, err := time.ParseDuration(n.Value().String())
+		if err != nil {
+			return nil, fmt.Errorf("failed to create FS: invalid cacheDuration: %w", err)
+		}
+		cfg = maps.Clone(cfg)
+		cfg["cacheDuration"] = tree.ToValue(int64(d))
+	}
 	if err := tree.UnmarshalViaJSON(cfg, fs); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create FS: %w", err)
 	}
 	if fs.Root == "" {
 		return nil, errors.New("failed to create FS: require 'root' entry")

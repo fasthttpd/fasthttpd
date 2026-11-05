@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
@@ -57,6 +58,30 @@ func TestNewFS(t *testing.T) {
 				Root:         "path/to/public",
 				GenerateETag: true,
 			},
+		}, {
+			cfg: tree.Map{
+				"root":          tree.ToValue("path/to/public"),
+				"cacheDuration": tree.ToValue("10s"),
+			},
+			want: &fasthttp.FS{
+				Root:          "path/to/public",
+				CacheDuration: 10 * time.Second,
+			},
+		}, {
+			cfg: tree.Map{
+				"root":          tree.ToValue("path/to/public"),
+				"cacheDuration": tree.ToValue(int64(time.Second)),
+			},
+			want: &fasthttp.FS{
+				Root:          "path/to/public",
+				CacheDuration: time.Second,
+			},
+		}, {
+			cfg: tree.Map{
+				"root":          tree.ToValue("path/to/public"),
+				"cacheDuration": tree.ToValue("ten seconds"),
+			},
+			errstr: "failed to create FS: invalid cacheDuration",
 		}, {
 			cfg:    tree.Map{},
 			errstr: "failed to create FS: require 'root' entry",
