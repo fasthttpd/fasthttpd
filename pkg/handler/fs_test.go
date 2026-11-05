@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -37,6 +38,15 @@ func TestNewFS(t *testing.T) {
 					"gzip": ".fasthttp.gz",
 					"br":   ".fasthttp.br",
 				},
+			},
+		}, {
+			cfg: tree.Map{
+				"root":                     tree.ToValue("path/to/public"),
+				"allowSymlinksOutsideRoot": tree.ToValue(true),
+			},
+			want: &fasthttp.FS{
+				Root:                     "path/to/public",
+				AllowSymlinksOutsideRoot: true,
 			},
 		}, {
 			cfg:    tree.Map{},
@@ -92,6 +102,78 @@ func TestFS_Handler(t *testing.T) {
 	}
 }
 
+func TestFS_HandlerSymlinkOutsideRoot(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "public")
+	if err := os.Mkdir(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "outside.txt"), []byte("outside"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "inside.txt"), []byte("inside"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join("..", "outside.txt"), filepath.Join(root, "rel.txt")); err != nil {
+		t.Skipf("symlink not supported: %v", err)
+	}
+	if err := os.Symlink(filepath.Join(root, "inside.txt"), filepath.Join(root, "abs.txt")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(dir, "outside.txt"), filepath.Join(root, "absout.txt")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "idx.html"), []byte("idx"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(root, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join("..", "..", "idx.html"), filepath.Join(root, "sub", "index.html")); err != nil {
+		t.Fatal(err)
+	}
+
+	testCases := []struct {
+		caseName   string
+		uri        string
+		allow      bool
+		wantStatus int
+		wantBody   string
+	}{
+		{caseName: "relative link outside root rejected by default", uri: "/rel.txt", wantStatus: fasthttp.StatusNotFound},
+		{caseName: "relative link outside root followed when allowed", uri: "/rel.txt", allow: true, wantStatus: fasthttp.StatusOK, wantBody: "outside"},
+		{caseName: "absolute link inside root rejected by default", uri: "/abs.txt", wantStatus: fasthttp.StatusNotFound},
+		{caseName: "absolute link inside root followed when allowed", uri: "/abs.txt", allow: true, wantStatus: fasthttp.StatusOK, wantBody: "inside"},
+		{caseName: "absolute link outside root rejected by default", uri: "/absout.txt", wantStatus: fasthttp.StatusNotFound},
+		{caseName: "absolute link outside root followed when allowed", uri: "/absout.txt", allow: true, wantStatus: fasthttp.StatusOK, wantBody: "outside"},
+		{caseName: "index file linking outside root forbidden by default", uri: "/sub/", wantStatus: fasthttp.StatusForbidden},
+		{caseName: "index file linking outside root served when allowed", uri: "/sub/", allow: true, wantStatus: fasthttp.StatusOK, wantBody: "idx"},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			handler, err := NewFSHandler(tree.Map{
+				"root":                     tree.ToValue(root),
+				"indexNames":               tree.ToArrayValues("index.html"),
+				"allowSymlinksOutsideRoot": tree.ToValue(tc.allow),
+			}, logger.NilLogger)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			ctx := &fasthttp.RequestCtx{}
+			ctx.Init(&fasthttp.Request{}, nil, nil)
+			ctx.Request.SetRequestURI(tc.uri)
+			handler(ctx)
+			if got := ctx.Response.StatusCode(); got != tc.wantStatus {
+				t.Errorf("status = %d; want %d", got, tc.wantStatus)
+			}
+			if tc.wantBody != "" && string(ctx.Response.Body()) != tc.wantBody {
+				t.Errorf("body = %q; want %q", ctx.Response.Body(), tc.wantBody)
+			}
+		})
+	}
+}
+
 func TestFS_SchemaRegistered(t *testing.T) {
 	testCases := []struct {
 		caseName string
@@ -105,6 +187,13 @@ func TestFS_SchemaRegistered(t *testing.T) {
 				"root":       tree.V("./public"),
 				"indexNames": tree.A("index.html"),
 				"compress":   tree.V(true),
+			},
+		},
+		{
+			caseName: "allowSymlinksOutsideRoot is accepted",
+			handler: tree.Map{
+				"type":                     tree.V("fs"),
+				"allowSymlinksOutsideRoot": tree.V(true),
 			},
 		},
 		{

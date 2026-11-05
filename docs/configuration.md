@@ -410,6 +410,7 @@ handlers:
 | `indexNames` | List of index file names to try when a directory is requested. |
 | `generateIndexPages` | Auto-generate index pages for directories that do not match `indexNames`. |
 | `compress` | Transparently compress responses. |
+| `allowSymlinksOutsideRoot` | Follow symlinks that point outside `root` (or `compressRoot`), and absolute symlinks. Rejected by default with `404`, or `403` when a directory's index file is such a link. A whole-volume `root` such as `/` is not confined, so its links are always followed. |
 
 Other string, bool and numeric fields can also be set. See [fasthttp/fs.go](https://github.com/valyala/fasthttp/blob/master/fs.go) for details.
 
