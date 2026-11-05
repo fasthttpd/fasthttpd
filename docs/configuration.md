@@ -412,7 +412,7 @@ handlers:
 | `compress` | Transparently compress responses. |
 | `allowSymlinksOutsideRoot` | Follow symlinks that point outside `root` (or `compressRoot`), and absolute symlinks. Rejected by default with `404`, or `403` when a directory's index file is such a link. A whole-volume `root` such as `/` is not confined, so its links are always followed. |
 
-Other string, bool and numeric fields can also be set. See [fasthttp/fs.go](https://github.com/valyala/fasthttp/blob/master/fs.go) for details.
+The `fs` handler also accepts `compressRoot`, `compressedFileSuffix`, `compressedFileSuffixes`, `cacheDuration`, `compressBrotli`, `compressZstd`, `acceptByteRange`, `generateETag` and `skipCache`, which set the same-named fields of `fasthttp.FS`; see [fasthttp/fs.go](https://github.com/valyala/fasthttp/blob/master/fs.go) for details. Any other key is rejected as `unknown key`; `allowEmptyRoot` is still accepted for compatibility but has no effect, since an empty `root` is always rejected. `cacheDuration` takes a duration string such as `10s` or an integer in nanoseconds; `0` keeps fasthttp's default of 10 seconds.
 
 ### Content
 

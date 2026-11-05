@@ -282,6 +282,13 @@ func TestFS_SchemaRegistered(t *testing.T) {
 			},
 		},
 		{
+			caseName: "allowEmptyRoot is accepted for compatibility",
+			handler: tree.Map{
+				"type":           tree.V("fs"),
+				"allowEmptyRoot": tree.V(true),
+			},
+		},
+		{
 			caseName: "generateETag is accepted",
 			handler: tree.Map{
 				"type":         tree.V("fs"),
