@@ -57,6 +57,7 @@ var fsSchemas = schema.QueryRules{
 		"compressZstd":             schema.Bool{},
 		"generateIndexPages":       schema.Bool{},
 		"acceptByteRange":          schema.Bool{},
+		"generateETag":             schema.Bool{},
 		"skipCache":                schema.Bool{},
 		"compressedFileSuffixes": schema.Every{Rules: schema.QueryRules{
 			".": schema.String{},

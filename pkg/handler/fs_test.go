@@ -49,6 +49,15 @@ func TestNewFS(t *testing.T) {
 				AllowSymlinksOutsideRoot: true,
 			},
 		}, {
+			cfg: tree.Map{
+				"root":         tree.ToValue("path/to/public"),
+				"generateETag": tree.ToValue(true),
+			},
+			want: &fasthttp.FS{
+				Root:         "path/to/public",
+				GenerateETag: true,
+			},
+		}, {
 			cfg:    tree.Map{},
 			errstr: "failed to create FS: require 'root' entry",
 		}, {
@@ -174,6 +183,57 @@ func TestFS_HandlerSymlinkOutsideRoot(t *testing.T) {
 	}
 }
 
+func TestFS_HandlerGenerateETag(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("abc"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	testCases := []struct {
+		caseName    string
+		enabled     bool
+		ifNoneMatch bool
+		wantStatus  int
+		wantETag    bool
+	}{
+		{caseName: "no ETag by default", wantStatus: fasthttp.StatusOK},
+		{caseName: "ETag sent when enabled", enabled: true, wantStatus: fasthttp.StatusOK, wantETag: true},
+		{caseName: "matching If-None-Match gets 304", enabled: true, ifNoneMatch: true, wantStatus: fasthttp.StatusNotModified, wantETag: true},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			handler, err := NewFSHandler(tree.Map{
+				"root":         tree.ToValue(root),
+				"generateETag": tree.ToValue(tc.enabled),
+			}, logger.NilLogger)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			serve := func(etag string) *fasthttp.RequestCtx {
+				ctx := &fasthttp.RequestCtx{}
+				ctx.Init(&fasthttp.Request{}, nil, nil)
+				ctx.Request.SetRequestURI("/a.txt")
+				if etag != "" {
+					ctx.Request.Header.Set(fasthttp.HeaderIfNoneMatch, etag)
+				}
+				handler(ctx)
+				return ctx
+			}
+			ctx := serve("")
+			if tc.ifNoneMatch {
+				ctx = serve(string(ctx.Response.Header.Peek(fasthttp.HeaderETag)))
+			}
+			if got := ctx.Response.StatusCode(); got != tc.wantStatus {
+				t.Errorf("status = %d; want %d", got, tc.wantStatus)
+			}
+			if got := ctx.Response.Header.Peek(fasthttp.HeaderETag); (len(got) > 0) != tc.wantETag {
+				t.Errorf("ETag = %q; want present %v", got, tc.wantETag)
+			}
+		})
+	}
+}
+
 func TestFS_SchemaRegistered(t *testing.T) {
 	testCases := []struct {
 		caseName string
@@ -194,6 +254,13 @@ func TestFS_SchemaRegistered(t *testing.T) {
 			handler: tree.Map{
 				"type":                     tree.V("fs"),
 				"allowSymlinksOutsideRoot": tree.V(true),
+			},
+		},
+		{
+			caseName: "generateETag is accepted",
+			handler: tree.Map{
+				"type":         tree.V("fs"),
+				"generateETag": tree.V(true),
 			},
 		},
 		{
