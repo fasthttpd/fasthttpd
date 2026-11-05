@@ -45,7 +45,7 @@ func TestValidateTreeMaps(t *testing.T) {
 			docs: []tree.Map{{
 				"handlers": tree.V("not map"),
 			}},
-			wantErr: ".handlers: expected array or map",
+			wantErr: ".handlers: expected array or object",
 		},
 		{
 			caseName: "unknown top-level key",
@@ -59,7 +59,7 @@ func TestValidateTreeMaps(t *testing.T) {
 			docs: []tree.Map{{
 				"routes": tree.V("single"), // want array of Route
 			}},
-			wantErr: ".routes: expected array or map",
+			wantErr: ".routes: expected array or object",
 		},
 		{
 			caseName: "unknown server field",
@@ -310,7 +310,7 @@ func TestRegisterHandlerSchema_Dispatch(t *testing.T) {
 		{
 			caseName: "not a map",
 			handler:  tree.V("scalar"),
-			wantErr:  "expected map",
+			wantErr:  "expected object",
 		},
 		{
 			caseName: "missing type",
@@ -378,7 +378,7 @@ func TestRegisterFilterSchema_Dispatch(t *testing.T) {
 		{
 			caseName: "filter is not a map",
 			filter:   nil,
-			wantErr:  "expected map",
+			wantErr:  "expected object",
 		},
 		{
 			caseName: "unregistered filter type passes through",

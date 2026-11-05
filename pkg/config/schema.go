@@ -220,7 +220,7 @@ func (HandlerDispatch) Validate(n tree.Node, q string) error {
 		return nil
 	}
 	if !n.Type().IsMap() {
-		return fmt.Errorf("%s: expected map, got %s", q, n.Type().String())
+		return fmt.Errorf("%s: expected object, got %s", q, n.Type().String())
 	}
 	t := n.Map().Get("type").Value().String()
 	if t == "" {
@@ -250,7 +250,7 @@ func (FilterDispatch) Validate(n tree.Node, q string) error {
 		return nil
 	}
 	if !n.Type().IsMap() {
-		return fmt.Errorf("%s: expected map, got %s", q, n.Type().String())
+		return fmt.Errorf("%s: expected object, got %s", q, n.Type().String())
 	}
 	t := n.Map().Get("type").Value().String()
 	if t == "" {
