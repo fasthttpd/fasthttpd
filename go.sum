@@ -2,8 +2,8 @@ github.com/klauspost/compress v1.20.3 h1:zWNoFqq/lSuYQRim3dUXlXeA0IqwuZGicdG5ZTf
 github.com/klauspost/compress v1.20.3/go.mod h1:LUdAzn7YLVvxLpc7y3V1m40wESHTgc1422pwwBSKYuI=
 github.com/mojatter/io2 v0.9.0 h1:EDIQOsayyvsGdGTl7dyBbk+f64a8q02dZh0u4h3GxoY=
 github.com/mojatter/io2 v0.9.0/go.mod h1:3IcU+gA+lUz126MKG0DMaNYJm4ccqEf0PhIkRkqy4ws=
-github.com/mojatter/tree v0.17.0 h1:oeSqK1275rAsBl2SNb5Kgq7C1hWXGBTW64Wiasrmwzw=
-github.com/mojatter/tree v0.17.0/go.mod h1:ggige9GlQzypygnpv3o0JJsU6iVlg3umZ9oIlDzpGfw=
+github.com/mojatter/tree v0.18.0 h1:mTLnA1JYemus14mNrcLLfPn1JdeTaDMsNOLpDEjjJLg=
+github.com/mojatter/tree v0.18.0/go.mod h1:IXINxForaTh30PbLrRKMgbZwBf851uSKV/WKMAkwk3w=
 github.com/molecule-man/go-brrr v1.3.0 h1:KEGPkUk9PYFw5+Sv/evCOSU5OmMDXCGFqQ9YjRB7GeU=
 github.com/molecule-man/go-brrr v1.3.0/go.mod h1:7ybW6/7gA3oKY45jOfVNjSJDtrr6ea4tzbsTkjmQDC4=
 github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6KllzawFIhcdPw=
