@@ -279,3 +279,43 @@ func TestFromTreeMaps(t *testing.T) {
 		t.Errorf("hosts = %v, want %v", gotHosts, wantHosts)
 	}
 }
+
+func TestFromTreeMap_DisablePreParseMultipartForm(t *testing.T) {
+	testCases := []struct {
+		caseName string
+		m        tree.Map
+		want     bool
+	}{
+		{
+			caseName: "default without server",
+			m:        tree.Map{},
+			want:     true,
+		},
+		{
+			caseName: "default with other server keys",
+			m:        tree.Map{"server": tree.Map{"name": tree.V("x")}},
+			want:     true,
+		},
+		{
+			caseName: "default with null server",
+			m:        tree.Map{"server": tree.Nil},
+			want:     true,
+		},
+		{
+			caseName: "explicit false",
+			m:        tree.Map{"server": tree.Map{"disablePreParseMultipartForm": tree.V(false)}},
+			want:     false,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			got, err := FromTreeMap(tc.m)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Server.DisablePreParseMultipartForm != tc.want {
+				t.Errorf("DisablePreParseMultipartForm = %v, want %v", got.Server.DisablePreParseMultipartForm, tc.want)
+			}
+		})
+	}
+}

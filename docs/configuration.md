@@ -217,6 +217,7 @@ server:
 | `writeBufferSize` | Per-connection buffer size for writing responses. Uses fasthttp's default if not set. |
 | `readTimeout` | Maximum time allowed to read the full request including the body. The read deadline is reset when the connection opens, or for keep-alive connections after the first byte has been read. Unlimited by default. Valid units: `ns`, `us` (or `µs`), `ms`, `s`, `m`, `h`. |
 | `writeTimeout` | Maximum time before timing out a response write. Reset after the request handler returns. Unlimited by default. Same unit rules as `readTimeout`. |
+| `disablePreParseMultipartForm` | Skip parsing `multipart/form-data` bodies before handlers run, so the `proxy` handler forwards them byte-for-byte. `true` by default; set `false` to restore fasthttp's pre-parsing, which re-encodes proxied uploads and spools file data beyond 16 MiB per request to temporary files (only reachable when `maxRequestBodySize` is raised above 16 MiB; fasthttp's default is 4 MiB). |
 
 Other string, bool and numeric fields can also be set. See [fasthttp/server.go](https://github.com/valyala/fasthttp/blob/master/server.go) for details.
 
@@ -459,6 +460,8 @@ handlers:
 | `urls` | Backend URL list. |
 | `algorithm` | One of `round-robin` (default), `random`, `ip-hash`. |
 | `healthCheckInterval` | Health-check interval in seconds. Omit or set to `0` (default) to disable the checker. |
+
+Multipart uploads are forwarded byte-for-byte unless [`server.disablePreParseMultipartForm`](#server) is set to `false`.
 
 ### Balancer
 
