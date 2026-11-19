@@ -192,7 +192,8 @@ type Server struct {
 	NoDefaultDate                 bool `yaml:"noDefaultDate" json:"noDefaultDate"`
 	NoDefaultContentType          bool `yaml:"noDefaultContentType" json:"noDefaultContentType"`
 	CloseOnShutdown               bool `yaml:"closeOnShutdown" json:"closeOnShutdown"`
-	StreamRequestBody             bool `yaml:"streamRequestBody" json:"streamRequestBody"`
+	// StreamRequestBody is accepted but not applied: fasthttpd buffers every body (#108).
+	StreamRequestBody bool `yaml:"streamRequestBody" json:"streamRequestBody"`
 }
 
 // ApplyTo copies Server's configurable fields onto dst. Handler /
@@ -225,7 +226,6 @@ func (s Server) ApplyTo(dst *fasthttp.Server) {
 	dst.NoDefaultDate = s.NoDefaultDate
 	dst.NoDefaultContentType = s.NoDefaultContentType
 	dst.CloseOnShutdown = s.CloseOnShutdown
-	dst.StreamRequestBody = s.StreamRequestBody
 }
 
 // ShutdownTimeoutDuration returns the parsed ShutdownTimeout. A non-positive

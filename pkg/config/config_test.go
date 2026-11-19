@@ -244,7 +244,7 @@ func TestServer_ApplyTo(t *testing.T) {
 	if !dst.DisableKeepalive {
 		t.Error("DisableKeepalive not propagated")
 	}
-	if !dst.StreamRequestBody {
-		t.Error("StreamRequestBody not propagated")
+	if dst.StreamRequestBody {
+		t.Error("StreamRequestBody propagated")
 	}
 }

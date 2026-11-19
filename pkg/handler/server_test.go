@@ -3,9 +3,12 @@ package handler
 import (
 	"bytes"
 	"fmt"
+	"net"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/filter"
@@ -14,6 +17,7 @@ import (
 	"github.com/fasthttpd/fasthttpd/pkg/route"
 	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
+	"github.com/valyala/fasthttp/fasthttputil"
 )
 
 func TestNewServerHandler(t *testing.T) {
@@ -318,5 +322,143 @@ func Test_virtualHandler(t *testing.T) {
 		if gotStatus != test.wantStatus {
 			t.Errorf("tests[%d] unexpected status %d; want %d", i, gotStatus, test.wantStatus)
 		}
+	}
+}
+
+// serveInmemory starts s on an in-memory listener and returns a client dialing it.
+func serveInmemory(t *testing.T, s *fasthttp.Server) *fasthttp.Client {
+	t.Helper()
+	ln := fasthttputil.NewInmemoryListener()
+	go s.Serve(ln) //nolint:errcheck // closed by ln.Close
+	t.Cleanup(func() { ln.Close() })
+	return &fasthttp.Client{Dial: func(string) (net.Conn, error) { return ln.Dial() }}
+}
+
+// doPost posts body to host through c, chunked when requested.
+func doPost(t *testing.T, c *fasthttp.Client, host, body string, chunked bool) *fasthttp.Response {
+	t.Helper()
+	req := fasthttp.AcquireRequest()
+	defer fasthttp.ReleaseRequest(req)
+
+	req.SetRequestURI("http://" + host + "/")
+	req.Header.SetMethod(fasthttp.MethodPost)
+	if chunked {
+		req.SetBodyStream(strings.NewReader(body), -1)
+	} else {
+		req.SetBodyString(body)
+	}
+	resp := &fasthttp.Response{}
+	if err := c.Do(req, resp); err != nil {
+		t.Fatal(err)
+	}
+	return resp
+}
+
+func TestServerHandler_streamedBodyLimit(t *testing.T) {
+	newCfg := func(host string, server config.Server) config.Config {
+		return config.Config{
+			Host:   host,
+			Server: server,
+			Routes: []config.Route{{Path: "/", Match: config.MatchPrefix, Status: http.StatusOK}},
+		}
+	}
+	streamed := func(limit config.Size) config.Server {
+		return config.Server{StreamRequestBody: true, MaxRequestBodySize: limit}
+	}
+	testCases := []struct {
+		caseName   string
+		cfgs       []config.Config
+		host       string
+		body       string
+		chunked    bool
+		wantStatus int
+		wantClose  bool
+		wantLog    bool
+	}{
+		{
+			caseName:   "under limit",
+			cfgs:       []config.Config{newCfg("a", streamed(16))},
+			host:       "a",
+			body:       "0123456789",
+			wantStatus: http.StatusOK,
+		},
+		{
+			caseName:   "over limit content-length",
+			cfgs:       []config.Config{newCfg("a", streamed(16))},
+			host:       "a",
+			body:       "0123456789abcdefg",
+			wantStatus: http.StatusBadRequest,
+			wantClose:  true,
+			wantLog:    true,
+		},
+		{
+			caseName:   "over limit chunked",
+			cfgs:       []config.Config{newCfg("a", streamed(16))},
+			host:       "a",
+			body:       "0123456789abcdefg",
+			chunked:    true,
+			wantStatus: http.StatusBadRequest,
+			wantClose:  true,
+			wantLog:    true,
+		},
+		{
+			caseName:   "virtual host uses first document limit",
+			cfgs:       []config.Config{newCfg("a", streamed(16)), newCfg("b", streamed(1024))},
+			host:       "b",
+			body:       "0123456789abcdefg",
+			wantStatus: http.StatusBadRequest,
+			wantClose:  true,
+			wantLog:    true,
+		},
+		{
+			caseName:   "virtual host under first document limit",
+			cfgs:       []config.Config{newCfg("a", streamed(16)), newCfg("b", streamed(1024))},
+			host:       "b",
+			body:       "0123456789abcdef",
+			wantStatus: http.StatusOK,
+		},
+		{
+			caseName:   "streaming disabled",
+			cfgs:       []config.Config{newCfg("a", config.Server{MaxRequestBodySize: 16})},
+			host:       "a",
+			body:       "0123456789abcdefg",
+			wantStatus: http.StatusBadRequest,
+			wantClose:  true,
+			wantLog:    true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			h, err := NewServerHandler(tc.cfgs)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer h.Close()
+
+			// fasthttp logs its own rejections after the response, so collect lines on a channel.
+			logs := make(chan string, 8)
+			l := &logger.LoggerDelegator{PrintfFunc: func(format string, args ...any) {
+				logs <- fmt.Sprintf(format, args...)
+			}}
+			s := &fasthttp.Server{Handler: h.Handle, ErrorHandler: h.HandleError, Logger: l}
+			h.Config().ApplyTo(s)
+
+			resp := doPost(t, serveInmemory(t, s), tc.host, tc.body, tc.chunked)
+			if got := resp.StatusCode(); got != tc.wantStatus {
+				t.Errorf("status = %d, want %d", got, tc.wantStatus)
+			}
+			if got := resp.ConnectionClose(); got != tc.wantClose {
+				t.Errorf("connection close = %v, want %v", got, tc.wantClose)
+			}
+			if tc.wantLog {
+				select {
+				case <-logs:
+				case <-time.After(time.Second):
+					t.Error("no error log")
+				}
+			} else if len(logs) > 0 {
+				t.Errorf("unexpected error log %q", <-logs)
+			}
+		})
 	}
 }
