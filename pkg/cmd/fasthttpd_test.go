@@ -206,3 +206,47 @@ func TestFastHttpd_Shutdown(t *testing.T) {
 		})
 	}
 }
+
+// stubServerHandler is a handler.ServerHandler with a fixed config and logger.
+type stubServerHandler struct {
+	cfg    config.Server
+	logger logger.Logger
+}
+
+func (h *stubServerHandler) Config() config.Server                           { return h.cfg }
+func (h *stubServerHandler) Logger() logger.Logger                           { return h.logger }
+func (h *stubServerHandler) Handle(ctx *fasthttp.RequestCtx)                 {}
+func (h *stubServerHandler) HandleError(ctx *fasthttp.RequestCtx, err error) {}
+func (h *stubServerHandler) Close() error                                    { return nil }
+
+func TestFastHttpd_newServer_streamRequestBody(t *testing.T) {
+	testCases := []struct {
+		caseName string
+		stream   bool
+		wantLog  bool
+	}{
+		{caseName: "unset", stream: false, wantLog: false},
+		{caseName: "set", stream: true, wantLog: true},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			var logs []string
+			h := &stubServerHandler{
+				cfg: config.Server{StreamRequestBody: tc.stream},
+				logger: &logger.LoggerDelegator{PrintfFunc: func(format string, args ...any) {
+					logs = append(logs, format)
+				}},
+			}
+			s, err := (&FastHttpd{}).newServer(h)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if s.StreamRequestBody {
+				t.Error("StreamRequestBody applied to fasthttp.Server")
+			}
+			if got := len(logs) > 0; got != tc.wantLog {
+				t.Errorf("logged = %v (%q), want %v", got, logs, tc.wantLog)
+			}
+		})
+	}
+}

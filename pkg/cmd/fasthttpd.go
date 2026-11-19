@@ -120,6 +120,9 @@ func (d *FastHttpd) newServer(h handler.ServerHandler) (*fasthttp.Server, error)
 		ErrorHandler: h.HandleError,
 		Logger:       h.Logger(),
 	}
+	if h.Config().StreamRequestBody {
+		h.Logger().Printf("server.streamRequestBody is ignored; request bodies are buffered up to maxRequestBodySize")
+	}
 	h.Config().ApplyTo(s)
 	return s, nil
 }
