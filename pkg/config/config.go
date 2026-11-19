@@ -48,7 +48,8 @@ type Config struct {
 // SetDefaults sets default values.
 func (cfg Config) SetDefaults() Config {
 	cfg.Listen = DefaultListen
-	cfg.Server = Server{Name: DefaultServerName}
+	// Skip multipart pre-parsing so proxied uploads are forwarded byte-for-byte.
+	cfg.Server = Server{Name: DefaultServerName, DisablePreParseMultipartForm: true}
 	cfg.ShutdownTimeout = DefaultShutdownTimeout
 	cfg.SSL = cfg.SSL.SetDefaults()
 	cfg.Log = cfg.Log.SetDefaults()

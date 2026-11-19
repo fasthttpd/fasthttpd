@@ -217,6 +217,7 @@ server:
 | `writeBufferSize` | Per-connection buffer size for writing responses. Uses fasthttp's default if not set. |
 | `readTimeout` | Maximum time allowed to read the full request including the body. The read deadline is reset when the connection opens, or for keep-alive connections after the first byte has been read. Unlimited by default. Valid units: `ns`, `us` (or `µs`), `ms`, `s`, `m`, `h`. |
 | `writeTimeout` | Maximum time before timing out a response write. Reset after the request handler returns. Unlimited by default. Same unit rules as `readTimeout`. |
+| `disablePreParseMultipartForm` | Skip parsing `multipart/form-data` bodies before handlers run, so the `proxy` handler forwards them byte-for-byte. `true` by default; set `false` to restore fasthttp's pre-parsing, which spools large file parts to temporary files but re-encodes proxied uploads. |
 
 Other string, bool and numeric fields can also be set. See [fasthttp/server.go](https://github.com/valyala/fasthttp/blob/master/server.go) for details.
 
