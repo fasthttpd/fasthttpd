@@ -2,13 +2,16 @@ package handler
 
 import (
 	"bytes"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
+	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
 )
 
@@ -129,4 +132,80 @@ func TestErrorPages(t *testing.T) {
 			}
 		}
 	}
+}
+
+// unreadReader fails the test when read.
+type unreadReader struct{ t *testing.T }
+
+func (r unreadReader) Read([]byte) (int, error) {
+	r.t.Error("body stream read")
+	return 0, io.EOF
+}
+
+func TestSendDefaultError(t *testing.T) {
+	testCases := []struct {
+		caseName   string
+		setBody    func(t *testing.T, ctx *fasthttp.RequestCtx)
+		wantStream bool
+		wantBody   string
+	}{
+		{
+			caseName: "no body",
+			setBody:  func(*testing.T, *fasthttp.RequestCtx) {},
+			wantBody: `<!DOCTYPE html><html><head><title>404 Not Found</title><style>h1,p { text-align: center; }</style></head><body><h1>404 Not Found</h1></body></html>`,
+		}, {
+			caseName: "body",
+			setBody:  func(_ *testing.T, ctx *fasthttp.RequestCtx) { ctx.Response.SetBodyString("gone") },
+			wantBody: "gone",
+		}, {
+			caseName:   "body stream",
+			setBody:    func(t *testing.T, ctx *fasthttp.RequestCtx) { ctx.Response.SetBodyStream(unreadReader{t}, -1) },
+			wantStream: true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			ctx := &fasthttp.RequestCtx{}
+			ctx.Response.SetStatusCode(http.StatusNotFound)
+			tc.setBody(t, ctx)
+			SendDefaultError(ctx)
+
+			if got := ctx.Response.IsBodyStream(); got != tc.wantStream {
+				t.Fatalf("IsBodyStream got %v; want %v", got, tc.wantStream)
+			}
+			if tc.wantStream {
+				return
+			}
+			if got := string(ctx.Response.Body()); got != tc.wantBody {
+				t.Errorf("body got %s; want %s", got, tc.wantBody)
+			}
+		})
+	}
+}
+
+func TestErrorPages_StreamedProxyError(t *testing.T) {
+	release := make(chan struct{})
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("first\n")) //nolint:errcheck // proxy reads it
+		w.(http.Flusher).Flush()
+		// Idle until the test ends; the client must not wait for this.
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	}))
+	defer backend.Close()
+
+	defer close(release)
+
+	proxy, err := NewProxyHandler(tree.Map{"url": tree.ToValue(backend.URL)}, logger.NilLogger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	errorPages := &ErrorPages{}
+	streamAndDisconnect(t, func(ctx *fasthttp.RequestCtx) {
+		proxy(ctx)
+		errorPages.Handle(ctx)
+	}, "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n")
 }

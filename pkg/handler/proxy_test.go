@@ -681,3 +681,62 @@ func TestProxy_RetriedOnSameCtx(t *testing.T) {
 		t.Error("first backend request not cancelled after the RequestCtx was released")
 	}
 }
+
+func TestProxy_EmptyErrorBody(t *testing.T) {
+	testCases := []struct {
+		caseName string
+		handler  http.HandlerFunc
+	}{
+		{
+			caseName: "content-length 0",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Length", "0")
+				w.WriteHeader(http.StatusNotFound)
+			},
+		}, {
+			caseName: "chunked",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+				w.(http.Flusher).Flush()
+			},
+		}, {
+			caseName: "close-delimited",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				conn, _, err := w.(http.Hijacker).Hijack()
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				defer conn.Close()
+
+				io.WriteString(conn, "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n") //nolint:errcheck // proxy reads it
+			},
+		},
+	}
+	errorPages := &ErrorPages{}
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			backend := httptest.NewServer(tc.handler)
+			defer backend.Close()
+
+			proxy, err := NewProxyHandler(tree.Map{"url": tree.ToValue(backend.URL)}, logger.NilLogger)
+			if err != nil {
+				t.Fatal(err)
+			}
+			c := serveInmemory(t, &fasthttp.Server{Handler: func(ctx *fasthttp.RequestCtx) {
+				proxy(ctx)
+				errorPages.Handle(ctx)
+			}})
+			// Repeat, since without Content-Length the outcome depended on flush timing.
+			for i := range 50 {
+				status, body, err := c.Get(nil, "http://example.com/")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if status != http.StatusNotFound || !strings.Contains(string(body), "404 Not Found") {
+					t.Fatalf("request %d: got %d %q; want 404 with the default error page", i, status, body)
+				}
+			}
+		})
+	}
+}
