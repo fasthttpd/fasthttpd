@@ -1,14 +1,17 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -103,7 +106,64 @@ func (b *proxyBalancer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no healthy backend", http.StatusServiceUnavailable)
 		return
 	}
+	// Detach from RequestCtx, which fasthttp resets and reuses, possibly before this returns.
+	rc, _ := r.Context().(*fasthttp.RequestCtx)
+	ctx, cancel := context.WithCancel(context.Background())
+	release := &releaseCloser{cancel: cancel}
+	defer release.Close() //nolint:errcheck // Close never fails
+
+	r = r.WithContext(ctx)
+	// ReverseProxy drops the body when ContentLength is 0.
+	if r.ContentLength != 0 && r.Body != nil && r.Body != http.NoBody {
+		release.body = &detachedBody{r: r.Body}
+		r.Body = release.body
+	}
+	if rc != nil {
+		// fasthttp closes io.Closer user values on reset, e.g. after a client disconnect.
+		// Keyed by itself, so a retried route on the same RequestCtx keeps both.
+		rc.SetUserValue(release, release)
+	}
 	be.handler.ServeHTTP(w, r)
+}
+
+// releaseCloser stops a backend request once its RequestCtx is released.
+type releaseCloser struct {
+	cancel context.CancelFunc
+	body   *detachedBody
+}
+
+func (c *releaseCloser) Close() error {
+	// Close the body first, so the request never reads it once cancelled.
+	if c.body != nil {
+		c.body.Close() //nolint:errcheck // Close never fails
+	}
+	c.cancel()
+	return nil
+}
+
+// detachedBody fails reads after Close, since the transport may outlive the handler (#111).
+type detachedBody struct {
+	mu     sync.Mutex
+	r      io.Reader
+	closed bool
+}
+
+func (b *detachedBody) Read(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.closed {
+		return 0, http.ErrBodyReadAfterClose
+	}
+	return b.r.Read(p)
+}
+
+func (b *detachedBody) Close() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b.closed = true
+	return nil
 }
 
 func hashClientIP(r *http.Request) uint64 {
