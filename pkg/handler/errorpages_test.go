@@ -261,3 +261,32 @@ func TestErrorPages_Concurrent(t *testing.T) {
 		})
 	}
 }
+
+func TestLookupErrorPath(t *testing.T) {
+	all := map[string]string{"404": "/404", "40x": "/40x", "4xx": "/4xx", "xxx": "/xxx"}
+	testCases := []struct {
+		caseName     string
+		statusToPath map[string]string
+		status       int
+		want         string
+		wantNil      bool
+	}{
+		{caseName: "exact", statusToPath: all, status: 404, want: "/404"},
+		{caseName: "40x", statusToPath: all, status: 401, want: "/40x"},
+		{caseName: "4xx", statusToPath: all, status: 410, want: "/4xx"},
+		{caseName: "xxx", statusToPath: all, status: 500, want: "/xxx"},
+		{caseName: "empty value falls through", statusToPath: map[string]string{"404": "", "40x": "/40x"}, status: 404, want: "/40x"},
+		{caseName: "no match", statusToPath: map[string]string{"root": "/public", "5xx": "/5xx"}, status: 404, wantNil: true},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			got := lookupErrorPath(tc.statusToPath, tc.status)
+			if (got == nil) != tc.wantNil {
+				t.Fatalf("got %q; want nil %v", got, tc.wantNil)
+			}
+			if string(got) != tc.want {
+				t.Errorf("got %q; want %q", got, tc.want)
+			}
+		})
+	}
+}
