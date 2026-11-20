@@ -298,6 +298,15 @@ func TestErrorPages_Headers(t *testing.T) {
 	}
 	const customBody = "Custom 404 Not Found"
 	defaultBody := "<!DOCTYPE html><html><head><title>503 Service Unavailable"
+	upstreamEntityHeaders := map[string]string{
+		"Content-Type":        "application/json",
+		"Content-Encoding":    "br",
+		"Content-Language":    "ja",
+		"Content-Location":    "/data.json",
+		"Content-Disposition": "attachment; filename=data.json",
+		"ETag":                `"abc"`,
+		"Last-Modified":       "Mon, 01 Jan 2001 00:00:00 GMT",
+	}
 
 	testCases := []struct {
 		caseName        string
@@ -306,7 +315,9 @@ func TestErrorPages_Headers(t *testing.T) {
 		respHeaders     map[string]string
 		wantBody        string
 		wantContentType string
-		wantMissing     bool
+		// wantHeaders are checked on the second request, after a failed page is marked missing.
+		wantHeaders map[string]string
+		wantMissing bool
 	}{
 		{caseName: "If-Modified-Since", status: 404, reqHeaders: map[string]string{"If-Modified-Since": "Fri, 01 Jan 2100 00:00:00 GMT"}, wantBody: customBody},
 		{caseName: "If-None-Match", status: 404, reqHeaders: map[string]string{"If-None-Match": "*"}, wantBody: customBody},
@@ -315,18 +326,33 @@ func TestErrorPages_Headers(t *testing.T) {
 		{
 			caseName:        "upstream entity headers on custom page",
 			status:          404,
-			respHeaders:     map[string]string{"Content-Type": "application/json", "Content-Encoding": "br", "Content-Language": "ja", "ETag": `"abc"`},
+			respHeaders:     upstreamEntityHeaders,
 			wantBody:        customBody,
 			wantContentType: "text/html; charset=utf-8",
 		},
 		{
 			caseName:        "upstream entity headers on default page",
 			status:          503,
-			respHeaders:     map[string]string{"Content-Type": "application/json", "Content-Encoding": "br", "Content-Language": "ja", "ETag": `"abc"`},
+			respHeaders:     upstreamEntityHeaders,
 			wantBody:        defaultBody,
 			wantContentType: "text/html; charset=utf-8",
 		},
-		{caseName: "page not served but found", status: 403, wantBody: "<!DOCTYPE html><html><head><title>403 Forbidden"},
+		{
+			caseName:    "Content-Range on 416",
+			status:      416,
+			respHeaders: map[string]string{"Content-Range": "bytes */100"},
+			wantBody:    customBody,
+			wantHeaders: map[string]string{"Content-Range": "bytes */100"},
+		},
+		{
+			caseName:    "page not served",
+			status:      401,
+			respHeaders: map[string]string{"WWW-Authenticate": `Basic realm="x"`},
+			wantBody:    "<!DOCTYPE html><html><head><title>401 Unauthorized",
+			wantHeaders: map[string]string{"WWW-Authenticate": `Basic realm="x"`},
+			wantMissing: true,
+		},
+		{caseName: "page redirected", status: 410, wantBody: "<!DOCTYPE html><html><head><title>410 Gone", wantMissing: true},
 		{caseName: "page not found", status: 400, wantBody: "<!DOCTYPE html><html><head><title>400 Bad Request", wantMissing: true},
 	}
 	for _, tc := range testCases {
@@ -334,10 +360,12 @@ func TestErrorPages_Headers(t *testing.T) {
 			errorPages := NewErrorPages("", map[string]string{
 				"root": "testdata/public",
 				"400":  "/err/400.html",
-				"403":  "/err/",
+				"401":  "/err/",
 				"404":  "/err/404.html",
+				"410":  "/err",
+				"416":  "/err/404.html",
 			})
-			for range 2 {
+			for n := range 2 {
 				ctx := &fasthttp.RequestCtx{}
 				ctx.Init(&fasthttp.Request{}, nil, log)
 				ctx.Request.SetRequestURI("/missing")
@@ -361,9 +389,21 @@ func TestErrorPages_Headers(t *testing.T) {
 						t.Errorf("Content-Type got %s; want %s", got, tc.wantContentType)
 					}
 				}
-				for _, k := range []string{"Content-Encoding", "Content-Language", "ETag", "Content-Range"} {
+				for k, v := range tc.respHeaders {
+					if _, ok := tc.wantHeaders[k]; !ok && string(ctx.Response.Header.Peek(k)) == v {
+						t.Errorf("upstream %s kept", k)
+					}
+				}
+				for _, k := range []string{"Content-Encoding", "Content-Language", "Content-Location", "Content-Disposition", "ETag", "Location"} {
 					if got := ctx.Response.Header.Peek(k); len(got) > 0 {
 						t.Errorf("%s got %s; want none", k, got)
+					}
+				}
+				if n == 1 {
+					for k, v := range tc.wantHeaders {
+						if got := string(ctx.Response.Header.Peek(k)); got != v {
+							t.Errorf("%s got %s; want %s", k, got, v)
+						}
 					}
 				}
 				for k, v := range tc.reqHeaders {

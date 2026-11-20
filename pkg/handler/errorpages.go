@@ -19,7 +19,7 @@ type ErrorPages struct {
 	fs fasthttp.RequestHandler
 	// errorPaths is indexed by status-errorPagesStatusOffset and read-only after NewErrorPages.
 	errorPaths [][]byte
-	// missing marks pages that fasthttp.FS did not find.
+	// missing marks pages that fasthttp.FS did not serve.
 	missing []atomic.Bool
 }
 
@@ -104,7 +104,6 @@ var entityHeaders = []string{
 	fasthttp.HeaderContentLanguage,
 	fasthttp.HeaderContentLocation,
 	fasthttp.HeaderContentDisposition,
-	fasthttp.HeaderContentRange,
 	fasthttp.HeaderETag,
 	fasthttp.HeaderLastModified,
 }
@@ -140,11 +139,11 @@ func (p *ErrorPages) sendError(ctx *fasthttp.RequestCtx, i int, path []byte) {
 	ctx.SetStatusCode(status)
 
 	if statusFS != http.StatusOK {
-		if statusFS == http.StatusNotFound {
-			p.missing[i].Store(true)
-		}
+		p.missing[i].Store(true)
 		ctx.Logger().Printf("invalid ErrorPages.fs status %d on %q", statusFS, path)
 
+		// FS redirects a directory path without a trailing slash.
+		ctx.Response.Header.Del(fasthttp.HeaderLocation)
 		ctx.Response.SetBody(nil)
 		SendDefaultError(ctx)
 	}
