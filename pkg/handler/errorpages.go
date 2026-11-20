@@ -19,7 +19,7 @@ type ErrorPages struct {
 	fs fasthttp.RequestHandler
 	// errorPaths is indexed by status-errorPagesStatusOffset and read-only after NewErrorPages.
 	errorPaths [][]byte
-	// missing marks pages that fasthttp.FS failed to serve.
+	// missing marks pages that fasthttp.FS did not find.
 	missing []atomic.Bool
 }
 
@@ -89,19 +89,60 @@ func (p *ErrorPages) Handle(ctx *fasthttp.RequestCtx) {
 	p.sendError(ctx, i, path)
 }
 
+// fsRequestHeaders can make fasthttp.FS answer other than 200 with the page (#116).
+var fsRequestHeaders = [...]string{
+	fasthttp.HeaderIfModifiedSince,
+	fasthttp.HeaderIfNoneMatch,
+	fasthttp.HeaderRange,
+	fasthttp.HeaderIfRange,
+}
+
+// entityHeaders describe the body of the response that an error page replaces (#120).
+var entityHeaders = []string{
+	fasthttp.HeaderContentType,
+	fasthttp.HeaderContentEncoding,
+	fasthttp.HeaderContentLanguage,
+	fasthttp.HeaderContentLocation,
+	fasthttp.HeaderContentDisposition,
+	fasthttp.HeaderContentRange,
+	fasthttp.HeaderETag,
+	fasthttp.HeaderLastModified,
+}
+
+func delEntityHeaders(h *fasthttp.ResponseHeader) {
+	for _, k := range entityHeaders {
+		h.Del(k)
+	}
+}
+
 func (p *ErrorPages) sendError(ctx *fasthttp.RequestCtx, i int, path []byte) {
 	status := ctx.Response.StatusCode()
 	uri := string(ctx.Request.RequestURI())
+	var saved [len(fsRequestHeaders)][]byte
+	for j, k := range fsRequestHeaders {
+		if v := ctx.Request.Header.Peek(k); v != nil {
+			saved[j] = append([]byte{}, v...)
+			ctx.Request.Header.Del(k)
+		}
+	}
 
+	delEntityHeaders(&ctx.Response.Header)
 	ctx.Request.SetRequestURIBytes(path)
 	p.fs(ctx)
 	statusFS := ctx.Response.StatusCode()
 
 	ctx.Request.SetRequestURI(uri)
+	for j, k := range fsRequestHeaders {
+		if saved[j] != nil {
+			ctx.Request.Header.SetBytesV(k, saved[j])
+		}
+	}
 	ctx.SetStatusCode(status)
 
 	if statusFS != http.StatusOK {
-		p.missing[i].Store(true)
+		if statusFS == http.StatusNotFound {
+			p.missing[i].Store(true)
+		}
 		ctx.Logger().Printf("invalid ErrorPages.fs status %d on %q", statusFS, path)
 
 		ctx.Response.SetBody(nil)
@@ -129,6 +170,7 @@ func SendDefaultError(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
+	delEntityHeaders(&ctx.Response.Header)
 	status := ctx.Response.StatusCode()
 	b := bytebufferpool.Get()
 	for _, h := range defaultErrorHtmls {
