@@ -120,12 +120,11 @@ func (b *proxyBalancer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if rc != nil {
 		// fasthttp closes io.Closer user values on reset, e.g. after a client disconnect.
-		rc.SetUserValue(releaseCloserKey{}, release)
+		// Keyed by itself, so a retried route on the same RequestCtx keeps both.
+		rc.SetUserValue(release, release)
 	}
 	be.handler.ServeHTTP(w, r)
 }
-
-type releaseCloserKey struct{}
 
 // releaseCloser stops a backend request once its RequestCtx is released.
 type releaseCloser struct {

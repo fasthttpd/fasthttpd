@@ -511,6 +511,7 @@ func TestProxy_StreamClientDisconnect(t *testing.T) {
 		}
 	}))
 	defer backend.Close()
+
 	// Unblock the backend before Close waits for it, also when the test fails early.
 	releaseOnce := sync.OnceFunc(func() { close(release) })
 	defer releaseOnce()
@@ -644,4 +645,39 @@ func TestProxy_SlowDial(t *testing.T) {
 	get()
 	close(finish)
 	wait(dialed)
+}
+
+// A route retried with nextIfNotFound runs a second proxy on the same RequestCtx.
+func TestProxy_RetriedOnSameCtx(t *testing.T) {
+	newBalancer := func(h http.HandlerFunc) fasthttp.RequestHandler {
+		b, err := newProxyBalancer([]string{"http://127.0.0.1:1"}, algoRoundRobin, logger.NilLogger)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b.backends[0].handler = h
+		return fasthttpadaptor.NewFastHTTPHandler(b)
+	}
+	cancelled := make(chan bool, 1)
+	first := newBalancer(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.(http.Flusher).Flush()
+		select {
+		case <-r.Context().Done():
+			cancelled <- true
+		case <-time.After(2 * time.Second):
+			cancelled <- false
+		}
+	})
+	second := newBalancer(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("first\n")) //nolint:errcheck // client may be gone
+		w.(http.Flusher).Flush()
+	})
+	streamAndDisconnect(t, func(ctx *fasthttp.RequestCtx) {
+		first(ctx)
+		ctx.Response.Reset()
+		second(ctx)
+	}, "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n")
+	if !<-cancelled {
+		t.Error("first backend request not cancelled after the RequestCtx was released")
+	}
 }
