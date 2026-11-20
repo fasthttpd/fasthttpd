@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -64,6 +65,7 @@ func newProxyBalancer(urls []string, algorithm string, l logger.Logger) (*proxyB
 		}
 		rp := httputil.NewSingleHostReverseProxy(u)
 		rp.ErrorLog = l.LogLogger()
+		rp.ModifyResponse = markEmptyErrorBody
 		be := &proxyBackend{url: u, handler: rp}
 		be.alive.Store(true)
 		backends = append(backends, be)
@@ -163,6 +165,26 @@ func (b *detachedBody) Close() error {
 	defer b.mu.Unlock()
 
 	b.closed = true
+	return nil
+}
+
+// markEmptyErrorBody gives an empty error body of unknown length Content-Length 0.
+// ReverseProxy would flush it at once, so whether it got the default error page depended on timing.
+func markEmptyErrorBody(res *http.Response) error {
+	if res.StatusCode < http.StatusBadRequest || res.ContentLength != -1 || len(res.Trailer) > 0 {
+		return nil
+	}
+	br := bufio.NewReader(res.Body)
+	if _, err := br.Peek(1); err == io.EOF {
+		res.Body.Close() //nolint:errcheck // body is drained
+		res.Body = http.NoBody
+		res.ContentLength = 0
+		return nil
+	}
+	res.Body = struct {
+		io.Reader
+		io.Closer
+	}{br, res.Body}
 	return nil
 }
 
