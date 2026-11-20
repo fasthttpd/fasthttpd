@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -103,7 +104,30 @@ func (b *proxyBalancer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no healthy backend", http.StatusServiceUnavailable)
 		return
 	}
+	// Detach from RequestCtx, which fasthttp resets and reuses, possibly before this returns.
+	rc, _ := r.Context().(*fasthttp.RequestCtx)
+	ctx, cancel := context.WithCancel(context.Background())
+	release := &releaseCloser{cancel: cancel}
+	defer release.Close() //nolint:errcheck // Close never fails
+
+	r = r.WithContext(ctx)
+	if rc != nil {
+		// fasthttp closes io.Closer user values on reset, e.g. after a client disconnect.
+		rc.SetUserValue(releaseCloserKey{}, release)
+	}
 	be.handler.ServeHTTP(w, r)
+}
+
+type releaseCloserKey struct{}
+
+// releaseCloser stops a backend request once its RequestCtx is released.
+type releaseCloser struct {
+	cancel context.CancelFunc
+}
+
+func (c *releaseCloser) Close() error {
+	c.cancel()
+	return nil
 }
 
 func hashClientIP(r *http.Request) uint64 {

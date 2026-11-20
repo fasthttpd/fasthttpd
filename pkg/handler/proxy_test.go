@@ -1,9 +1,16 @@
 package handler
 
 import (
+	"bufio"
+	"context"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -11,6 +18,7 @@ import (
 	"github.com/fasthttpd/fasthttpd/pkg/logger"
 	"github.com/mojatter/tree"
 	"github.com/valyala/fasthttp"
+	"github.com/valyala/fasthttp/fasthttpadaptor"
 )
 
 func TestNewProxyHandler(t *testing.T) {
@@ -311,4 +319,174 @@ func TestProxy_SchemaRegistered(t *testing.T) {
 			}
 		})
 	}
+}
+
+// streamAndDisconnect sends req to h over TCP and resets the connection once "first" arrives.
+func streamAndDisconnect(t *testing.T, h fasthttp.RequestHandler, req string) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	go (&fasthttp.Server{Handler: h, Logger: logger.NilLogger}).Serve(ln) //nolint:errcheck // closed by ln.Close
+
+	conn, err := net.Dial("tcp", ln.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+
+	if _, err := io.WriteString(conn, req); err != nil {
+		t.Fatal(err)
+	}
+	br := bufio.NewReader(conn)
+	for {
+		line, err := br.ReadString('\n')
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(line, "first") {
+			break
+		}
+	}
+	conn.(*net.TCPConn).SetLinger(0) //nolint:errcheck // reset so the next proxy write fails
+}
+
+// Also run with -race: fasthttp resets the RequestCtx of a streamed response before ServeHTTP returns.
+func TestProxy_StreamClientDisconnect(t *testing.T) {
+	release := make(chan struct{})
+	cancelled := make(chan bool, 1)
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("first\n")) //nolint:errcheck // proxy reads it
+		w.(http.Flusher).Flush()
+		<-release
+		// This write makes fasthttp notice the disconnect; the proxy must then cancel without another one.
+		w.Write([]byte("more\n")) //nolint:errcheck // proxy may be gone
+		w.(http.Flusher).Flush()
+		select {
+		case <-r.Context().Done():
+			cancelled <- true
+		case <-time.After(2 * time.Second):
+			cancelled <- false
+		}
+	}))
+	defer backend.Close()
+
+	h, err := NewProxyHandler(tree.Map{"url": tree.ToValue(backend.URL)}, logger.NilLogger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	streamAndDisconnect(t, h, "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n")
+	close(release)
+	if !<-cancelled {
+		t.Error("backend request not cancelled after the client disconnected")
+	}
+}
+
+func TestProxy_DetachedOnRelease(t *testing.T) {
+	testCases := []struct {
+		caseName string
+		req      string
+	}{
+		{
+			caseName: "without body",
+			req:      "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			b, err := newProxyBalancer([]string{"http://127.0.0.1:1"}, algoRoundRobin, logger.NilLogger)
+			if err != nil {
+				t.Fatal(err)
+			}
+			type result struct{ cancelled bool }
+			got := make(chan result, 1)
+			b.backends[0].handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var res result
+				defer func() { got <- res }()
+
+				deadline := time.After(2 * time.Second)
+				for !res.cancelled {
+					// Writes fail once the client is gone, and fasthttp then releases the RequestCtx.
+					w.Write([]byte("first\n")) //nolint:errcheck // client may be gone
+					w.(http.Flusher).Flush()
+					select {
+					case <-r.Context().Done():
+						res.cancelled = true
+					case <-deadline:
+						return
+					case <-time.After(10 * time.Millisecond):
+					}
+				}
+			})
+			streamAndDisconnect(t, fasthttpadaptor.NewFastHTTPHandler(b), tc.req)
+			res := <-got
+			if !res.cancelled {
+				t.Error("context not cancelled after the RequestCtx was released")
+			}
+		})
+	}
+}
+
+// Run with -race: a dial for a request served by a pooled conn outlives its handler.
+func TestProxy_SlowDial(t *testing.T) {
+	wait := func(ch <-chan struct{}) {
+		select {
+		case <-ch:
+		case <-time.After(10 * time.Second):
+			t.Error("timed out")
+		}
+	}
+	slowDial := make(chan struct{})
+	finish := make(chan struct{})
+	var served atomic.Int32
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The second request holds the pooled conn until the other one dials.
+		if served.Add(1) == 2 {
+			wait(slowDial)
+		}
+	}))
+	defer backend.Close()
+
+	b, err := newProxyBalancer([]string{backend.URL}, algoRoundRobin, logger.NilLogger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var dials atomic.Int32
+	dialed := make(chan struct{}, 4)
+	tr := &http.Transport{DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if dials.Add(1) == 2 {
+			close(slowDial)
+			wait(finish)
+		}
+		conn, err := (&net.Dialer{}).DialContext(ctx, network, addr)
+		dialed <- struct{}{}
+		return conn, err
+	}}
+	defer tr.CloseIdleConnections()
+
+	b.backends[0].handler.(*httputil.ReverseProxy).Transport = tr
+	c := serveInmemory(t, &fasthttp.Server{Handler: fasthttpadaptor.NewFastHTTPHandler(b)})
+	get := func() {
+		req := fasthttp.AcquireRequest()
+		defer fasthttp.ReleaseRequest(req)
+
+		req.SetRequestURI("http://example.com/")
+		if err := c.Do(req, &fasthttp.Response{}); err != nil {
+			t.Error(err)
+		}
+	}
+	get()
+	wait(dialed)
+
+	// One request takes the idle conn; the other dials and gets that conn back first.
+	var wg sync.WaitGroup
+	wg.Go(get)
+	wg.Go(get)
+	wg.Wait()
+	get()
+	get()
+	close(finish)
+	wait(dialed)
 }
