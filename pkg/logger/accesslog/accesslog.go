@@ -197,3 +197,11 @@ func (nilAccessLog) Log(ctx *fasthttp.RequestCtx)     {}
 func (nilAccessLog) Rotate() error                    { return nil }
 func (nilAccessLog) Write([]byte) (int, error)        { return 0, nil }
 func (nilAccessLog) Close() error                     { return nil }
+
+// responseBodySize returns the response body size without reading a body stream, or a negative value if unknown.
+func responseBodySize(resp *fasthttp.Response) int {
+	if resp.IsBodyStream() {
+		return resp.Header.ContentLength()
+	}
+	return len(resp.Body())
+}
