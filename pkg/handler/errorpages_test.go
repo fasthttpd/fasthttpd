@@ -225,12 +225,13 @@ func TestErrorPages_Concurrent(t *testing.T) {
 	})
 
 	testCases := []struct {
-		caseName string
-		status   int
-		wantBody string
+		caseName    string
+		status      int
+		wantBody    string
+		wantMissing bool
 	}{
 		{caseName: "page", status: http.StatusNotFound, wantBody: "Custom 404 Not Found"},
-		{caseName: "missing page", status: http.StatusBadRequest, wantBody: "<!DOCTYPE html>"},
+		{caseName: "missing page", status: http.StatusBadRequest, wantBody: "<!DOCTYPE html><html><head><title>400 Bad Request", wantMissing: true},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.caseName, func(t *testing.T) {
@@ -245,12 +246,18 @@ func TestErrorPages_Concurrent(t *testing.T) {
 					ctx.Request.SetRequestURI("/missing")
 					ctx.Response.SetStatusCode(tc.status)
 					errorPages.Handle(ctx)
+					if got := ctx.Response.StatusCode(); got != tc.status {
+						t.Errorf("statusCode got %d; want %d", got, tc.status)
+					}
 					if got := string(ctx.Response.Body()); !strings.HasPrefix(got, tc.wantBody) {
 						t.Errorf("body got %s; want prefix %s", got, tc.wantBody)
 					}
 				}()
 			}
 			wg.Wait()
+			if got := errorPages.missing[tc.status-errorPagesStatusOffset].Load(); got != tc.wantMissing {
+				t.Errorf("missing got %v; want %v", got, tc.wantMissing)
+			}
 		})
 	}
 }
