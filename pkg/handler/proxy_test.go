@@ -478,6 +478,7 @@ func streamAndDisconnect(t *testing.T, h fasthttp.RequestHandler, req string) {
 	if _, err := io.WriteString(conn, req); err != nil {
 		t.Fatal(err)
 	}
+	conn.SetReadDeadline(time.Now().Add(10 * time.Second)) //nolint:errcheck // fail rather than hang
 	br := bufio.NewReader(conn)
 	for {
 		line, err := br.ReadString('\n')
@@ -510,13 +511,16 @@ func TestProxy_StreamClientDisconnect(t *testing.T) {
 		}
 	}))
 	defer backend.Close()
+	// Unblock the backend before Close waits for it, also when the test fails early.
+	releaseOnce := sync.OnceFunc(func() { close(release) })
+	defer releaseOnce()
 
 	h, err := NewProxyHandler(tree.Map{"url": tree.ToValue(backend.URL)}, logger.NilLogger)
 	if err != nil {
 		t.Fatal(err)
 	}
 	streamAndDisconnect(t, h, "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n")
-	close(release)
+	releaseOnce()
 	if !<-cancelled {
 		t.Error("backend request not cancelled after the client disconnected")
 	}
