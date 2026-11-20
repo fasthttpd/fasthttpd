@@ -258,7 +258,10 @@ var (
 		return appendNetAddr(dst, ctx.LocalAddr())
 	}
 	appendB = func(dst []byte, ctx *fasthttp.RequestCtx) []byte {
-		return fasthttp.AppendUint(dst, ctx.Response.Header.ContentLength())
+		if b := ctx.Response.Header.ContentLength(); b >= 0 {
+			return fasthttp.AppendUint(dst, b)
+		}
+		return appendNil(dst, nil)
 	}
 	appendLb = func(dst []byte, ctx *fasthttp.RequestCtx) []byte {
 		if b := ctx.Response.Header.ContentLength(); b > 0 {
@@ -335,16 +338,19 @@ var (
 		return fasthttp.AppendUint(dst, h+b)
 	}
 	appendO = func(dst []byte, ctx *fasthttp.RequestCtx) []byte {
-		h := len(ctx.Response.Header.Header())
-		b := len(ctx.Response.Body())
-		return fasthttp.AppendUint(dst, h+b)
+		b := responseBodySize(&ctx.Response)
+		if b < 0 {
+			return appendNil(dst, nil)
+		}
+		return fasthttp.AppendUint(dst, len(ctx.Response.Header.Header())+b)
 	}
 	appendS = func(dst []byte, ctx *fasthttp.RequestCtx) []byte {
-		h := len(ctx.Request.Header.RawHeaders())
-		b := len(ctx.Request.Body())
-		h += len(ctx.Response.Header.Header())
-		b += len(ctx.Response.Body())
-		return fasthttp.AppendUint(dst, h+b)
+		b := responseBodySize(&ctx.Response)
+		if b < 0 {
+			return appendNil(dst, nil)
+		}
+		h := len(ctx.Request.Header.RawHeaders()) + len(ctx.Response.Header.Header())
+		return fasthttp.AppendUint(dst, h+b+len(ctx.Request.Body()))
 	}
 )
 
