@@ -2,8 +2,12 @@ package handler
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"fmt"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -316,6 +320,119 @@ func TestProxy_SchemaRegistered(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tc.wantErr) {
 				t.Errorf("error %q does not contain %q", err.Error(), tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestProxy_MultipartForwarding(t *testing.T) {
+	const contentType = "multipart/form-data; boundary=XB"
+	body := strings.Join([]string{
+		"--XB",
+		`Content-Disposition: form-data; name="b"`,
+		"X-Extra: keep-me",
+		"",
+		"2",
+		"--XB",
+		`Content-Disposition: form-data; name="a"`,
+		"",
+		"1",
+		"--XB",
+		`Content-Disposition: form-data; name="f"; filename="f.bin"`,
+		"Content-Type: application/octet-stream",
+		"",
+		"\x00\x01binary\r\ndata",
+		"--XB--",
+		"",
+	}, "\r\n")
+
+	testCases := []struct {
+		caseName  string
+		server    tree.Map
+		wantBytes bool
+	}{
+		{
+			caseName:  "default forwards byte-for-byte",
+			wantBytes: true,
+		}, {
+			caseName: "pre-parse re-encodes",
+			server:   tree.Map{"disablePreParseMultipartForm": tree.ToValue(false)},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			got := make(chan []byte, 1)
+			gotType := make(chan string, 1)
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				b, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Error(err)
+				}
+				gotType <- r.Header.Get("Content-Type")
+				got <- b
+			}))
+			defer backend.Close()
+
+			m := tree.Map{}
+			if tc.server != nil {
+				m["server"] = tc.server
+			}
+			cfg, err := config.FromTreeMap(m)
+			if err != nil {
+				t.Fatal(err)
+			}
+			h, err := NewProxyHandler(tree.Map{"url": tree.ToValue(backend.URL)}, logger.NilLogger)
+			if err != nil {
+				t.Fatal(err)
+			}
+			s := &fasthttp.Server{Handler: h}
+			cfg.Server.ApplyTo(s)
+			c := serveInmemory(t, s)
+
+			req := fasthttp.AcquireRequest()
+			defer fasthttp.ReleaseRequest(req)
+
+			req.SetRequestURI("http://example.com/")
+			req.Header.SetMethod(fasthttp.MethodPost)
+			req.Header.SetContentType(contentType)
+			req.SetBodyString(body)
+			resp := &fasthttp.Response{}
+			if err := c.Do(req, resp); err != nil {
+				t.Fatal(err)
+			}
+			if resp.StatusCode() != http.StatusOK {
+				t.Fatalf("unexpected status %d", resp.StatusCode())
+			}
+			b := <-got
+			if gotBytes := string(b) == body; gotBytes != tc.wantBytes {
+				t.Errorf("byte-for-byte %v; want %v; got %q", gotBytes, tc.wantBytes, b)
+			}
+			if gotExtra := strings.Contains(string(b), "X-Extra: keep-me"); gotExtra != tc.wantBytes {
+				t.Errorf("part header kept %v; want %v", gotExtra, tc.wantBytes)
+			}
+			// Both modes must forward the same form content.
+			_, params, err := mime.ParseMediaType(<-gotType)
+			if err != nil {
+				t.Fatal(err)
+			}
+			form, err := multipart.NewReader(bytes.NewReader(b), params["boundary"]).ReadForm(1 << 20)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := fmt.Sprint(form.Value); got != "map[a:[1] b:[2]]" {
+				t.Errorf("unexpected values %s", got)
+			}
+			if len(form.File["f"]) != 1 || form.File["f"][0].Filename != "f.bin" {
+				t.Fatalf("unexpected files %v", form.File)
+			}
+			f, err := form.File["f"][0].Open()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+
+			if data, _ := io.ReadAll(f); string(data) != "\x00\x01binary\r\ndata" {
+				t.Errorf("unexpected file data %q", data)
 			}
 		})
 	}
