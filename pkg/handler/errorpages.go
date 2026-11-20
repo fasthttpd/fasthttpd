@@ -125,9 +125,10 @@ var (
 
 // SendDefaultError sends default error page using ctx.Response.StatusCode().
 // It works as fasthttp.RequestHandler.
-// If the provided ctx has response body, it does nothing.
+// If the provided ctx has response body or body stream, it does nothing.
 func SendDefaultError(ctx *fasthttp.RequestCtx) {
-	if len(ctx.Response.Body()) > 0 {
+	// Body() would read a body stream to the end, e.g. a streamed proxy response (#113).
+	if ctx.Response.IsBodyStream() || len(ctx.Response.Body()) > 0 {
 		return
 	}
 
