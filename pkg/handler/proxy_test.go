@@ -321,6 +321,27 @@ func TestProxy_SchemaRegistered(t *testing.T) {
 	}
 }
 
+// Run with -race: the transport must not read the body after fasthttp reuses its buffer (#111).
+func TestProxy_EarlyResponseBody(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer backend.Close()
+
+	h, err := NewProxyHandler(tree.Map{"url": tree.ToValue(backend.URL)}, logger.NilLogger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const size = 8 << 20
+	c := serveInmemory(t, &fasthttp.Server{Handler: h, MaxRequestBodySize: size})
+	body := strings.Repeat("x", size)
+	for i := range 10 {
+		if got := doPost(t, c, "example.com", body, false).StatusCode(); got != http.StatusUnauthorized {
+			t.Fatalf("request %d: unexpected status %d", i, got)
+		}
+	}
+}
+
 // streamAndDisconnect sends req to h over TCP and resets the connection once "first" arrives.
 func streamAndDisconnect(t *testing.T, h fasthttp.RequestHandler, req string) {
 	t.Helper()
@@ -388,10 +409,15 @@ func TestProxy_DetachedOnRelease(t *testing.T) {
 	testCases := []struct {
 		caseName string
 		req      string
+		wantBody bool
 	}{
 		{
 			caseName: "without body",
 			req:      "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n",
+		}, {
+			caseName: "with body",
+			req:      "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 1\r\n\r\nx",
+			wantBody: true,
 		},
 	}
 	for _, tc := range testCases {
@@ -400,7 +426,7 @@ func TestProxy_DetachedOnRelease(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			type result struct{ cancelled bool }
+			type result struct{ cancelled, wrapped, closed bool }
 			got := make(chan result, 1)
 			b.backends[0].handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				var res result
@@ -419,11 +445,19 @@ func TestProxy_DetachedOnRelease(t *testing.T) {
 					case <-time.After(10 * time.Millisecond):
 					}
 				}
+				if body, ok := r.Body.(*detachedBody); ok {
+					body.mu.Lock()
+					res.wrapped, res.closed = true, body.closed
+					body.mu.Unlock()
+				}
 			})
 			streamAndDisconnect(t, fasthttpadaptor.NewFastHTTPHandler(b), tc.req)
 			res := <-got
 			if !res.cancelled {
 				t.Error("context not cancelled after the RequestCtx was released")
+			}
+			if res.wrapped != tc.wantBody || res.closed != tc.wantBody {
+				t.Errorf("body wrapped %v, closed %v; want %v", res.wrapped, res.closed, tc.wantBody)
 			}
 		})
 	}
