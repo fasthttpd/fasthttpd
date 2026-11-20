@@ -5,8 +5,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
@@ -117,19 +117,22 @@ func TestErrorPages(t *testing.T) {
 		}
 	}
 
-	wantErrorPaths := make([][]byte, 200)
-	wantErrorPaths[400-errorPagesStatusOffset] = []byte{'-'}
-	wantErrorPaths[403-errorPagesStatusOffset] = []byte{}
-	wantErrorPaths[404-errorPagesStatusOffset] = []byte("/err/404.html")
-	wantErrorPaths[500-errorPagesStatusOffset] = []byte("/err/5xx.html")
-	wantErrorPaths[502-errorPagesStatusOffset] = []byte("/err/5xx.html")
-
-	if !reflect.DeepEqual(errorPages.errorPaths, wantErrorPaths) {
-		t.Errorf("errorPaths got %v; want %v", errorPages.errorPaths, wantErrorPaths)
-		for status, errPath := range errorPages.errorPaths {
-			if errPath != nil {
-				t.Errorf("errorPaths[%d] %s", status, errPath)
-			}
+	for status := errorPagesStatusOffset; status < errorPagesStatusUntil; status++ {
+		i := status - errorPagesStatusOffset
+		var wantPath string
+		switch {
+		case status == 400:
+			wantPath = "/err/400.html"
+		case status == 404:
+			wantPath = "/err/404.html"
+		case status >= 500:
+			wantPath = "/err/5xx.html"
+		}
+		if got := string(errorPages.errorPaths[i]); got != wantPath {
+			t.Errorf("errorPaths[%d] got %q; want %q", status, got, wantPath)
+		}
+		if got, want := errorPages.missing[i].Load(), status == 400; got != want {
+			t.Errorf("missing[%d] got %v; want %v", status, got, want)
 		}
 	}
 }
@@ -208,4 +211,46 @@ func TestErrorPages_StreamedProxyError(t *testing.T) {
 		proxy(ctx)
 		errorPages.Handle(ctx)
 	}, "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n")
+}
+
+func TestErrorPages_Concurrent(t *testing.T) {
+	log, err := logger.NewLoggerWriter(config.Log{}, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	errorPages := NewErrorPages("", map[string]string{
+		"root": "testdata/public",
+		"400":  "/err/400.html",
+		"404":  "/err/404.html",
+	})
+
+	testCases := []struct {
+		caseName string
+		status   int
+		wantBody string
+	}{
+		{caseName: "page", status: http.StatusNotFound, wantBody: "Custom 404 Not Found"},
+		{caseName: "missing page", status: http.StatusBadRequest, wantBody: "<!DOCTYPE html>"},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			var wg sync.WaitGroup
+			for range 8 {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+
+					ctx := &fasthttp.RequestCtx{}
+					ctx.Init(&fasthttp.Request{}, nil, log)
+					ctx.Request.SetRequestURI("/missing")
+					ctx.Response.SetStatusCode(tc.status)
+					errorPages.Handle(ctx)
+					if got := string(ctx.Response.Body()); !strings.HasPrefix(got, tc.wantBody) {
+						t.Errorf("body got %s; want prefix %s", got, tc.wantBody)
+					}
+				}()
+			}
+			wg.Wait()
+		})
+	}
 }
