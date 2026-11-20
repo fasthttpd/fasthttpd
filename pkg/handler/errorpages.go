@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"sync/atomic"
 
 	"github.com/valyala/bytebufferpool"
 	"github.com/valyala/fasthttp"
@@ -15,9 +16,11 @@ var (
 
 // ErrorPages represents a handler that provides custom error pages.
 type ErrorPages struct {
-	statusToPath map[string]string
-	fs           fasthttp.RequestHandler
-	errorPaths   [][]byte
+	fs fasthttp.RequestHandler
+	// errorPaths is indexed by status-errorPagesStatusOffset and read-only after NewErrorPages.
+	errorPaths [][]byte
+	// missing marks pages that fasthttp.FS failed to serve.
+	missing []atomic.Bool
 }
 
 var _ fasthttp.RequestHandler = (*ErrorPages)(nil).Handle
@@ -37,11 +40,30 @@ func NewErrorPages(root string, statusToPath map[string]string) *ErrorPages {
 		Root:     root,
 		Compress: true,
 	}
-	return &ErrorPages{
-		statusToPath: statusToPath,
-		fs:           fs.NewRequestHandler(),
-		errorPaths:   make([][]byte, errorPagesStatusUntil-errorPagesStatusOffset),
+	n := errorPagesStatusUntil - errorPagesStatusOffset
+	errorPaths := make([][]byte, n)
+	for i := range errorPaths {
+		errorPaths[i] = lookupErrorPath(statusToPath, errorPagesStatusOffset+i)
 	}
+	return &ErrorPages{
+		fs:         fs.NewRequestHandler(),
+		errorPaths: errorPaths,
+		missing:    make([]atomic.Bool, n),
+	}
+}
+
+// lookupErrorPath returns the page for status, trying e.g. "404", "40x", "4xx" and "xxx" in order.
+func lookupErrorPath(statusToPath map[string]string, status int) []byte {
+	sb := []byte(strconv.Itoa(status))
+	for l := len(sb); l >= 0; l-- {
+		if l < len(sb) {
+			sb[l] = 'x'
+		}
+		if page := statusToPath[string(sb)]; page != "" {
+			return []byte(page)
+		}
+	}
+	return nil
 }
 
 func (p *ErrorPages) Handle(ctx *fasthttp.RequestCtx) {
@@ -53,45 +75,21 @@ func (p *ErrorPages) Handle(ctx *fasthttp.RequestCtx) {
 		SendDefaultError(ctx)
 		return
 	}
-	if path := p.errorPaths[status-errorPagesStatusOffset]; path != nil {
-		p.sendError(ctx, path)
-		return
-	}
-	sb := []byte(strconv.Itoa(status))
-	p.handleStatus(ctx, sb, len(sb))
-}
-
-func (p *ErrorPages) handleStatus(ctx *fasthttp.RequestCtx, sb []byte, l int) {
-	status := ctx.Response.StatusCode()
-	if l < 0 {
-		// NOTE: store no erorr page.
-		p.errorPaths[status-errorPagesStatusOffset] = []byte{}
-		SendDefaultError(ctx)
-		return
-	}
-	if l < len(sb) {
-		sb[l] = 'x'
-	}
-	if page := p.statusToPath[string(sb)]; page != "" {
-		path := []byte(page)
-		p.errorPaths[status-errorPagesStatusOffset] = path
-		p.sendError(ctx, path)
-		return
-	}
-	p.handleStatus(ctx, sb, l-1)
-}
-
-func (p *ErrorPages) sendError(ctx *fasthttp.RequestCtx, path []byte) {
+	i := status - errorPagesStatusOffset
+	path := p.errorPaths[i]
 	if len(path) == 0 {
 		SendDefaultError(ctx)
 		return
 	}
-	if len(path) == 1 && path[0] == '-' {
+	if p.missing[i].Load() {
 		ctx.Response.SetBody(nil)
 		SendDefaultError(ctx)
 		return
 	}
+	p.sendError(ctx, i, path)
+}
 
+func (p *ErrorPages) sendError(ctx *fasthttp.RequestCtx, i int, path []byte) {
 	status := ctx.Response.StatusCode()
 	uri := string(ctx.Request.RequestURI())
 
@@ -103,8 +101,7 @@ func (p *ErrorPages) sendError(ctx *fasthttp.RequestCtx, path []byte) {
 	ctx.SetStatusCode(status)
 
 	if statusFS != http.StatusOK {
-		// NOTE: store no erorr page.
-		p.errorPaths[status-errorPagesStatusOffset] = []byte{'-'}
+		p.missing[i].Store(true)
 		ctx.Logger().Printf("invalid ErrorPages.fs status %d on %q", statusFS, path)
 
 		ctx.Response.SetBody(nil)

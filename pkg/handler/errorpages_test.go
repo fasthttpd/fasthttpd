@@ -5,8 +5,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/fasthttpd/fasthttpd/pkg/config"
@@ -117,19 +117,22 @@ func TestErrorPages(t *testing.T) {
 		}
 	}
 
-	wantErrorPaths := make([][]byte, 200)
-	wantErrorPaths[400-errorPagesStatusOffset] = []byte{'-'}
-	wantErrorPaths[403-errorPagesStatusOffset] = []byte{}
-	wantErrorPaths[404-errorPagesStatusOffset] = []byte("/err/404.html")
-	wantErrorPaths[500-errorPagesStatusOffset] = []byte("/err/5xx.html")
-	wantErrorPaths[502-errorPagesStatusOffset] = []byte("/err/5xx.html")
-
-	if !reflect.DeepEqual(errorPages.errorPaths, wantErrorPaths) {
-		t.Errorf("errorPaths got %v; want %v", errorPages.errorPaths, wantErrorPaths)
-		for status, errPath := range errorPages.errorPaths {
-			if errPath != nil {
-				t.Errorf("errorPaths[%d] %s", status, errPath)
-			}
+	for status := errorPagesStatusOffset; status < errorPagesStatusUntil; status++ {
+		i := status - errorPagesStatusOffset
+		var wantPath string
+		switch {
+		case status == 400:
+			wantPath = "/err/400.html"
+		case status == 404:
+			wantPath = "/err/404.html"
+		case status >= 500:
+			wantPath = "/err/5xx.html"
+		}
+		if got := string(errorPages.errorPaths[i]); got != wantPath {
+			t.Errorf("errorPaths[%d] got %q; want %q", status, got, wantPath)
+		}
+		if got, want := errorPages.missing[i].Load(), status == 400; got != want {
+			t.Errorf("missing[%d] got %v; want %v", status, got, want)
 		}
 	}
 }
@@ -208,4 +211,82 @@ func TestErrorPages_StreamedProxyError(t *testing.T) {
 		proxy(ctx)
 		errorPages.Handle(ctx)
 	}, "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n")
+}
+
+func TestErrorPages_Concurrent(t *testing.T) {
+	log, err := logger.NewLoggerWriter(config.Log{}, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	errorPages := NewErrorPages("", map[string]string{
+		"root": "testdata/public",
+		"400":  "/err/400.html",
+		"404":  "/err/404.html",
+	})
+
+	testCases := []struct {
+		caseName    string
+		status      int
+		wantBody    string
+		wantMissing bool
+	}{
+		{caseName: "page", status: http.StatusNotFound, wantBody: "Custom 404 Not Found"},
+		{caseName: "missing page", status: http.StatusBadRequest, wantBody: "<!DOCTYPE html><html><head><title>400 Bad Request", wantMissing: true},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			var wg sync.WaitGroup
+			for range 8 {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+
+					ctx := &fasthttp.RequestCtx{}
+					ctx.Init(&fasthttp.Request{}, nil, log)
+					ctx.Request.SetRequestURI("/missing")
+					ctx.Response.SetStatusCode(tc.status)
+					errorPages.Handle(ctx)
+					if got := ctx.Response.StatusCode(); got != tc.status {
+						t.Errorf("statusCode got %d; want %d", got, tc.status)
+					}
+					if got := string(ctx.Response.Body()); !strings.HasPrefix(got, tc.wantBody) {
+						t.Errorf("body got %s; want prefix %s", got, tc.wantBody)
+					}
+				}()
+			}
+			wg.Wait()
+			if got := errorPages.missing[tc.status-errorPagesStatusOffset].Load(); got != tc.wantMissing {
+				t.Errorf("missing got %v; want %v", got, tc.wantMissing)
+			}
+		})
+	}
+}
+
+func TestLookupErrorPath(t *testing.T) {
+	all := map[string]string{"404": "/404", "40x": "/40x", "4xx": "/4xx", "xxx": "/xxx"}
+	testCases := []struct {
+		caseName     string
+		statusToPath map[string]string
+		status       int
+		want         string
+		wantNil      bool
+	}{
+		{caseName: "exact", statusToPath: all, status: 404, want: "/404"},
+		{caseName: "40x", statusToPath: all, status: 401, want: "/40x"},
+		{caseName: "4xx", statusToPath: all, status: 410, want: "/4xx"},
+		{caseName: "xxx", statusToPath: all, status: 500, want: "/xxx"},
+		{caseName: "empty value falls through", statusToPath: map[string]string{"404": "", "40x": "/40x"}, status: 404, want: "/40x"},
+		{caseName: "no match", statusToPath: map[string]string{"root": "/public", "5xx": "/5xx"}, status: 404, wantNil: true},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			got := lookupErrorPath(tc.statusToPath, tc.status)
+			if (got == nil) != tc.wantNil {
+				t.Fatalf("got %q; want nil %v", got, tc.wantNil)
+			}
+			if string(got) != tc.want {
+				t.Errorf("got %q; want %q", got, tc.want)
+			}
+		})
+	}
 }
