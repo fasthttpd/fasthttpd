@@ -138,7 +138,6 @@ func TestAccessLog_JSON(t *testing.T) {
 				ctx.Request.SetRequestURI("/path?foo=bar")
 				ctx.Request.SetHost("localhost")
 				ctx.Response.SetBody([]byte("body"))
-				ctx.Response.Header.SetContentLength(4)
 			},
 			want: expected{
 				RemoteAddr:    "10.1.2.3:51002",

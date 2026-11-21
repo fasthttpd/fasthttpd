@@ -198,10 +198,20 @@ func (nilAccessLog) Rotate() error                    { return nil }
 func (nilAccessLog) Write([]byte) (int, error)        { return 0, nil }
 func (nilAccessLog) Close() error                     { return nil }
 
-// responseBodySize returns the response body size without reading a body stream, or a negative value if unknown.
-func responseBodySize(resp *fasthttp.Response) int {
+// responseBodySize returns the size of the response body to be sent without reading a body stream, or a negative value if unknown.
+// It does not use Content-Length, which fasthttp sets for an in-memory body only when it writes the response (#118).
+func responseBodySize(ctx *fasthttp.RequestCtx) int {
+	resp := &ctx.Response
+	if ctx.IsHead() || resp.SkipBody || !statusAllowsBody(resp.StatusCode()) {
+		return 0
+	}
 	if resp.IsBodyStream() {
 		return resp.Header.ContentLength()
 	}
 	return len(resp.Body())
+}
+
+// statusAllowsBody reports whether fasthttp sends a body with the status.
+func statusAllowsBody(status int) bool {
+	return status < 100 || (status >= 200 && status != fasthttp.StatusNoContent && status != fasthttp.StatusNotModified)
 }

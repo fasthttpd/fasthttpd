@@ -174,7 +174,7 @@ func appendJSONLog(dst []byte, ctx *fasthttp.RequestCtx) []byte {
 	dst = fasthttp.AppendUint(dst, ctx.Response.StatusCode())
 
 	dst = append(dst, `,"size":`...)
-	if size := ctx.Response.Header.ContentLength(); size >= 0 {
+	if size := responseBodySize(ctx); size >= 0 {
 		dst = fasthttp.AppendUint(dst, size)
 	} else {
 		dst = append(dst, "null"...)

@@ -258,13 +258,13 @@ var (
 		return appendNetAddr(dst, ctx.LocalAddr())
 	}
 	appendB = func(dst []byte, ctx *fasthttp.RequestCtx) []byte {
-		if b := ctx.Response.Header.ContentLength(); b >= 0 {
+		if b := responseBodySize(ctx); b >= 0 {
 			return fasthttp.AppendUint(dst, b)
 		}
 		return appendNil(dst, nil)
 	}
 	appendLb = func(dst []byte, ctx *fasthttp.RequestCtx) []byte {
-		if b := ctx.Response.Header.ContentLength(); b > 0 {
+		if b := responseBodySize(ctx); b > 0 {
 			return fasthttp.AppendUint(dst, b)
 		}
 		return appendNil(dst, nil)
@@ -338,14 +338,14 @@ var (
 		return fasthttp.AppendUint(dst, h+b)
 	}
 	appendO = func(dst []byte, ctx *fasthttp.RequestCtx) []byte {
-		b := responseBodySize(&ctx.Response)
+		b := responseBodySize(ctx)
 		if b < 0 {
 			return appendNil(dst, nil)
 		}
 		return fasthttp.AppendUint(dst, len(ctx.Response.Header.Header())+b)
 	}
 	appendS = func(dst []byte, ctx *fasthttp.RequestCtx) []byte {
-		b := responseBodySize(&ctx.Response)
+		b := responseBodySize(ctx)
 		if b < 0 {
 			return appendNil(dst, nil)
 		}
