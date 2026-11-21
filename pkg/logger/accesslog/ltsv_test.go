@@ -113,7 +113,6 @@ func TestAccessLog_LTSV(t *testing.T) {
 				ctx.Request.SetRequestURI("/path?foo=bar")
 				ctx.Request.SetHost("localhost")
 				ctx.Response.SetBody([]byte("body"))
-				ctx.Response.Header.SetContentLength(4)
 			},
 			want: map[string]string{
 				"time":             wantTime,

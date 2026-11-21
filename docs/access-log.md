@@ -12,7 +12,7 @@ accessLog:
   format: '%h %l %u %t "%r" %>s %b'
 ```
 
-Format directives follow the [Apache Custom Log Formats](https://httpd.apache.org/docs/2.4/en/mod/mod_log_config.html) convention. When the response size is unknown, e.g. for a streamed `proxy` response, `%B`, `%O` and `%S` are written as `-`.
+Format directives follow the [Apache Custom Log Formats](https://httpd.apache.org/docs/2.4/en/mod/mod_log_config.html) convention. When the response size is unknown, e.g. for a streamed `proxy` response, `%B`, `%O` and `%S` are written as `-`. The body size in `%B`, `%b`, `%O` and `%S` is the body sent, so it is `0` (`-` for `%b`) for `HEAD` requests and for `1xx`, `204` and `304` responses. The header bytes in `%O` and `%S` do not include the headers that fasthttp adds when it writes the response, such as `Content-Length` and the default `Content-Type`.
 
 ## JSON preset
 
@@ -53,7 +53,7 @@ Notes:
 - `time` is RFC 3339 with the local timezone offset.
 - `client_ip` is the left-most entry of the `X-Forwarded-For` header when present, otherwise the IP portion of the connecting peer.
 - `duration_us` is integer microseconds; the unit is encoded in the key name to avoid ambiguity.
-- `size` is the response body length and `bytes_received` is the request header + body byte count. `size` is `null` when the length is unknown, e.g. for a streamed `proxy` response.
+- `size` is the response body length sent and `bytes_received` is the request header + body byte count. `size` is `0` for `HEAD` requests and for `1xx`, `204` and `304` responses, and `null` when the length is unknown, e.g. for a streamed `proxy` response.
 
 ## LTSV preset
 
@@ -81,5 +81,5 @@ Notes:
 - `host` is the direct peer IP (without port), matching nginx's `$remote_addr`.
 - `forwardedfor` is the raw `X-Forwarded-For` header value; unlike the JSON preset, no left-most derivation is performed.
 - `req` combines the method, request URI and protocol NCSA-style.
-- Empty string fields are written as empty values, not `-`, following pure LTSV convention. `size` is also empty when the response length is unknown, e.g. for a streamed `proxy` response.
+- Empty string fields are written as empty values, not `-`, following pure LTSV convention. `size` is the response body length sent, `0` for `HEAD` requests and for `1xx`, `204` and `304` responses, and empty when the length is unknown, e.g. for a streamed `proxy` response.
 - Any `TAB`, `LF` or `CR` byte inside a string value is replaced with a single space so a crafted header cannot break the LTSV line structure (equivalent to nginx's `escape=default`).

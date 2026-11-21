@@ -92,7 +92,7 @@ func appendLTSVLog(dst []byte, ctx *fasthttp.RequestCtx) []byte {
 
 	dst = append(dst, "\tsize:"...)
 	// Left empty when unknown, e.g. a streamed response.
-	if size := ctx.Response.Header.ContentLength(); size >= 0 {
+	if size := responseBodySize(ctx); size >= 0 {
 		dst = fasthttp.AppendUint(dst, size)
 	}
 

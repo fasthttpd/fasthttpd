@@ -115,7 +115,6 @@ func TestAccessLog_NCSA(t *testing.T) {
 				ctx.Request.SetRequestURI("/path")
 				ctx.URI().SetUsername("foo")
 				ctx.Response.SetBody([]byte("body"))
-				ctx.Response.Header.SetContentLength(4)
 				return ctx
 			},
 			want: `10.1.2.3 - foo [01/Jan/0001:00:00:00 +0000] "GET /path HTTP/1.1" 200 4`,
@@ -133,7 +132,6 @@ func TestAccessLog_NCSA(t *testing.T) {
 				ctx.Request.Header.Set("User-Agent", "accesslog_test")
 				ctx.Request.Header.Set("Referer", "/referer")
 				ctx.Response.SetBody([]byte("body"))
-				ctx.Response.Header.SetContentLength(4)
 				return ctx
 			},
 			want: `10.1.2.3 - foo [01/Jan/0001:00:00:00 +0000] "GET /path HTTP/1.1" 200 4 "/referer" "accesslog_test"`,
@@ -151,7 +149,6 @@ func TestAccessLog_NCSA(t *testing.T) {
 				ctx.Request.Header.Set("Request-Header", "request-header-value")
 				ctx.Request.Header.Set("Cookie", "cookie=cookie-value")
 				ctx.Response.SetBody([]byte("body"))
-				ctx.Response.Header.SetContentLength(4)
 				ctx.Response.Header.Set("Response-Header", "response-header-value")
 				return ctx
 			},
@@ -171,7 +168,6 @@ func TestAccessLog_NCSA(t *testing.T) {
 				ctx.Request.Header.Set("Request-Header", "request-header-value")
 				ctx.Request.Header.Set("Cookie", "cookie=cookie-value")
 				ctx.Response.SetBody([]byte("body"))
-				ctx.Response.Header.SetContentLength(4)
 				ctx.Response.Header.Set("Response-Header", "response-header-value")
 				return ctx
 			},
@@ -197,11 +193,10 @@ func TestAccessLog_NCSA(t *testing.T) {
 				}
 				ctx.URI().SetUsername("foo")
 				ctx.Response.SetBody([]byte("body"))
-				ctx.Response.Header.SetContentLength(4)
 				ctx.Response.Header.Set("Response-Header", "response-header-value")
 				return ctx
 			},
-			want: "10.1.2.3:1234 0.0.0.0:0 4 9876543 9 /path HTTP/1.1 GET ?foo=bar /path + 120 160 280",
+			want: "10.1.2.3:1234 0.0.0.0:0 4 9876543 9 /path HTTP/1.1 GET ?foo=bar /path + 120 100 220",
 		}, {
 			cfg: config.Config{
 				Host: "example.com",
