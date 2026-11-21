@@ -36,10 +36,8 @@ func NewErrorPages(root string, statusToPath map[string]string) *ErrorPages {
 	if len(statusToPath) == 0 {
 		return &ErrorPages{}
 	}
-	fs := &fasthttp.FS{
-		Root:     root,
-		Compress: true,
-	}
+	// No Compress: it writes compressed copies next to the pages, which fails on a read-only root.
+	fs := &fasthttp.FS{Root: root}
 	n := errorPagesStatusUntil - errorPagesStatusOffset
 	errorPaths := make([][]byte, n)
 	for i := range errorPaths {
@@ -106,6 +104,10 @@ var entityHeaders = []string{
 	fasthttp.HeaderContentDisposition,
 	fasthttp.HeaderETag,
 	fasthttp.HeaderLastModified,
+	"Content-MD5",
+	"Digest",
+	"Content-Digest",
+	"Repr-Digest",
 }
 
 func delEntityHeaders(h *fasthttp.ResponseHeader) {

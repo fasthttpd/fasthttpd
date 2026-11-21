@@ -306,6 +306,10 @@ func TestErrorPages_Headers(t *testing.T) {
 		"Content-Disposition": "attachment; filename=data.json",
 		"ETag":                `"abc"`,
 		"Last-Modified":       "Mon, 01 Jan 2001 00:00:00 GMT",
+		"Content-MD5":         "Q2hlY2sgSW50ZWdyaXR5IQ==",
+		"Digest":              "sha-256=X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=",
+		"Content-Digest":      "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
+		"Repr-Digest":         "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
 	}
 
 	testCases := []struct {
@@ -315,7 +319,7 @@ func TestErrorPages_Headers(t *testing.T) {
 		respHeaders     map[string]string
 		wantBody        string
 		wantContentType string
-		// wantHeaders are checked on the second request, after a failed page is marked missing.
+		// wantHeaders are checked on every request, or only the second for a page marked missing.
 		wantHeaders map[string]string
 		wantMissing bool
 	}{
@@ -323,6 +327,7 @@ func TestErrorPages_Headers(t *testing.T) {
 		{caseName: "If-None-Match", status: 404, reqHeaders: map[string]string{"If-None-Match": "*"}, wantBody: customBody},
 		{caseName: "Range", status: 404, reqHeaders: map[string]string{"Range": "bytes=0-5"}, wantBody: customBody},
 		{caseName: "If-Range", status: 404, reqHeaders: map[string]string{"Range": "bytes=0-5", "If-Range": "Fri, 01 Jan 2100 00:00:00 GMT"}, wantBody: customBody},
+		{caseName: "Accept-Encoding", status: 418, reqHeaders: map[string]string{"Accept-Encoding": "gzip, br"}, wantBody: "Custom compressible page"},
 		{
 			caseName:        "upstream entity headers on custom page",
 			status:          404,
@@ -364,6 +369,7 @@ func TestErrorPages_Headers(t *testing.T) {
 				"404":  "/err/404.html",
 				"410":  "/err",
 				"416":  "/err/404.html",
+				"418":  "/err/compressible.html",
 			})
 			for n := range 2 {
 				ctx := &fasthttp.RequestCtx{}
@@ -399,7 +405,7 @@ func TestErrorPages_Headers(t *testing.T) {
 						t.Errorf("%s got %s; want none", k, got)
 					}
 				}
-				if n == 1 {
+				if n == 1 || !tc.wantMissing {
 					for k, v := range tc.wantHeaders {
 						if got := string(ctx.Response.Header.Peek(k)); got != v {
 							t.Errorf("%s got %s; want %s", k, got, v)
