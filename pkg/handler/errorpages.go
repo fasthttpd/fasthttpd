@@ -19,7 +19,7 @@ type ErrorPages struct {
 	fs fasthttp.RequestHandler
 	// errorPaths is indexed by status-errorPagesStatusOffset and read-only after NewErrorPages.
 	errorPaths [][]byte
-	// missing marks pages that fasthttp.FS failed to serve.
+	// missing marks pages that fasthttp.FS did not serve.
 	missing []atomic.Bool
 }
 
@@ -36,10 +36,8 @@ func NewErrorPages(root string, statusToPath map[string]string) *ErrorPages {
 	if len(statusToPath) == 0 {
 		return &ErrorPages{}
 	}
-	fs := &fasthttp.FS{
-		Root:     root,
-		Compress: true,
-	}
+	// No Compress: it writes compressed copies next to the pages, which fails on a read-only root.
+	fs := &fasthttp.FS{Root: root}
 	n := errorPagesStatusUntil - errorPagesStatusOffset
 	errorPaths := make([][]byte, n)
 	for i := range errorPaths {
@@ -89,21 +87,66 @@ func (p *ErrorPages) Handle(ctx *fasthttp.RequestCtx) {
 	p.sendError(ctx, i, path)
 }
 
+// fsRequestHeaders can make fasthttp.FS answer other than 200 with the page (#116).
+var fsRequestHeaders = [...]string{
+	fasthttp.HeaderIfModifiedSince,
+	fasthttp.HeaderIfNoneMatch,
+	fasthttp.HeaderRange,
+	fasthttp.HeaderIfRange,
+}
+
+// entityHeaders describe the body of the response that an error page replaces (#120).
+var entityHeaders = []string{
+	fasthttp.HeaderContentType,
+	fasthttp.HeaderContentEncoding,
+	fasthttp.HeaderContentLanguage,
+	fasthttp.HeaderContentLocation,
+	fasthttp.HeaderContentDisposition,
+	fasthttp.HeaderETag,
+	fasthttp.HeaderLastModified,
+	"Content-MD5",
+	"Digest",
+	"Content-Digest",
+	"Repr-Digest",
+}
+
+func delEntityHeaders(h *fasthttp.ResponseHeader) {
+	for _, k := range entityHeaders {
+		h.Del(k)
+	}
+}
+
 func (p *ErrorPages) sendError(ctx *fasthttp.RequestCtx, i int, path []byte) {
 	status := ctx.Response.StatusCode()
 	uri := string(ctx.Request.RequestURI())
+	// The request may go on to the next route with nextIfNotFound, so every value is restored.
+	var saved [len(fsRequestHeaders)][][]byte
+	for j, k := range fsRequestHeaders {
+		for _, v := range ctx.Request.Header.PeekAll(k) {
+			saved[j] = append(saved[j], append([]byte{}, v...))
+		}
+		ctx.Request.Header.Del(k)
+	}
 
+	delEntityHeaders(&ctx.Response.Header)
 	ctx.Request.SetRequestURIBytes(path)
 	p.fs(ctx)
 	statusFS := ctx.Response.StatusCode()
 
 	ctx.Request.SetRequestURI(uri)
+	for j, k := range fsRequestHeaders {
+		for _, v := range saved[j] {
+			ctx.Request.Header.AddBytesV(k, v)
+		}
+	}
 	ctx.SetStatusCode(status)
 
 	if statusFS != http.StatusOK {
 		p.missing[i].Store(true)
 		ctx.Logger().Printf("invalid ErrorPages.fs status %d on %q", statusFS, path)
 
+		// FS redirects a directory path without a trailing slash.
+		ctx.Response.Header.Del(fasthttp.HeaderLocation)
 		ctx.Response.SetBody(nil)
 		SendDefaultError(ctx)
 	}
@@ -123,12 +166,14 @@ var (
 // SendDefaultError sends default error page using ctx.Response.StatusCode().
 // It works as fasthttp.RequestHandler.
 // If the provided ctx has response body or body stream, it does nothing.
+// Otherwise it also clears the entity headers of the replaced response (#120).
 func SendDefaultError(ctx *fasthttp.RequestCtx) {
 	// Body() would read a body stream to the end, e.g. a streamed proxy response (#113).
 	if ctx.Response.IsBodyStream() || len(ctx.Response.Body()) > 0 {
 		return
 	}
 
+	delEntityHeaders(&ctx.Response.Header)
 	status := ctx.Response.StatusCode()
 	b := bytebufferpool.Get()
 	for _, h := range defaultErrorHtmls {
