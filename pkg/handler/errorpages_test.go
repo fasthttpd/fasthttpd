@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -315,7 +316,7 @@ func TestErrorPages_Headers(t *testing.T) {
 	testCases := []struct {
 		caseName        string
 		status          int
-		reqHeaders      map[string]string
+		reqHeaders      map[string][]string
 		respHeaders     map[string]string
 		wantBody        string
 		wantContentType string
@@ -323,11 +324,11 @@ func TestErrorPages_Headers(t *testing.T) {
 		wantHeaders map[string]string
 		wantMissing bool
 	}{
-		{caseName: "If-Modified-Since", status: 404, reqHeaders: map[string]string{"If-Modified-Since": "Fri, 01 Jan 2100 00:00:00 GMT"}, wantBody: customBody},
-		{caseName: "If-None-Match", status: 404, reqHeaders: map[string]string{"If-None-Match": "*"}, wantBody: customBody},
-		{caseName: "Range", status: 404, reqHeaders: map[string]string{"Range": "bytes=0-5"}, wantBody: customBody},
-		{caseName: "If-Range", status: 404, reqHeaders: map[string]string{"Range": "bytes=0-5", "If-Range": "Fri, 01 Jan 2100 00:00:00 GMT"}, wantBody: customBody},
-		{caseName: "Accept-Encoding", status: 418, reqHeaders: map[string]string{"Accept-Encoding": "gzip, br"}, wantBody: "Custom compressible page"},
+		{caseName: "If-Modified-Since", status: 404, reqHeaders: map[string][]string{"If-Modified-Since": {"Fri, 01 Jan 2100 00:00:00 GMT"}}, wantBody: customBody},
+		{caseName: "If-None-Match", status: 404, reqHeaders: map[string][]string{"If-None-Match": {`"a"`, `"b"`}}, wantBody: customBody},
+		{caseName: "Range", status: 404, reqHeaders: map[string][]string{"Range": {"bytes=0-5"}}, wantBody: customBody},
+		{caseName: "If-Range", status: 404, reqHeaders: map[string][]string{"Range": {"bytes=0-5"}, "If-Range": {"Fri, 01 Jan 2100 00:00:00 GMT"}}, wantBody: customBody},
+		{caseName: "Accept-Encoding", status: 418, reqHeaders: map[string][]string{"Accept-Encoding": {"gzip, br"}}, wantBody: "Custom compressible page"},
 		{
 			caseName:        "upstream entity headers on custom page",
 			status:          404,
@@ -375,8 +376,10 @@ func TestErrorPages_Headers(t *testing.T) {
 				ctx := &fasthttp.RequestCtx{}
 				ctx.Init(&fasthttp.Request{}, nil, log)
 				ctx.Request.SetRequestURI("/missing")
-				for k, v := range tc.reqHeaders {
-					ctx.Request.Header.Set(k, v)
+				for k, vs := range tc.reqHeaders {
+					for _, v := range vs {
+						ctx.Request.Header.Add(k, v)
+					}
 				}
 				ctx.Response.SetStatusCode(tc.status)
 				for k, v := range tc.respHeaders {
@@ -412,9 +415,13 @@ func TestErrorPages_Headers(t *testing.T) {
 						}
 					}
 				}
-				for k, v := range tc.reqHeaders {
-					if got := string(ctx.Request.Header.Peek(k)); got != v {
-						t.Errorf("request %s got %s; want %s", k, got, v)
+				for k, vs := range tc.reqHeaders {
+					var got []string
+					for _, v := range ctx.Request.Header.PeekAll(k) {
+						got = append(got, string(v))
+					}
+					if !slices.Equal(got, vs) {
+						t.Errorf("request %s got %q; want %q", k, got, vs)
 					}
 				}
 			}

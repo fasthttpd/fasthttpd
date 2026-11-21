@@ -119,12 +119,13 @@ func delEntityHeaders(h *fasthttp.ResponseHeader) {
 func (p *ErrorPages) sendError(ctx *fasthttp.RequestCtx, i int, path []byte) {
 	status := ctx.Response.StatusCode()
 	uri := string(ctx.Request.RequestURI())
-	var saved [len(fsRequestHeaders)][]byte
+	// The request may go on to the next route with nextIfNotFound, so every value is restored.
+	var saved [len(fsRequestHeaders)][][]byte
 	for j, k := range fsRequestHeaders {
-		if v := ctx.Request.Header.Peek(k); v != nil {
-			saved[j] = append([]byte{}, v...)
-			ctx.Request.Header.Del(k)
+		for _, v := range ctx.Request.Header.PeekAll(k) {
+			saved[j] = append(saved[j], append([]byte{}, v...))
 		}
+		ctx.Request.Header.Del(k)
 	}
 
 	delEntityHeaders(&ctx.Response.Header)
@@ -134,8 +135,8 @@ func (p *ErrorPages) sendError(ctx *fasthttp.RequestCtx, i int, path []byte) {
 
 	ctx.Request.SetRequestURI(uri)
 	for j, k := range fsRequestHeaders {
-		if saved[j] != nil {
-			ctx.Request.Header.SetBytesV(k, saved[j])
+		for _, v := range saved[j] {
+			ctx.Request.Header.AddBytesV(k, v)
 		}
 	}
 	ctx.SetStatusCode(status)
