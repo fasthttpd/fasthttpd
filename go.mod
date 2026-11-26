@@ -2,6 +2,8 @@ module github.com/fasthttpd/fasthttpd
 
 go 1.26.0
 
+toolchain go1.26.11
+
 require (
 	github.com/mojatter/io2 v0.9.0
 	github.com/mojatter/tree v0.22.0
